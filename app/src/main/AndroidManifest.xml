@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <queries>
+        <!-- The generated pack: is it installed already? -->
+        <package android:name="${packPackage}" />
         <!-- Coverage: every launchable app. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />

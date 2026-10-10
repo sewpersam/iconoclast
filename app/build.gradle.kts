@@ -12,7 +12,9 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1"
-        buildConfigField("String", "PACK_PACKAGE", "\"${providers.gradleProperty("icondesigner.packApplicationId").get()}\"")
+        val packPackage = providers.gradleProperty("icondesigner.packApplicationId").get()
+        buildConfigField("String", "PACK_PACKAGE", "\"$packPackage\"")
+        manifestPlaceholders["packPackage"] = packPackage
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {
