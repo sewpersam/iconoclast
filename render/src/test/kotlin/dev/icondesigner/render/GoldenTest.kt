@@ -14,10 +14,10 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * Golden images: 24 sample icons in each fill mode, at the output size, compared pixel
- * for pixel after decoding. The goldens and the sample bundle live in
- * src/test/resources/golden. `./gradlew :render:test -PupdateGoldens` rewrites both from
- * the converted Arcticons bundle.
+ * Golden images: 24 sample icons in each fill mode, at the output size, compared byte
+ * for byte as PNG files. The encoder is deterministic, so equal pixels give equal bytes.
+ * The goldens and the sample bundle live in src/test/resources/golden.
+ * `./gradlew :render:test -PupdateGoldens` rewrites both from the converted Arcticons bundle.
  */
 class GoldenTest {
 
@@ -52,7 +52,11 @@ class GoldenTest {
                 File(System.getProperty("golden.dir"), path).apply { parentFile.mkdirs() }.writeBytes(png)
                 continue
             }
-            if (!decode(png).contentEquals(decode(resource(path)))) mismatches += path
+            val golden = resource(path)
+            if (!png.contentEquals(golden)) {
+                val pixels = if (decode(png).contentEquals(decode(golden))) "pixels equal" else "pixels differ"
+                mismatches += "$path ($pixels)"
+            }
         }
         if (mismatches.isNotEmpty()) fail("${mismatches.size} goldens differ: ${mismatches.take(10)}")
     }
@@ -112,7 +116,7 @@ class GoldenTest {
         assertEquals(24, SAMPLES.size)
     }
 
-    /** Straight ARGB of every pixel. */
+    /** Straight ARGB of every pixel, only to say whether a byte mismatch is also a pixel one. */
     private fun decode(png: ByteArray): IntArray {
         val img = ImageIO.read(ByteArrayInputStream(png))
         return img.getRGB(0, 0, img.width, img.height, null, 0, img.width)
