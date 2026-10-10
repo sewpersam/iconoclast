@@ -37,6 +37,7 @@ class AppContainer(private val app: Application) {
     }
 
     init {
+        scope.launch { RenderWarmup.run() }
         scope.launch {
             // HomeViewModel loads again and shows the failure; here it is only logged.
             try {
