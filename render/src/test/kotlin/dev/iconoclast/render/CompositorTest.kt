@@ -33,9 +33,30 @@ class CompositorTest {
         r.render(1, icon, theme.copy(glyph = GlyphPaint(line = 0xFFFF0000.toInt())), 96)
         assertEquals(misses, r.cache.misses, "only paint changed")
         r.render(1, icon, theme.copy(fill = theme.fill.copy(gapWidth = 2f)), 96)
-        assertEquals(misses + 1, r.cache.misses, "a fill change recomputes the fill only")
+        assertEquals(misses + 2, r.cache.misses, "a gap change recomputes the fill and its lone lines only")
         r.render(1, icon, theme.copy(shape = theme.shape.copy(strokeWeight = 2f)), 96)
-        assertEquals(misses + 3, r.cache.misses, "a shape change recomputes geometry and fill")
+        assertEquals(misses + 5, r.cache.misses, "a shape change recomputes geometry, fill and lone lines")
+    }
+
+    @Test
+    fun thresholdAndLoneLinesReuseTheFillMasks() {
+        val r = IconRenderer()
+        val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
+        val first = r.render(1, icon, theme, 96)
+        val misses = r.cache.misses
+        r.render(1, icon, theme.copy(fill = theme.fill.copy(fallbackThreshold = 0.3f)), 96)
+        r.render(1, icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96)
+        assertEquals(misses, r.cache.misses, "threshold and lone lines choose between cached masks")
+        // The same pixels as a renderer that never cached the other settings.
+        assertContentEquals(first.pixels, r.render(1, icon, theme, 96).pixels)
+        val noLines = r.render(1, icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96)
+        assertContentEquals(IconRenderer().render(1, icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96).pixels, noLines.pixels)
+        // Outline ignores gap and closing, so changing them hits the cache.
+        val outline = Theme()
+        r.render(1, icon, outline, 96)
+        val m2 = r.cache.misses
+        r.render(1, icon, outline.copy(fill = outline.fill.copy(gapWidth = 3f, gapClosing = 1.5f)), 96)
+        assertEquals(m2, r.cache.misses, "outline does not read gap or closing")
     }
 
     @Test

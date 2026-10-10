@@ -56,31 +56,49 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
     fun renderPng(drawable: Int, icon: Icon, theme: Theme, size: Int): ByteArray =
         PngEncoder.encode(render(drawable, icon, theme, size))
 
-    /** Steps 1 and 2, cached. */
+    /**
+     * Steps 1 and 2, cached. The geometry, the fill masks and invert fill's lone lines are
+     * cached apart, so the fallback threshold and the lone-lines switch reuse the masks.
+     */
     fun glyphMasks(drawable: Int, icon: Icon, theme: Theme, size: Int): GlyphMasks {
         val shape = theme.shape
         val fill = theme.fill
-        return cache.fill(FillKey(drawable, shape, fill, size)) {
-            val geometry = cache.geometry(GeometryKey(drawable, shape, size)) {
-                rasterizeGlyph(icon, glyphSpec(shape, size), size)
+        val key = FillKey.of(drawable, shape, fill, size)
+        val geometry = { cache.geometry(GeometryKey(drawable, shape, size)) { rasterizeGlyph(icon, glyphSpec(shape, size), size) } }
+        val input = { cut: FloatArray? -> fillInput(geometry(), shape, fill, size, cut) }
+        val core = cache.fill(key) {
+            when (fill.mode) {
+                FillMode.OUTLINE -> GlyphMasks(null, geometry())
+                FillMode.SILHOUETTE -> GlyphMasks(FillModes.silhouette(input(null)), null)
+                FillMode.OUTLINE_SILHOUETTE -> GlyphMasks(FillModes.silhouette(input(null)), geometry())
+                FillMode.INVERT -> {
+                    val cut = rasterizeGlyph(
+                        icon,
+                        glyphSpec(shape, size, extraWidth = 2 * fill.gapWidth, cap = LineCap.ROUND, join = LineJoin.ROUND),
+                        size,
+                    )
+                    GlyphMasks(FillModes.invertBody(input(cut)), null)
+                }
             }
-            val scale = unitScale(shape, size)
-            val cut = if (fill.mode == FillMode.INVERT) {
-                rasterizeGlyph(
-                    icon,
-                    glyphSpec(shape, size, extraWidth = 2 * fill.gapWidth, cap = LineCap.ROUND, join = LineJoin.ROUND),
-                    size,
-                )
-            } else null
-            val input = FillInput(
-                geometry, size,
-                strokePx = shape.strokeWeight * scale,
-                gapPx = fill.gapWidth * scale,
-                closingPx = fill.gapClosing * scale,
-                cut = cut,
-            )
-            FillModes.apply(fill.mode, input, fill.fallbackThreshold, fill.keepLoneLines)
         }
+        if (fill.mode != FillMode.INVERT) return core
+        val body = requireNotNull(core.body)
+        val g = geometry()
+        return FillModes.invertMasks(g, body, fill.fallbackThreshold) {
+            if (!fill.keepLoneLines) null
+            else cache.loneLines(LoneLinesKey(key)) { FillModes.loneLines(g, body, fillInput(g, shape, fill, size, null)) }
+        }
+    }
+
+    private fun fillInput(geometry: FloatArray, shape: ShapeParams, fill: FillParams, size: Int, cut: FloatArray?): FillInput {
+        val scale = unitScale(shape, size)
+        return FillInput(
+            geometry, size,
+            strokePx = shape.strokeWeight * scale,
+            gapPx = fill.gapWidth * scale,
+            closingPx = fill.gapClosing * scale,
+            cut = cut,
+        )
     }
 
     /** Step 3. Returns the shape coverage for step 5. */

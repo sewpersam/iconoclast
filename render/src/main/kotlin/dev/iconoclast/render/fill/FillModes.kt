@@ -59,16 +59,30 @@ object FillModes {
      * strokes that border no fill are returned as lines to draw on top.
      */
     fun invert(input: FillInput, fallbackThreshold: Float, keepLoneLines: Boolean): GlyphMasks {
+        val body = invertBody(input)
+        return invertMasks(input.geometry, body, fallbackThreshold) { if (keepLoneLines) loneLines(input.geometry, body, input) else null }
+    }
+
+    /**
+     * The invert fill before the fallback test: enclosed regions minus the cut. Depends on
+     * the geometry, gap and closing only, so [IconRenderer][dev.iconoclast.render.IconRenderer]
+     * caches it apart from the threshold and the lone-lines switch.
+     */
+    fun invertBody(input: FillInput): FloatArray {
         val g = input.geometry
         val cut = requireNotNull(input.cut) { "invert fill needs the cut mask" }
         val r = regions(input)
         val size = input.size
         // Grown one pixel into the stroke, so the fill meets the cut's edge without a seam.
-        val fill = FloatArray(g.size) {
+        return FloatArray(g.size) {
             if (r.enclosed[it] || r.stroke[it] && touches(r.enclosed, it, size)) 1f - cut[it] else 0f
         }
-        if (fill.sum() < fallbackThreshold * g.sum()) return GlyphMasks(null, g, fellBack = true)
-        return GlyphMasks(fill, if (keepLoneLines) loneLines(g, fill, input) else null)
+    }
+
+    /** Applies the fallback threshold to [body]. [lines] supplies the lone lines when the fill stands. */
+    fun invertMasks(geometry: FloatArray, body: FloatArray, fallbackThreshold: Float, lines: () -> FloatArray?): GlyphMasks {
+        if (body.sum() < fallbackThreshold * geometry.sum()) return GlyphMasks(null, geometry, fellBack = true)
+        return GlyphMasks(body, lines())
     }
 
     /**
