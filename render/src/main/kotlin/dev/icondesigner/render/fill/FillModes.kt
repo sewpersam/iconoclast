@@ -39,11 +39,18 @@ object FillModes {
             FillMode.INVERT -> invert(input, fallbackThreshold, keepLoneLines)
         }
 
-    /** Enclosed regions plus the strokes. */
+    /**
+     * Enclosed regions plus the strokes: solid everywhere except the outside and the
+     * stroke pixels on its edge, which keep their anti-aliased coverage.
+     */
     fun silhouette(input: FillInput): FloatArray {
         val g = input.geometry
-        val inner = interior(input)
-        return FloatArray(g.size) { if (inner[it]) 1f else g[it] }
+        val size = input.size
+        val r = regions(input)
+        val outside = BooleanArray(g.size) { !r.stroke[it] && !r.enclosed[it] }
+        return FloatArray(g.size) {
+            if (outside[it] || r.stroke[it] && touches(outside, it, size)) g[it] else 1f
+        }
     }
 
     /**
@@ -54,8 +61,12 @@ object FillModes {
     fun invert(input: FillInput, fallbackThreshold: Float, keepLoneLines: Boolean): GlyphMasks {
         val g = input.geometry
         val cut = requireNotNull(input.cut) { "invert fill needs the cut mask" }
-        val inner = interior(input)
-        val fill = FloatArray(g.size) { if (inner[it]) 1f - cut[it] else 0f }
+        val r = regions(input)
+        val size = input.size
+        // Grown one pixel into the stroke, so the fill meets the cut's edge without a seam.
+        val fill = FloatArray(g.size) {
+            if (r.enclosed[it] || r.stroke[it] && touches(r.enclosed, it, size)) 1f - cut[it] else 0f
+        }
         if (fill.sum() < fallbackThreshold * g.sum()) return GlyphMasks(null, g, fellBack = true)
         return GlyphMasks(fill, if (keepLoneLines) loneLines(g, fill, input) else null)
     }
@@ -77,18 +88,19 @@ object FillModes {
 
     private const val SQRT2 = 1.4142135f
 
+    /** [stroke]: geometry at or above half coverage. [enclosed]: non-stroke pixels not outside. */
+    private class Regions(val stroke: BooleanArray, val enclosed: BooleanArray)
+
     /**
-     * Enclosed non-stroke pixels, grown by one pixel into the stroke so the fill meets the
-     * stroke's anti-aliased edge without a seam.
-     *
-     * Gap closing is an opening of each enclosed region rather than a closing of the
-     * strokes. The two agree away from gaps, but a pixel-grid closing reopens the gap
-     * between two thin stroke ends: disks slide in from both sides and leave a seal
-     * thinner than a pixel. Here the strokes are dilated by the closing radius, the
-     * remaining regions labelled, and only the enclosed ones grown back by that radius,
-     * so nothing from outside can reclaim the gap.
+     * Gap closing is built from dilations rather than a closing of the strokes. A
+     * pixel-grid closing reopens the gap between two thin stroke ends: disks slide in from
+     * both sides and leave a seal thinner than a pixel. Here the strokes are dilated by the
+     * closing radius and the remaining regions labelled. Each side is then grown back by
+     * that radius. Where both reach, as in a sealed gap, the enclosed side wins. Pixels
+     * neither reaches, such as narrow pockets where strokes meet, are enclosed too: they
+     * are not outside.
      */
-    private fun interior(input: FillInput): BooleanArray {
+    private fun regions(input: FillInput): Regions {
         val size = input.size
         val g = input.geometry
         val n = g.size
@@ -96,18 +108,18 @@ object FillModes {
         val r = input.closingPx
         val barrier = if (r > 0f) Morphology.dilate(stroke, size, size, r) else stroke
         val labels = label4(BooleanArray(n) { !barrier[it] }, size, size)
-        val outside = touchesBorder(labels, size, size)
+        val border = touchesBorder(labels, size, size)
         val l = labels.labels
-        var enclosed = BooleanArray(n) { l[it] != 0 && !outside[l[it]] }
-        if (r > 0f) {
-            val grown = Morphology.dilate(enclosed, size, size, r)
-            enclosed = BooleanArray(n) { grown[it] && !stroke[it] }
-        }
-        return BooleanArray(n) { p ->
-            enclosed[p] || stroke[p] && (
-                (p % size > 0 && enclosed[p - 1]) || (p % size < size - 1 && enclosed[p + 1]) ||
-                    (p >= size && enclosed[p - size]) || (p < n - size && enclosed[p + size])
-                )
-        }
+        val outside = BooleanArray(n) { l[it] != 0 && border[l[it]] }
+        val inside = BooleanArray(n) { l[it] != 0 && !border[l[it]] }
+        val outsideGrown = Morphology.dilate(outside, size, size, r)
+        val insideGrown = Morphology.dilate(inside, size, size, r)
+        val enclosed = BooleanArray(n) { !stroke[it] && (insideGrown[it] || !outsideGrown[it]) }
+        return Regions(stroke, enclosed)
     }
+
+    /** Whether a 4-neighbour of pixel [p] is set in [mask]. */
+    private fun touches(mask: BooleanArray, p: Int, size: Int): Boolean =
+        (p % size > 0 && mask[p - 1]) || (p % size < size - 1 && mask[p + 1]) ||
+            (p >= size && mask[p - size]) || (p < mask.size - size && mask[p + size])
 }
