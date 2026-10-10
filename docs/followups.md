@@ -55,3 +55,47 @@ Extracted from the execution ledger on 2026-10-10. Triage from the whole-branch 
 - Cold first preview render misses the 150 ms budget (164-194 ms on emulator); owned by the M4 slider-fps gate.
 - M8 reproducibility assumes the same aapt2 build-tools 36.0.0 on every builder.
 - evaluationDependsOn plus reflective property reads in app, pack and render build files will break under configuration cache or isolated projects.
+
+## M4 additions (2026-10-10)
+
+### Deferred minors from M4
+- Task 5: minor (deferred): directory not fsynced after atomic rename; stale .tmp files never cleaned.
+- Task 5: minor (deferred): export cache dir keeps one stale JSON.
+- Task 5: minor (deferred): nine image descriptions per card is noisy in TalkBack; one description per card.
+- Task 5: minor (deferred): rename/delete dialog state uses remember, lost on rotation.
+- Task 5: minor (deferred): -0f in-memory theme misses the preview cache once.
+- Task 5: minor (deferred): exportJson and active() unused in app code.
+- Task 5: minor (deferred): stale NavController lambda in create(onCreated) after activity recreation.
+- Task 6: minor (deferred): outline fill cache entries count 0 bytes but retain the geometry array; bound is loose.
+- Task 6: minor (deferred): reset glyph text may be spoken alongside its contentDescription; use clearAndSetSemantics.
+- Task 6: minor (deferred): EditorViewModel.SAMPLES duplicates GoldenSet.SAMPLES; RgbaImage-to-Bitmap conversion exists twice.
+- Task 6: minor (deferred): warm-up render costs ~400 ms CPU on every process start including UI-less starts.
+- Task 6: minor (deferred): TalkBack never actually exercised.
+
+### Rulings made in M4
+- Ruling: M4 split into storage+home (T5) then editor (T6) — cost: none.
+- Ruling: Jade preset uses a solid jade colour until M5 textures exist — cost: preset re-authored at M6 anyway.
+- Ruling: third preset deferred to M6 — cost: none.
+- Ruling: name is Iconoclast (his pick); ids dev.iconoclast.app and dev.iconoclast.app.pack, Kotlin packages dev.iconoclast.* — full rename is Task 5 commit 1 — cost if wrong: one more rename.
+- Ruling: no preview renders below 128 px; the 64 px plan number is withdrawn — the fill decision depends on raster resolution, so a smaller preview lies — cost if wrong: preview memory and drag cost, Task 6 measures it.
+- Ruling: spec 30 fps budget is the UI frame rate during drag (60 fps, pass); preview update rate is its own row with a 10 Hz floor on emulator debug build (14 Hz, pass) — cost if wrong: a real phone is faster, not slower.
+- Ruling: gap closing is shown in both silhouette modes too, amending the brief — the renderer reads it there — cost: none.
+- Ruling: cold preview miss (212-227 ms) accepted as first-run cost, same as M3; warm matches M3 — cost if wrong: one stutter on editor open.
+
+### Fixed since the M3 list
+- Dot gap scaling: DONE in M3 final wave, f6c6411.
+- Golden byte compare: DONE in M3 final wave, b5d3832.
+- m2.md 1x wording: DONE in M3 final wave, 1fbf724.
+- MaskCache counters now increment under the lock; only test reads are unsynchronised.
+
+### M5 readiness, from the M4 whole-milestone review (do these first, in order)
+1. Masks become read-only at the cache boundary; cache the fill core without the geometry reference and re-attach on read (also fixes the loose 64 MB bound).
+2. The renderer gets a stable icon identity: render takes the drawable name or a name-derived seed; offset-dependent layer keys use it.
+3. Effect keys include the fallback: (FillKey, fellBack, keepLoneLines), following the LoneLinesKey pattern.
+4. Textures stay out of the mask cache: own store keyed by SHA-256, canonical PNG from the project encoder, pure-Kotlin inflate in :render.
+5. Compositor becomes a stack evaluator: source RGBA, clip mask, mask adjustments, blend(mode, opacity); Paint gains Texture and Noise; all 17 blend modes in Kotlin with W3C formulas, android.graphics only for UI names.
+6. Define the "icon" clip target as body union lines, with sub-targets or two default layers so Plain and Jade reproduce.
+7. Schema v2: bump CURRENT_SCHEMA, append a pure v1ToV2 step mapping glyph and background.paint into the base stack.
+8. StrictMath or plain arithmetic on every per-pixel path; seeded PRNG for noise.
+9. Sealing is not strictly monotone below one step: step over the distinct strokeD2 values <= r² instead of ceil(r) samples.
+10. Declare lifecycle-viewmodel-compose and lifecycle-runtime-compose in the version catalog.
