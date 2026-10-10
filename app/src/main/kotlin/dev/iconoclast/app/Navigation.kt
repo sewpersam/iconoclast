@@ -10,6 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import dev.iconoclast.app.editor.EditorScreen
+import dev.iconoclast.app.editor.EditorViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -32,9 +35,8 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
             HomeScreen(home, onOpen = { nav.navigate(Routes.editor(it)) { launchSingleTop = true } }, onApply = { nav.navigate(Routes.APPLY) { launchSingleTop = true } })
         }
         composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
-            val themes by home.themes.collectAsState()
-            val id = entry.arguments?.getString("id")
-            EditorScreen(themes.find { it.id == id }, onBack = { nav.popBackStack() })
+            val id = requireNotNull(entry.arguments?.getString("id"))
+            EditorScreen(viewModel(factory = EditorViewModel.factory(id)), onBack = { nav.popBackStack() })
         }
         composable(Routes.APPLY) {
             val state by apply.state.collectAsState()
