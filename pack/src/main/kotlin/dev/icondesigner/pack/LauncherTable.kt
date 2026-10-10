@@ -28,7 +28,9 @@ object LauncherTable {
             packageName = "com.saggitt.omega",
             name = "Neo Launcher",
             selectPack = "Long-press the home screen, then Home settings, Profile, Icon Packs, pick the pack and tap OK. " +
-                "If the pack is not listed, open the menu at the top right of Home settings, tap Restart, and try again.",
+                "If the pack is not listed, open the menu at the top right of Home settings, tap Restart, and try again. " +
+                "If an app such as Phone keeps its old icon, open Icon Packs again, pick System icons and tap OK, " +
+                "then pick the pack again and tap OK.",
             refresh = "Long-press the home screen, then Home settings. Open the menu at the top right and tap Restart. " +
                 "Then open Home settings again, Profile, Icon Packs, pick System icons and tap OK, " +
                 "then open Icon Packs again, pick the pack and tap OK.",
