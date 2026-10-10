@@ -14,11 +14,13 @@ class PreviewIcon(val label: String, val image: ImageBitmap)
 
 /**
  * The live preview icons on a theme card, spec 2.2 screen 1: a fixed sample set,
- * rendered off the main thread by the shared renderer, cached by theme.
+ * rendered off the main thread by the shared renderer at [SIZE], cached by theme.
  */
 class ThemePreviews(private val container: AppContainer) {
-    // Keyed by the Theme itself: a data class, so equal recipes share one entry.
-    private val cache = LruCache<Theme, List<PreviewIcon>>(CACHED_THEMES)
+    // Keyed by the Theme itself: a data class, so equal recipes share one entry. Bounded by bytes.
+    private val cache = object : LruCache<Theme, List<PreviewIcon>>(CACHE_BYTES) {
+        override fun sizeOf(key: Theme, value: List<PreviewIcon>) = value.size * SIZE * SIZE * 4
+    }
 
     suspend fun icons(theme: Theme): List<PreviewIcon> = cache.get(theme) ?: withContext(Dispatchers.Default) {
         val source = container.iconSource()
@@ -33,8 +35,13 @@ class ThemePreviews(private val container: AppContainer) {
     }.also { cache.put(theme, it) }
 
     companion object {
-        const val SIZE = 64
-        private const val CACHED_THEMES = 32
+        /**
+         * Never below 128 px. At 64 px a 1-unit stroke is about one pixel, enclosed areas
+         * leak and invert fill falls back to outline, so the card would not show the pack.
+         */
+        const val SIZE = 128
+        /** About 28 themes of nine 128 px icons. */
+        private const val CACHE_BYTES = 16 * 1024 * 1024
 
         /** Nine of the golden sample icons: varied shapes, dots, enclosed and open areas. */
         val SAMPLES = listOf("fdroid", "camera", "firefox", "signal", "calculator", "clock", "settings", "weather", "termux")
