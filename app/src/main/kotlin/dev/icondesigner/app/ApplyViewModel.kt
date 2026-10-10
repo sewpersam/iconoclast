@@ -20,6 +20,7 @@ import dev.icondesigner.pack.PackSigner
 import dev.icondesigner.pack.TooManyIconsException
 import dev.icondesigner.render.IconRenderer
 import dev.icondesigner.render.Theme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,6 +60,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
                 run(theme)
             } catch (e: TooManyIconsException) {
                 ApplyState.Problem("${e.needed} apps have icons, but a pack holds at most ${e.available}. Nothing was installed.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Apply failed", e)
                 ApplyState.Problem("Apply failed: ${e.message ?: e.javaClass.simpleName}")
