@@ -1,4 +1,4 @@
-// Build-time tooling: the SVG-to-bundle converter and the appfilter compiler.
+// Build-time tooling: the SVG-to-bundle converter, the appfilter compiler, the pack template.
 plugins {
     `java-gradle-plugin`
     alias(libs.plugins.kotlin.jvm)
@@ -18,6 +18,10 @@ gradlePlugin {
         create("arcticons") {
             id = "icondesigner.arcticons"
             implementationClass = "dev.icondesigner.buildlogic.arcticons.ArcticonsPlugin"
+        }
+        create("templatepack") {
+            id = "icondesigner.templatepack"
+            implementationClass = "dev.icondesigner.buildlogic.templatepack.TemplatePackPlugin"
         }
     }
 }

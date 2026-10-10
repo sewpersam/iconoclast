@@ -1,21 +1,60 @@
-// The icon pack APK template. The designer rewrites its icons and re-signs it.
+// The icon pack APK template. The designer rewrites its icons and re-signs it on the phone.
+// Built with aapt2 and d8 from build-tools, as spike/pack.py proved, not by AGP.
+import dev.icondesigner.buildlogic.templatepack.BuildTemplatePackTask
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+
 plugins {
-    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.jvm)
+    id("icondesigner.templatepack")
 }
 
-android {
-    namespace = "dev.icondesigner.app.pack"
-    compileSdk = libs.versions.compileSdk.get().toInt()
-    defaultConfig {
-        applicationId = providers.gradleProperty("icondesigner.packApplicationId").get()
-        minSdk = libs.versions.minSdk.get().toInt()
-        targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1"
+val sdkDir: File = Properties().run {
+    val local = rootProject.file("local.properties")
+    if (local.exists()) local.inputStream().use { load(it) }
+    File(getProperty("sdk.dir") ?: System.getenv("ANDROID_HOME") ?: error("Set sdk.dir in local.properties or ANDROID_HOME"))
+}
+val buildTools = sdkDir.resolve("build-tools/${libs.versions.buildTools.get()}")
+val compileSdk = libs.versions.compileSdk.get()
+val platformJar = listOf("android-$compileSdk", "android-$compileSdk.0")
+    .map { sdkDir.resolve("platforms/$it/android.jar") }
+    .firstOrNull { it.exists() } ?: error("No android.jar for compileSdk $compileSdk under $sdkDir/platforms")
+
+dependencies {
+    compileOnly(files(platformJar))
+}
+
+java.targetCompatibility = JavaVersion.VERSION_17
+kotlin.compilerOptions {
+    jvmTarget = JvmTarget.JVM_17
+    // No Intrinsics calls: the pack does not ship the Kotlin runtime.
+    freeCompilerArgs.addAll("-Xno-param-assertions", "-Xno-call-assertions", "-Xno-receiver-assertions")
+}
+
+/** The designer's app name, from its one definition in :app's strings.xml. */
+val designerAppName: String = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+    .parse(rootProject.file("app/src/main/res/values/strings.xml"))
+    .getElementsByTagName("string").let { nodes ->
+        (0 until nodes.length).map { nodes.item(it) as org.w3c.dom.Element }
+            .first { it.getAttribute("name") == "app_name" }.textContent
     }
-}
 
-// The pack has no Kotlin code. Keep the stdlib that AGP adds out of the APK.
-configurations.configureEach {
-    exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
+tasks.register<BuildTemplatePackTask>("buildTemplatePack") {
+    group = "build"
+    description = "Builds the unsigned icon pack template APK the designer ships in its assets."
+    aapt2 = buildTools.resolve("aapt2")
+    d8 = buildTools.resolve("d8")
+    androidJar = platformJar
+    activityClasses.from(sourceSets.main.map { it.output.classesDirs })
+    ccLicense = rootProject.layout.projectDirectory.file("licenses/CC-BY-SA-4.0.txt")
+    packageName = providers.gradleProperty("icondesigner.packApplicationId")
+    designerPackage = providers.gradleProperty("icondesigner.applicationId")
+    appName = designerAppName
+    minSdk = libs.versions.minSdk.get().toInt()
+    targetSdk = libs.versions.targetSdk.get().toInt()
+    // Spec 3.4: 1024 slots. A heavily loaded phone has 300 to 500 launchable apps; the
+    // empty template costs about 100 bytes per slot. Above 1024 the designer shows an error.
+    slotCount = 1024
+    workDir = layout.buildDirectory.dir("template-work")
+    outputApk = layout.buildDirectory.file("template/template.apk")
 }
