@@ -1,5 +1,8 @@
 package dev.icondesigner.buildlogic.arcticons
 
+import dev.icondesigner.render.format.ComponentTable
+import dev.icondesigner.render.format.ComponentTableFormat
+import java.nio.ByteBuffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -34,6 +37,25 @@ class AppfilterCompilerTest {
         assertEquals(listOf("com.h/com.h.Main -> missing"), r.unknownDrawable)
         assertEquals(2, r.duplicates)
         assertEquals(listOf("com.a/com.a.Main -> beta"), r.conflicting)
+    }
+
+    /** Installed components are always fully qualified, so the short form must be expanded. */
+    @Test
+    fun shortFormResolvesFromAFullyQualifiedQuery() {
+        val xml = """<resources>
+            <item component="ComponentInfo{com.s/.ui.Main}" drawable="alpha"/>
+            <item component="ComponentInfo{com.t/.Main}" drawable="alpha"/>
+            <item component="ComponentInfo{com.t/com.t.Main}" drawable="beta"/>
+            <item component="ComponentInfo{com.u/com.u.Main}" drawable="beta"/>
+            <item component="ComponentInfo{com.u/.Main}" drawable="alpha"/>
+        </resources>"""
+        val r = compileAppfilter(xml.byteInputStream(), mapOf("alpha" to 0, "beta" to 1))
+        // The fully qualified entry wins whichever comes first.
+        assertEquals(mapOf("com.s/com.s.ui.Main" to 0, "com.t/com.t.Main" to 1, "com.u/com.u.Main" to 1), r.entries)
+        assertEquals(3, r.expanded)
+        assertEquals(listOf("com.t/com.t.Main -> beta, replaces the short form", "com.u/com.u.Main -> alpha"), r.conflicting)
+        val table = ComponentTable(ByteBuffer.wrap(ComponentTableFormat.encode(r.entries)))
+        assertEquals(0, table.lookup("com.s/com.s.ui.Main"))
     }
 
     @Test

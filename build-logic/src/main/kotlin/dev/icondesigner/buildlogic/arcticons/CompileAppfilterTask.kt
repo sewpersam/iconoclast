@@ -45,6 +45,7 @@ abstract class CompileAppfilterTask : DefaultTask() {
             appendLine("items ${result.items}")
             appendLine("entries ${result.entries.size}")
             appendLine("shortcuts ${result.shortcuts}")
+            appendLine("shortFormExpanded ${result.expanded}")
             appendLine("calendarSkipped ${result.calendarSkipped}")
             appendLine("malformed ${result.malformed.size}")
             appendLine("unknownDrawable ${result.unknownDrawable.size}")
