@@ -49,14 +49,19 @@ class PackInstallSession(private val context: Context) {
                     setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
                 }
                 val id = installer.createSession(params)
-                installer.openSession(id).use { session ->
-                    session.openWrite("base.apk", 0, apk.length()).use { out ->
-                        apk.inputStream().use { it.copyTo(out) }
-                        session.fsync(out)
+                try {
+                    installer.openSession(id).use { session ->
+                        session.openWrite("base.apk", 0, apk.length()).use { out ->
+                            apk.inputStream().use { it.copyTo(out) }
+                            session.fsync(out)
+                        }
+                        val callback = Intent(action).setPackage(context.packageName)
+                        val pending = PendingIntent.getBroadcast(context, id, callback, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+                        session.commit(pending.intentSender)
                     }
-                    val callback = Intent(action).setPackage(context.packageName)
-                    val pending = PendingIntent.getBroadcast(context, id, callback, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
-                    session.commit(pending.intentSender)
+                } catch (e: Exception) {
+                    installer.abandonSession(id)
+                    throw e
                 }
                 id
             }
