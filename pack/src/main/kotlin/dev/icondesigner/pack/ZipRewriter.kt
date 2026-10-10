@@ -104,6 +104,10 @@ object ZipRewriter {
         return out.toByteArray()
     }
 
+    /** Entry names of [zip] in central directory order. */
+    fun entryNames(zip: ByteArray): List<String> =
+        readCentralDirectory(ByteBuffer.wrap(zip).order(ByteOrder.LITTLE_ENDIAN)).map { it.nameString }
+
     private fun readCentralDirectory(src: ByteBuffer): List<Entry> {
         val end = findEndRecord(src)
         val count = src.getShort(end + 10).toInt() and 0xFFFF
