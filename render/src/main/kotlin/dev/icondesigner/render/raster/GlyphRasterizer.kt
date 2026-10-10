@@ -21,7 +21,7 @@ class GlyphSpec(
     val transform: Affine,
     /** Multiplies every source stroke width. */
     val strokeScale: Float = 1f,
-    /** Canvas units added to every stroke width. Filled primitives get an outline this wide. */
+    /** Canvas units added to every stroke width. Filled primitives get an outline this wide, unscaled by [dotScale]. */
     val extraWidth: Float = 0f,
     val cap: LineCap? = null,
     val join: LineJoin? = null,
@@ -49,7 +49,7 @@ fun rasterizeGlyph(icon: Icon, spec: GlyphSpec, size: Int): FloatArray {
             for (l in lines) fill.addPolygon(l.xy)
             fillCoverage(fill, p.isEvenOdd, size, size, target)
             if (spec.extraWidth > 0f) {
-                val outline = Stroker(spec.extraWidth * m.scale / 2, LineCap.ROUND, LineJoin.ROUND, 4f, FLATTEN_TOLERANCE)
+                val outline = Stroker(spec.extraWidth * spec.transform.scale / 2, LineCap.ROUND, LineJoin.ROUND, 4f, FLATTEN_TOLERANCE)
                 for (l in lines) outline.stroke(Polyline(l.xy, closed = true), strokes)
             }
         }

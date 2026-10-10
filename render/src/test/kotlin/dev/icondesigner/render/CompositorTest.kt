@@ -3,6 +3,8 @@ package dev.icondesigner.render
 import dev.icondesigner.render.format.Icon
 import dev.icondesigner.render.format.Primitive
 import dev.icondesigner.render.format.Verb
+import dev.icondesigner.render.raster.rasterizeGlyph
+import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -80,5 +82,24 @@ class CompositorTest {
         val one = area(ShapeParams())
         assertEquals(4f * one, area(ShapeParams(strokeWeight = 2f)), 0.02f * 4f * one)
         assertEquals(one, area(ShapeParams(strokeWeight = 2f, dots = DotMode.KEEP_ORIGINAL)), 0.001f * one)
+    }
+
+    /** The invert cut around a dot is the dot, scaled, plus a gap that does not scale. */
+    @Test
+    fun dotGapIsConstantAcrossStrokeWeights() {
+        val k = 0.5522848f * 0.75f
+        val dot = Primitive(Primitive.flags(false, true, false, 0, 0), 1f, 4f,
+            byteArrayOf(Verb.MOVE, Verb.CUBIC, Verb.CUBIC, Verb.CUBIC, Verb.CUBIC, Verb.CLOSE),
+            floatArrayOf(24.75f, 24f, 24.75f, 24f + k, 24f + k, 24.75f, 24f, 24.75f, 24f - k, 24.75f, 23.25f, 24f + k,
+                23.25f, 24f, 23.25f, 24f - k, 24f - k, 23.25f, 24f, 23.25f, 24f + k, 23.25f, 24.75f, 24f - k, 24.75f, 24f))
+        val gap = 1f
+        for (w in listOf(1f, 2f, 3f)) {
+            val shape = ShapeParams(strokeWeight = w)
+            val scale = IconRenderer.unitScale(shape, 256)
+            val spec = IconRenderer.glyphSpec(shape, 256, extraWidth = 2 * gap)
+            val cut = rasterizeGlyph(Icon(listOf(dot)), spec, 256).sum()
+            val r = (0.75f * w + gap) * scale
+            assertEquals((PI * r * r).toFloat(), cut, 0.02f * cut, "stroke weight $w")
+        }
     }
 }
