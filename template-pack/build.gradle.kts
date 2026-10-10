@@ -39,9 +39,8 @@ val designerAppName: String = javax.xml.parsers.DocumentBuilderFactory.newInstan
             .first { it.getAttribute("name") == "app_name" }.textContent
     }
 
-tasks.register<BuildTemplatePackTask>("buildTemplatePack") {
+fun BuildTemplatePackTask.configure(name: String) {
     group = "build"
-    description = "Builds the unsigned icon pack template APK the designer ships in its assets."
     aapt2 = buildTools.resolve("aapt2")
     d8 = buildTools.resolve("d8")
     androidJar = platformJar
@@ -55,6 +54,30 @@ tasks.register<BuildTemplatePackTask>("buildTemplatePack") {
     // Spec 3.4: 1024 slots. A heavily loaded phone has 300 to 500 launchable apps; the
     // empty template costs about 100 bytes per slot. Above 1024 the designer shows an error.
     slotCount = 1024
-    workDir = layout.buildDirectory.dir("template-work")
-    outputApk = layout.buildDirectory.file("template/template.apk")
+    workDir = layout.buildDirectory.dir("$name-work")
+    outputApk = layout.buildDirectory.file("$name/template.apk")
+}
+
+val buildTemplatePack = tasks.register<BuildTemplatePackTask>("buildTemplatePack") {
+    description = "Builds the unsigned icon pack template APK the designer ships in its assets."
+    configure("template")
+}
+
+// A second, independent build of the same template. The test asserts the two are identical.
+val buildTemplatePackAgain = tasks.register<BuildTemplatePackTask>("buildTemplatePackAgain") {
+    description = "Builds the template a second time, for the reproducibility test."
+    configure("template-again")
+    outputs.upToDateWhen { false }
+}
+
+dependencies {
+    testImplementation(libs.kotlin.test.junit)
+}
+
+tasks.test {
+    inputs.file(buildTemplatePack.flatMap { it.outputApk })
+    inputs.file(buildTemplatePackAgain.flatMap { it.outputApk })
+    systemProperty("template.apk", buildTemplatePack.get().outputApk.get().asFile.path)
+    systemProperty("template.again.apk", buildTemplatePackAgain.get().outputApk.get().asFile.path)
+    systemProperty("template.linked.apk", buildTemplatePack.get().workDir.get().file("linked.apk").asFile.path)
 }
