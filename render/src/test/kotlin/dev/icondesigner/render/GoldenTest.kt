@@ -119,7 +119,7 @@ class GoldenTest {
     }
 
     companion object {
-        const val SIZE = 432
+        const val SIZE = OUTPUT_SIZE
 
         val SAMPLES = listOf(
             "fdroid", "camera", "google_chrome", "firefox", "signal", "telegram", "whatsapp", "google_maps",

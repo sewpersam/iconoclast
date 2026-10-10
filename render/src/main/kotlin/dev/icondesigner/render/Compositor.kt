@@ -14,6 +14,9 @@ import dev.icondesigner.render.raster.rasterizeGlyph
 /** Premultiplied RGBA, 8 bits per channel, row-major, [size] x [size]. */
 class RgbaImage(val size: Int, val pixels: ByteArray)
 
+/** Pack icon size in pixels: the 108 dp adaptive canvas at xxxhdpi. See render/README.md. */
+const val OUTPUT_SIZE = 432
+
 /** The adaptive-icon safe zone: a 66 dp circle on the 108 dp canvas. */
 const val SAFE_ZONE = 66f / 108f
 
