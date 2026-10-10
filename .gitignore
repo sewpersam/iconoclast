@@ -21,3 +21,6 @@ local.properties
 captures/
 # SDD scratch
 .superpowers/
+# Signing keys
+*.jks
+*.keystore
