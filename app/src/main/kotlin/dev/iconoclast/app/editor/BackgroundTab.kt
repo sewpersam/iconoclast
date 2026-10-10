@@ -13,7 +13,8 @@ import dev.iconoclast.render.Theme
 /**
  * Spec 2.3, Background. The shape is baked into the PNG, so the tab says to turn off
  * launcher masking if the two conflict. With no border set, the width reads 0 and the
- * colour and opacity start from white at full opacity.
+ * colour and opacity start from white at full opacity. Resetting the width removes the
+ * border, back to the default of none.
  */
 @Composable
 fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (Theme) -> Unit) {
@@ -37,7 +38,7 @@ fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit:
             { drag(with(b.copy(size = it))) }, done, { commit(with(b.copy(size = d.size))) })
         PaintControl(b.paint, d.paint, { drag(with(b.copy(paint = it))) }, done, { commit(with(b.copy(paint = it))) })
         SliderControl("Border width", border.width, 0f..0.1f, 0f, percent,
-            { drag(withBorder(border.copy(width = it))) }, done, { commit(withBorder(border.copy(width = 0f))) })
+            { drag(withBorder(border.copy(width = it))) }, done, { commit(with(b.copy(border = d.border))) })
         if (border.width > 0f) {
             ColorControl("Border colour", border.argb, NO_BORDER.argb,
                 { drag(withBorder(border.copy(argb = it))) }, done, { commit(withBorder(border.copy(argb = it))) })
