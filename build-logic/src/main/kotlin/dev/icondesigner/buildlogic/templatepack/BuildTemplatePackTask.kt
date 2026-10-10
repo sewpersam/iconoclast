@@ -150,7 +150,7 @@ abstract class BuildTemplatePackTask @Inject constructor(private val exec: ExecO
     }
 
     companion object {
-        fun slotName(i: Int) = "slot_%04d".format(i)
+        fun slotName(i: Int) = "slot_%04d".format(java.util.Locale.ROOT, i)
 
         private const val EMPTY_RESOURCES = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources />\n"
 
