@@ -67,4 +67,18 @@ class CompositorTest {
         val b = IconRenderer().renderPng(0, icon, theme, 160)
         assertContentEquals(a, b)
     }
+
+    @Test
+    fun dotsScaleWithStrokeUnlessKept() {
+        val k = 0.5522848f * 0.75f
+        val dot = Primitive(Primitive.flags(false, true, false, 0, 0), 1f, 4f,
+            byteArrayOf(Verb.MOVE, Verb.CUBIC, Verb.CUBIC, Verb.CUBIC, Verb.CUBIC, Verb.CLOSE),
+            floatArrayOf(24.75f, 24f, 24.75f, 24f + k, 24f + k, 24.75f, 24f, 24.75f, 24f - k, 24.75f, 23.25f, 24f + k,
+                23.25f, 24f, 23.25f, 24f - k, 24f - k, 23.25f, 24f, 23.25f, 24f + k, 23.25f, 24.75f, 24f - k, 24.75f, 24f))
+        val dotIcon = Icon(listOf(dot))
+        fun area(shape: ShapeParams) = IconRenderer().glyphMasks(0, dotIcon, Theme(shape = shape), 256).lines!!.sum()
+        val one = area(ShapeParams())
+        assertEquals(4f * one, area(ShapeParams(strokeWeight = 2f)), 0.02f * 4f * one)
+        assertEquals(one, area(ShapeParams(strokeWeight = 2f, dots = DotMode.KEEP_ORIGINAL)), 0.001f * one)
+    }
 }
