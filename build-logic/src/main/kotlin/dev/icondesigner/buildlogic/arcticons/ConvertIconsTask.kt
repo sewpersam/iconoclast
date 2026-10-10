@@ -3,6 +3,7 @@ package dev.icondesigner.buildlogic.arcticons
 import dev.icondesigner.render.format.BundleFormat
 import dev.icondesigner.render.format.Icon
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -51,19 +52,26 @@ abstract class ConvertIconsTask : DefaultTask() {
             files.forEachIndexed { i, file ->
                 pool.execute {
                     val stats = ConversionStats()
-                    icons[i] = try {
-                        convertSvg(file.readText(), stats)
-                    } catch (e: Exception) {
-                        stats.add("svg.parseError")
-                        failures += "${file.name}: ${e.message}"
-                        Icon(emptyList())
+                    try {
+                        icons[i] = convertSvg(file.readText(), stats)
+                        perIcon[i] = stats
+                    } catch (e: Throwable) {
+                        // Collected and rethrown below with every failing file named.
+                        failures += "${file.name}: $e"
                     }
-                    perIcon[i] = stats
                 }
             }
         } finally {
             pool.shutdown()
-            pool.awaitTermination(1, TimeUnit.HOURS)
+        }
+        if (!pool.awaitTermination(1, TimeUnit.HOURS)) {
+            pool.shutdownNow()
+            throw GradleException("Arcticons conversion did not finish within an hour")
+        }
+        if (failures.isNotEmpty()) {
+            throw GradleException(
+                "Arcticons: ${failures.size} SVGs failed to convert:\n" + failures.sorted().joinToString("\n"),
+            )
         }
 
         val total = ConversionStats()
@@ -85,14 +93,12 @@ abstract class ConvertIconsTask : DefaultTask() {
             appendLine("names.bytes ${dir.resolve("names.txt").length()}")
             appendLine("seconds %.1f".format(seconds))
             total.counts.forEach { (k, v) -> appendLine("$k $v") }
-            failures.sorted().forEach { appendLine("failure $it") }
         }
         reportFile.get().asFile.apply { parentFile.mkdirs() }.writeText(report)
         logger.lifecycle(
             "Arcticons: converted ${files.size} icons, $primitives primitives, bundle ${bundle.size} bytes, " +
                 "%.1f s. Report: ${reportFile.get().asFile}".format(seconds),
         )
-        if (failures.isNotEmpty()) logger.warn("Arcticons: ${failures.size} SVGs failed to parse, see report")
     }
 
     private companion object {
