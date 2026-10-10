@@ -27,8 +27,8 @@ import javax.inject.Inject
 
 /**
  * Builds the unsigned icon pack template with aapt2 and d8 from build-tools, following
- * spike/pack.py: [slotCount] placeholder PNGs stored uncompressed, a stub res/xml
- * appfilter, stub assets the designer rewrites, the licence, and one tiny activity.
+ * spike/pack.py: [slotCount] placeholder PNGs stored uncompressed, stub assets the
+ * designer rewrites, the licence, and one tiny activity.
  */
 @CacheableTask
 abstract class BuildTemplatePackTask @Inject constructor(private val exec: ExecOperations) : DefaultTask() {
@@ -70,7 +70,8 @@ abstract class BuildTemplatePackTask @Inject constructor(private val exec: ExecO
         val placeholder = transparentPng()
         for (i in 0 until slotCount.get()) drawables.resolve(slotName(i) + ".png").writeBytes(placeholder)
         drawables.resolve("pack_icon.png").writeBytes(placeholder)
-        res.resolve("xml").apply { mkdirs() }.resolve("appfilter.xml").writeText(EMPTY_RESOURCES)
+        // No res/xml/appfilter.xml: Neo reads it before the assets copy, so an empty stub hides
+        // every icon. See docs/verification/m3.md. The assets copy is the only appfilter.
 
         val assets = work.resolve("assets").apply { mkdirs() }
         assets.resolve("appfilter.xml").writeText(EMPTY_RESOURCES)
