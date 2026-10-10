@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.icondesigner.templatepack"
+    namespace = "dev.icondesigner.app.pack"
     compileSdk = libs.versions.compileSdk.get().toInt()
     defaultConfig {
         applicationId = providers.gradleProperty("icondesigner.packApplicationId").get()
