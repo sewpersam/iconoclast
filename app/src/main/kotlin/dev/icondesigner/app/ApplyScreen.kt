@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -22,7 +23,7 @@ import dev.icondesigner.render.Theme
 fun ApplyScreen(state: ApplyState, onApply: (Theme) -> Unit, onFix: (Fix) -> Unit, onAppInfo: (String) -> Unit) {
     val working = state is ApplyState.Working
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Button(onClick = { onApply(PLAIN) }, enabled = !working, modifier = Modifier.fillMaxWidth()) {
@@ -48,7 +49,7 @@ fun ApplyScreen(state: ApplyState, onApply: (Theme) -> Unit, onFix: (Fix) -> Uni
                 if (state.firstInstall) {
                     Text("Select the pack in ${g.name}. ${g.selectPack}")
                 } else {
-                    Text("${g.name} keeps showing the old icons until it restarts. ${g.restart}")
+                    Text("${g.name} keeps showing the old icons until you do this. ${g.refresh}")
                     if (g.forceStopFromAppInfo && g.packageName.isNotEmpty()) {
                         OutlinedButton(onClick = { onAppInfo(g.packageName) }) { Text("Open ${g.name} App info") }
                     }
