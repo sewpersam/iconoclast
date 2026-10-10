@@ -1,5 +1,6 @@
 package dev.icondesigner.render.verify
 
+import dev.icondesigner.render.IconRasterizer
 import dev.icondesigner.render.format.IconBundle
 import java.awt.image.BufferedImage
 import java.io.File
@@ -13,6 +14,12 @@ import kotlin.system.exitProcess
 private const val MIN_IOU = 0.98
 /** ...at least this share of icons. */
 private const val MIN_PASS_RATE = 0.999
+
+/**
+ * The rasterizer under test. Task 3 (M2) swaps its production :render rasterizer in here,
+ * on this one line, and the gate must still pass. It is called from several threads at once.
+ */
+private fun rasterizerUnderTest(): IconRasterizer = AwtRasterizer()
 
 /** Coverage at or above this alpha counts as inside the shape. */
 private const val ALPHA_THRESHOLD = 128
@@ -39,7 +46,7 @@ fun main(args: Array<String>) {
 
     diffDir.deleteRecursively()
     diffDir.mkdirs()
-    val rasterizer = AwtRasterizer()
+    val rasterizer = rasterizerUnderTest()
     val t1 = System.nanoTime()
     val pool = Executors.newFixedThreadPool(workers)
     val results = try {
