@@ -2,6 +2,7 @@ package dev.icondesigner.render.verify
 
 import dev.icondesigner.render.IconRasterizer
 import dev.icondesigner.render.format.IconBundle
+import dev.icondesigner.render.raster.ScanlineRasterizer
 import java.awt.image.BufferedImage
 import java.io.File
 import java.nio.ByteBuffer
@@ -16,10 +17,11 @@ private const val MIN_IOU = 0.98
 private const val MIN_PASS_RATE = 0.999
 
 /**
- * The rasterizer under test. Task 3 (M2) swaps its production :render rasterizer in here,
- * on this one line, and the gate must still pass. It is called from several threads at once.
+ * The rasterizer under test: the production :render rasterizer, at the reference's 4x
+ * supersample. [AwtRasterizer] stays as a second reference; swap it in here to compare.
+ * It is called from several threads at once.
  */
-private fun rasterizerUnderTest(): IconRasterizer = AwtRasterizer()
+private fun rasterizerUnderTest(): IconRasterizer = ScanlineRasterizer(SUPERSAMPLE)
 
 /** Coverage at or above this alpha counts as inside the shape. */
 private const val ALPHA_THRESHOLD = 128
