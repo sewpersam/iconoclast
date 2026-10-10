@@ -27,14 +27,17 @@ class ArtByteIdentityTest {
         val renderer = IconRenderer()
         val compared = ArrayList<String>()
         val differ = ArrayList<String>()
-        for ((mode, theme) in GoldenSet.THEMES) for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
-            val path = "${mode.name.lowercase()}/$name.png"
+        val cases = GoldenSet.THEMES.flatMap { (mode, theme) -> GoldenSet.SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
+            GoldenSet.POCKET_SAMPLES.map { Triple("pockets", GoldenSet.POCKET_THEME, it) }
+        for ((dir, theme, name) in cases) {
+            val i = GoldenSet.SAMPLES.indexOf(name)
+            val path = "$dir/$name.png"
             val png = renderer.renderPng(i, bundle.icon(i), theme, OUTPUT_SIZE)
             compared += path
             if (!png.contentEquals(asset(path))) differ += path
         }
         android.util.Log.i("ArtByteIdentity", "compared ${compared.size} PNGs, ${differ.size} differ: $differ")
         assertEquals("PNGs differing from the JVM goldens", emptyList<String>(), differ)
-        assertEquals(96, compared.size)
+        assertEquals(98, compared.size)
     }
 }

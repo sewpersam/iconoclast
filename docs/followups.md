@@ -15,8 +15,8 @@ Extracted from the execution ledger on 2026-10-10. Triage from the whole-branch 
 - Task 3: minor (deferred): dot gap scales with stroke weight (GlyphRasterizer.kt:45,52), use spec.transform.scale — real small bug.
 - Task 3: minor (deferred): goldens compare pixels not bytes; add byte compare.
 - Task 3: minor (deferred): m2.md 1x evidence from pre-fix states; re-run or reword.
-- Task 3: minor (deferred): fill cache recomputes on fallbackThreshold/keepLoneLines; outline-mode double-counts bytes.
-- Task 3: minor (deferred): exterior pockets count as enclosed when closing > gap (FillModes.kt:117).
+- Task 3: minor (deferred): fill cache recomputes on fallbackThreshold/keepLoneLines; outline-mode double-counts bytes. DONE in M4 Task 6, 21b60f5: FillKey split, LoneLinesKey, geometry counted once.
+- Task 3: minor (deferred): exterior pockets count as enclosed when closing > gap (FillModes.kt:117). DONE in M4 Task 6, 1b705fb (exterior pockets stay outside) and cb7c192 (sealing monotone in the closing).
 - Task 3: minor (deferred): unsynchronized MaskCache counters; two-point closed subpaths stroked open; short antenna stubs.
 - Task 4: minor (deferred): install session has no timeout or cancel path; UI could stay Working.
 - Task 4: minor (deferred): progress count can go backwards briefly (4 threads).
