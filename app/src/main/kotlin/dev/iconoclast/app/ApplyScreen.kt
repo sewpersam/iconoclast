@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -15,25 +14,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.iconoclast.render.ShapeParams
-import dev.iconoclast.render.Theme
+import dev.iconoclast.app.theme.ThemeDocument
 
-/** The M3 screen: two Apply buttons, progress, status and the post-install guidance. */
+/** Apply the active theme: progress, status and the post-install guidance. */
 @Composable
-fun ApplyScreen(state: ApplyState, onApply: (Theme) -> Unit, onFix: (Fix) -> Unit, onAppInfo: (String) -> Unit) {
+fun ApplyScreen(
+    active: ThemeDocument?,
+    state: ApplyState,
+    onApply: () -> Unit,
+    onFix: (Fix) -> Unit,
+    onAppInfo: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val working = state is ApplyState.Working
     Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Button(onClick = { onApply(PLAIN) }, enabled = !working, modifier = Modifier.fillMaxWidth()) {
-            Text("Apply plain theme")
-        }
-        Button(onClick = { onApply(THICK) }, enabled = !working, modifier = Modifier.fillMaxWidth()) {
-            Text("Apply thick theme")
+        Button(onClick = onApply, enabled = !working && active != null, modifier = Modifier.fillMaxWidth()) {
+            Text(if (active != null) "Apply ${active.name}" else "No theme to apply")
         }
         when (state) {
-            ApplyState.Idle -> Text("Apply builds an icon pack from your installed apps and installs it.")
+            ApplyState.Idle -> Text("Apply builds an icon pack from your installed apps in the active theme and installs it.")
             is ApplyState.Working -> {
                 if (state.total > 0) {
                     LinearProgressIndicator(progress = { state.done.toFloat() / state.total }, modifier = Modifier.fillMaxWidth())
@@ -66,6 +68,3 @@ fun ApplyScreen(state: ApplyState, onApply: (Theme) -> Unit, onFix: (Fix) -> Uni
         }
     }
 }
-
-val PLAIN = Theme()
-val THICK = Theme(shape = ShapeParams(strokeWeight = 2f))

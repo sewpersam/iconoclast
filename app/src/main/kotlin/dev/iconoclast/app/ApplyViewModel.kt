@@ -9,7 +9,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import dev.iconoclast.iconsource.IconSource
+import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.pack.CoverageMatcher
 import dev.iconoclast.pack.InstallResult
 import dev.iconoclast.pack.LauncherGuide
@@ -18,13 +18,15 @@ import dev.iconoclast.pack.PackInstallSession
 import dev.iconoclast.pack.PackKeyStore
 import dev.iconoclast.pack.PackSigner
 import dev.iconoclast.pack.TooManyIconsException
-import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,7 +41,7 @@ sealed interface ApplyState {
 
 enum class Fix { GRANT_INSTALL_PERMISSION, UNINSTALL_OLD_PACK }
 
-/** Apply: match installed apps, render, rewrite, sign, install, then guide the restart. */
+/** Apply the active theme: match installed apps, render, rewrite, sign, install, then guide the restart. */
 class ApplyViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow<ApplyState>(ApplyState.Idle)
     val state: StateFlow<ApplyState> = _state
@@ -48,11 +50,16 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
     private val launches = Channel<Intent>(Channel.UNLIMITED)
     val intents = launches.receiveAsFlow()
 
-    private val renderer = IconRenderer()
-    private var source: IconSource? = null
+    private val container = app.container
     private val appName = app.getString(R.string.app_name)
 
-    fun apply(theme: Theme) {
+    /** The active theme, which Apply installs. */
+    val active: StateFlow<ThemeDocument?> = combine(container.themes.themes, container.themes.activeId) { themes, id ->
+        themes.find { it.id == id }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun apply() {
+        val theme = active.value?.theme ?: return
         if (_state.value is ApplyState.Working) return
         _state.value = ApplyState.Working("Reading icons")
         viewModelScope.launch {
@@ -73,15 +80,14 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         val t0 = SystemClock.elapsedRealtime()
         val (icons, template) = withContext(Dispatchers.IO) {
-            val icons = source ?: IconSource.open(app.assets).also { source = it }
-            icons to app.assets.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
+            container.iconSource() to app.assets.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
         }
         val components = withContext(Dispatchers.IO) { InstalledApps.launchableComponents(app) }
         val plan = CoverageMatcher.match(components, PackBuilder.slotCount(template), icons::resolve)
         val t1 = SystemClock.elapsedRealtime()
 
         _state.value = ApplyState.Working("Drawing icons", 0, plan.drawables.size + 1)
-        val unsigned = PackBuilder(icons, renderer).build(template, plan, theme) { done, total ->
+        val unsigned = PackBuilder(icons, container.renderer).build(template, plan, theme) { done, total ->
             _state.value = ApplyState.Working("Drawing icons", done, total)
         }
         val t2 = SystemClock.elapsedRealtime()

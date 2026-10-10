@@ -9,6 +9,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
     private val model: ApplyViewModel by viewModels()
@@ -19,8 +21,9 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface {
                     val state by model.state.collectAsState()
+                    val active by model.active.collectAsState()
                     LaunchedEffect(Unit) { model.intents.collect { startActivity(it) } }
-                    ApplyScreen(state, model::apply, model::fix, model::openAppInfo)
+                    ApplyScreen(active, state, model::apply, model::fix, model::openAppInfo, Modifier.safeDrawingPadding())
                 }
             }
         }

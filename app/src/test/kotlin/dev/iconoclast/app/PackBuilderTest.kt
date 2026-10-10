@@ -5,6 +5,8 @@ import dev.iconoclast.pack.CoverageMatcher
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OUTPUT_SIZE
+import dev.iconoclast.render.ShapeParams
+import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.BundleFormat
 import dev.iconoclast.render.format.ComponentTableFormat
 import dev.iconoclast.render.format.IconBundle
@@ -52,10 +54,11 @@ class PackBuilderTest {
         "com.unknown/com.unknown.Main",
     )
 
+    private val thick = Theme(shape = ShapeParams(strokeWeight = 2f))
     private val plan = CoverageMatcher.match(components, PackBuilder.slotCount(template), source::resolve)
 
     private fun build(renderer: IconRenderer = IconRenderer()) =
-        runBlocking { PackBuilder(source, renderer).build(template, plan, THICK) { _, _ -> } }
+        runBlocking { PackBuilder(source, renderer).build(template, plan, thick) { _, _ -> } }
 
     private fun entries(apk: ByteArray): Map<String, ByteArray> {
         val out = LinkedHashMap<String, ByteArray>()
@@ -79,7 +82,7 @@ class PackBuilderTest {
         val renderer = IconRenderer()
         val files = entries(build())
         for ((slot, drawable) in plan.drawables.withIndex()) {
-            val expected = renderer.renderPng(drawable, source.icon(drawable), THICK, OUTPUT_SIZE)
+            val expected = renderer.renderPng(drawable, source.icon(drawable), thick, OUTPUT_SIZE)
             assertContentEquals(expected, files.getValue(PackBuilder.slotPath(slot)), "slot $slot")
         }
         // The preview: "arcticons" is not a sample, so it falls back to the first slot's drawable.
