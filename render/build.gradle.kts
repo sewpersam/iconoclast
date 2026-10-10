@@ -8,6 +8,11 @@ sourceSets.main {
     kotlin.srcDir("src/format/kotlin")
 }
 
+// The golden set definition is shared with :app's on-device byte identity test.
+sourceSets.test {
+    kotlin.srcDir("src/golden/kotlin")
+}
+
 // JVM-only conversion check: java.awt rasterizer plus inkscape references. Not shipped.
 val verify = sourceSets.create("verify") {
     compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
