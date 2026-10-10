@@ -1,0 +1,5 @@
+The sample icons in samples.bin and the golden PNGs in this directory are derived from
+Arcticons (https://github.com/Arcticons-Team/Arcticons) by the Arcticons Team and
+contributors. Licensed under Creative Commons Attribution-ShareAlike 4.0 International
+(CC BY-SA 4.0), https://creativecommons.org/licenses/by-sa/4.0/. Converted to a binary
+path format and restyled by the Icon Designer renderer.

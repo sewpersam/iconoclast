@@ -51,3 +51,28 @@ tasks.register<JavaExec>("verifyIconConversion") {
         )
     }
 }
+
+// ./gradlew :render:test -PupdateGoldens rewrites the golden PNGs and their sample bundle.
+tasks.test {
+    maxHeapSize = "1g"
+    if (providers.gradleProperty("updateGoldens").isPresent) {
+        systemProperty("golden.update", "true")
+        systemProperty("golden.dir", layout.projectDirectory.dir("src/test/resources/golden").asFile.path)
+        inputs.dir(iconAssets)
+        systemProperty("golden.source", iconAssets.get().asFile.path)
+        outputs.upToDateWhen { false }
+        filter.includeTestsMatching("*GoldenTest.goldens")
+    }
+}
+
+tasks.register<JavaExec>("benchmarkRenderer") {
+    group = "verification"
+    description = "Times the renderer on the JVM against the spec 3.3 budgets."
+    classpath = verify.runtimeClasspath
+    mainClass = "dev.icondesigner.render.verify.RenderBenchmarkKt"
+    maxHeapSize = "2g"
+    inputs.dir(iconAssets)
+    argumentProviders += CommandLineArgumentProvider {
+        listOf(iconAssets.get().file("icons.bin").asFile.path, "4")
+    }
+}
