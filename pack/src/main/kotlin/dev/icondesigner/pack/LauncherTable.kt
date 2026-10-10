@@ -22,15 +22,16 @@ object LauncherTable {
     private const val FORCE_STOP = "Open its App info, tap Force stop and confirm, then press Home."
 
     val known: List<LauncherGuide> = listOf(
-        // Neo 0.9.3: neither its Restart entry nor Force stop shows an updated pack.
-        // Switching to System icons and back does. A new pack is listed only after Restart.
+        // Neo 0.9.3 on the emulator: Restart alone refreshed once and failed once; switching
+        // to System icons and back alone failed; Restart then switching worked both times.
         LauncherGuide(
             packageName = "com.saggitt.omega",
             name = "Neo Launcher",
             selectPack = "Long-press the home screen, then Home settings, Profile, Icon Packs, pick the pack and tap OK. " +
                 "If the pack is not listed, open the menu at the top right of Home settings, tap Restart, and try again.",
-            refresh = "Long-press the home screen, then Home settings, Profile, Icon Packs. Pick System icons and tap OK. " +
-                "Then open Icon Packs again, pick the pack and tap OK.",
+            refresh = "Long-press the home screen, then Home settings. Open the menu at the top right and tap Restart. " +
+                "Then open Home settings again, Profile, Icon Packs, pick System icons and tap OK, " +
+                "then open Icon Packs again, pick the pack and tap OK.",
             forceStopFromAppInfo = false,
         ),
         // Lawnchair 15 beta 3: "Restart Lawnchair" exists only in its hidden debug menu.
