@@ -178,6 +178,32 @@ class IconConverterTest {
     }
 
     @Test
+    fun quarterArcFlagsPickCentreAndDirection() {
+        // Radius 10 from (10,0) to (0,10). The centre is (0,0) or (10,10); y points down.
+        val r = 7.0710678f
+        val cases = mapOf(
+            "0 1" to (r to r),                     // small arc around (0,0)
+            "1 0" to (-r to -r),                   // large arc around (0,0)
+            "0 0" to (10f - r to 10f - r),         // small arc around (10,10)
+            "1 1" to (10f + r to 10f + r),         // large arc around (10,10)
+        )
+        for ((flags, mid) in cases) {
+            val p = convert(svg("""<path class="s" d="M10 0A10 10 0 $flags 0 10"/>""", base)).primitives.single()
+            val pts = p.points()
+            val segments = p.verbs.count { it == Verb.CUBIC }
+            assertEquals(if (flags[0] == '1') 3 else 1, segments, flags)
+            assertNear(0f, pts.last().first, 0.01f)
+            assertNear(10f, pts.last().second, 0.01f)
+            // The arc midpoint is the middle of the middle segment, at t = 0.5.
+            val k = 3 * (segments / 2)
+            val mx = (pts[k].first + 3 * pts[k + 1].first + 3 * pts[k + 2].first + pts[k + 3].first) / 8
+            val my = (pts[k].second + 3 * pts[k + 1].second + 3 * pts[k + 2].second + pts[k + 3].second) / 8
+            assertNear(mid.first, mx, 0.01f)
+            assertNear(mid.second, my, 0.01f)
+        }
+    }
+
+    @Test
     fun relativeArcWithCompactFlagsAndRadiusScaling() {
         // Flags written as "01" with no separator, radius too small so it scales up.
         val p = convert(svg("""<path class="s" d="m0,10a1,1,0,01,10,0"/>""", base)).primitives.single()
