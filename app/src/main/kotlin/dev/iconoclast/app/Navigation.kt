@@ -1,0 +1,54 @@
+package dev.iconoclast.app
+
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+
+/** The app's routes. One activity, these three destinations. */
+object Routes {
+    const val HOME = "home"
+    const val APPLY = "apply"
+    const val EDITOR = "editor/{id}"
+    fun editor(id: String) = "editor/$id"
+}
+
+@Composable
+fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
+    val nav = rememberNavController()
+    NavHost(nav, startDestination = Routes.HOME) {
+        composable(Routes.HOME) {
+            HomeScreen(home, onOpen = { nav.navigate(Routes.editor(it)) }, onApply = { nav.navigate(Routes.APPLY) })
+        }
+        composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+            val themes by home.themes.collectAsState()
+            val id = entry.arguments?.getString("id")
+            EditorScreen(themes.find { it.id == id }, onBack = { nav.popBackStack() })
+        }
+        composable(Routes.APPLY) {
+            val state by apply.state.collectAsState()
+            val active by apply.active.collectAsState()
+            Scaffold(topBar = { BackBar("Apply", onBack = { nav.popBackStack() }) }) { padding ->
+                ApplyScreen(active, state, apply::apply, apply::fix, apply::openAppInfo, Modifier.padding(padding))
+            }
+        }
+    }
+}
+
+/** A top bar with a text Back button. The app ships no icon library. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BackBar(title: String, onBack: () -> Unit) {
+    TopAppBar(title = { Text(title) }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
+}

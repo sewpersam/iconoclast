@@ -28,6 +28,8 @@ class AppContainer(private val app: Application) {
 
     val themes = ThemeRepository(File(app.filesDir, "themes"), presets = { Presets.read(app.assets) })
 
+    val previews = ThemePreviews(this)
+
     init {
         scope.launch { themes.load() }
     }
