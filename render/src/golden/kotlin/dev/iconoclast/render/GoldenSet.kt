@@ -48,9 +48,10 @@ object GoldenSet {
     )
 
     /**
-     * Invert fill with a closing far wider than the gap, so channels between strokes on
-     * the outside are sealed by the closing but left uncut by the gap. They must stay
-     * empty: the dashes of signal's ring and the slot between fdroid's head and body.
+     * Invert fill with a closing far wider than the gap. fdroid's slot between head and
+     * body is an exterior channel and must stay empty. signal's band inside its dashed
+     * ring is sealed at closing 1.5 and must stay filled at 2, where the dilated strokes
+     * bury it; the gaps between the dashes outside the ring stay empty.
      */
     val POCKET_THEME: Theme = THEMES.getValue(FillMode.INVERT).let { it.copy(fill = it.fill.copy(gapWidth = 0.25f, gapClosing = 2f)) }
     val POCKET_SAMPLES = listOf("signal", "fdroid")

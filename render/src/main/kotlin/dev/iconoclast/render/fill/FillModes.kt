@@ -5,6 +5,7 @@ import dev.iconoclast.render.mask.Morphology
 import dev.iconoclast.render.mask.label4
 import dev.iconoclast.render.mask.squaredEdt
 import dev.iconoclast.render.mask.touchesBorder
+import kotlin.math.ceil
 import kotlin.math.sqrt
 
 /**
@@ -108,15 +109,24 @@ object FillModes {
     /**
      * Gap closing is built from dilations rather than a closing of the strokes. A
      * pixel-grid closing reopens the gap between two thin stroke ends: disks slide in from
-     * both sides and leave a seal thinner than a pixel. Here the strokes are dilated by the
+     * both sides and leave a seal thinner than a pixel. Here the strokes are dilated by a
      * closing radius and the remaining regions labelled. Each side is then grown back by
      * that radius. Where both reach, as in a sealed gap, the enclosed side wins.
      *
-     * Pixels neither side reaches are pockets: corners where strokes meet, channels
-     * narrower than the seal. A pocket belongs to the inside when it borders the grown
-     * inside, or borders nothing reached at all, as a small closed loop does. A pocket that
-     * borders only the grown outside is an exterior notch and stays outside; without this,
-     * a closing wider than the gap filled the channels between strokes on the outside.
+     * Sealing is monotone in the closing: a region enclosed at a smaller radius stays
+     * enclosed at a larger one. A wide closing can bury a sealed region under the dilated
+     * strokes entirely, as the band inside signal's dashed ring at 2 units, so the regions
+     * are labelled at every radius from 0 up to the closing in steps of at most a pixel.
+     * An inside that vanishes between two steps is grown at the radius it last had and
+     * kept. A region is enclosed when some radius
+     * seals its openings while its core is still wider than the seal.
+     *
+     * Pixels no step reaches and the grown outside does not reach are pockets: corners
+     * where strokes meet, channels narrower than the seal. A pocket belongs to the inside
+     * when it borders a grown inside, or borders nothing reached at all, as a small closed
+     * loop does. A pocket that borders only the grown outside is an exterior notch, such
+     * as a channel whose mouth is as wide as itself: no radius seals it before it is
+     * buried, and it stays outside.
      */
     private fun regions(input: FillInput): Regions {
         val size = input.size
@@ -124,18 +134,42 @@ object FillModes {
         val n = g.size
         val stroke = BooleanArray(n) { g[it] >= 0.5f }
         val r = input.closingPx
-        val barrier = if (r > 0f) Morphology.dilate(stroke, size, size, r) else stroke
-        val labels = label4(BooleanArray(n) { !barrier[it] }, size, size)
-        val border = touchesBorder(labels, size, size)
-        val l = labels.labels
-        val outside = BooleanArray(n) { l[it] != 0 && border[l[it]] }
-        val inside = BooleanArray(n) { l[it] != 0 && !border[l[it]] }
-        val outsideGrown = Morphology.dilate(outside, size, size, r)
-        val insideGrown = Morphology.dilate(inside, size, size, r)
-        val pocket = BooleanArray(n) { !stroke[it] && !insideGrown[it] && !outsideGrown[it] }
-        val exterior = exteriorPockets(pocket, insideGrown, outsideGrown, stroke, size)
+        val strokeD2 = if (r > 0f) squaredEdt(stroke, size, size) else null
+        val steps = ceil(r).toInt()
+        val sealed = BooleanArray(n)
+        var outsideGrown = BooleanArray(n)
+        // An inside that survives to the next step is grown at the last one; only insides
+        // that vanish between steps are grown at their own radius. Corners the last
+        // growth misses are pockets beside an inside, so enclosed either way.
+        var prev: IntArray? = null
+        var prevInside: BooleanArray? = null
+        var prevRadius = 0f
+        for (k in 0..steps) {
+            val rk = if (steps == 0) 0f else r * k / steps
+            val r2 = rk * rk
+            val barrier = if (strokeD2 == null || k == 0) stroke else BooleanArray(n) { strokeD2[it] <= r2 }
+            val labels = label4(BooleanArray(n) { !barrier[it] }, size, size)
+            val border = touchesBorder(labels, size, size)
+            val l = labels.labels
+            val inside = BooleanArray(n) { l[it] != 0 && !border[l[it]] }
+            if (prev != null && prevInside != null) {
+                val survives = BooleanArray(prev.max() + 1)
+                for (i in 0 until n) if (prevInside[i] && inside[i]) survives[prev[i]] = true
+                val dying = BooleanArray(n) { prevInside[it] && !survives[prev[it]] }
+                if (dying.any { it }) or(sealed, Morphology.dilate(dying, size, size, prevRadius))
+            }
+            if (k == steps) {
+                or(sealed, Morphology.dilate(inside, size, size, rk))
+                outsideGrown = Morphology.dilate(BooleanArray(n) { l[it] != 0 && border[l[it]] }, size, size, rk)
+            }
+            prev = l
+            prevInside = inside
+            prevRadius = rk
+        }
+        val pocket = BooleanArray(n) { !stroke[it] && !sealed[it] && !outsideGrown[it] }
+        val exterior = exteriorPockets(pocket, sealed, outsideGrown, stroke, size)
         val enclosed = BooleanArray(n) {
-            !stroke[it] && (insideGrown[it] || pocket[it] && !exterior[it])
+            !stroke[it] && (sealed[it] || pocket[it] && !exterior[it])
         }
         return Regions(stroke, enclosed)
     }
@@ -158,6 +192,10 @@ object FillModes {
             }
         }
         return BooleanArray(l.size) { l[it] != 0 && nearOutside[l[it]] && !nearInside[l[it]] }
+    }
+
+    private fun or(into: BooleanArray, from: BooleanArray) {
+        for (i in into.indices) if (from[i]) into[i] = true
     }
 
     /** Whether a 4-neighbour of pixel [p] is set in [mask]. */

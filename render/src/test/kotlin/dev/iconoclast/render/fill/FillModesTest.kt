@@ -121,6 +121,34 @@ class FillModesTest {
         assertEquals(1f, at(fill, 20, 20))
     }
 
+    /**
+     * A closed square inside a dashed square, signal's layout: the band between them is
+     * 4 px clear, the dashes 2 px apart. Closing 1.5 px seals the dashes while the band's
+     * core is still open, so the band is enclosed. Closing 3 px buries the band under the
+     * dilated strokes; it must stay enclosed, not turn into an exterior pocket.
+     */
+    @Test
+    fun sealingIsMonotoneInTheClosing() {
+        val inner = line(20f, 20f, 44f, 20f, 44f, 44f, 20f, 44f, closed = true)
+        val dashes = listOf(14f, 22f, 30f, 38f, 46f).flatMap { a ->
+            val b = a + 4f
+            listOf(line(a, 14f, b, 14f), line(a, 50f, b, 50f), line(14f, a, 14f, b), line(50f, a, 50f, b))
+        }.toTypedArray()
+        val band = { closing: Float ->
+            val m = FillModes.invert(input(inner, *dashes, closing = closing, gap = 0.5f), 0f, keepLoneLines = false)
+            at(assertNotNull(m.body), 47, 32)
+        }
+        assertEquals(0f, band(0f), "open dashes: the band is outside")
+        var last = 0f
+        for (c in listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 4f)) {
+            val v = band(c)
+            assertTrue(v >= last, "band fill fell from $last to $v at closing $c")
+            last = v
+        }
+        assertEquals(1f, band(1.5f))
+        assertEquals(1f, band(3f), "still enclosed once buried")
+    }
+
     @Test
     fun silhouetteFillsInsideAndStroke() {
         val i = input(square)
