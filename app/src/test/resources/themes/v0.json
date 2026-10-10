@@ -1,0 +1,33 @@
+{
+  "title": "Old teal",
+  "theme": {
+    "shape": {
+      "stroke": 1.5,
+      "cap": "ROUND",
+      "join": "MITER",
+      "miterLimit": 4.0,
+      "iconScale": 0.8,
+      "offsetX": -0.0,
+      "offsetY": 0.0,
+      "dots": "SCALE_WITH_STROKE"
+    },
+    "fill": {
+      "mode": "INVERT",
+      "gapWidth": 1.0,
+      "gapClosing": 0.5,
+      "fallbackThreshold": 0.1,
+      "keepLoneLines": true
+    },
+    "background": {
+      "enabled": true,
+      "shape": { "type": "circle" },
+      "size": 1.0,
+      "paint": {
+        "type": "linear", "x0": 0.0, "y0": 0.0, "x1": 1.0, "y1": 1.0,
+        "stops": [ { "offset": 0.0, "color": "#FF1B3B36" }, { "offset": 1.0, "color": "#FF0E1A18" } ]
+      },
+      "border": null
+    },
+    "glyph": { "line": "#FFFFFFFF", "body": "#FF7FD1B9" }
+  }
+}

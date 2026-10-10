@@ -1,0 +1,189 @@
+package dev.iconoclast.app.theme
+
+import dev.iconoclast.render.BackgroundParams
+import dev.iconoclast.render.BackgroundShape
+import dev.iconoclast.render.Border
+import dev.iconoclast.render.ColorStop
+import dev.iconoclast.render.DotMode
+import dev.iconoclast.render.FillMode
+import dev.iconoclast.render.FillParams
+import dev.iconoclast.render.GlyphPaint
+import dev.iconoclast.render.LineCap
+import dev.iconoclast.render.LineJoin
+import dev.iconoclast.render.Paint
+import dev.iconoclast.render.ShapeParams
+import dev.iconoclast.render.Theme
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+
+/*
+ * JSON serializers for the :render theme classes, which stay free of serialization.
+ * Each public serializer maps through a private surrogate whose field names are the
+ * file format, docs/theme-format.md. Every field is written, defaults included, so a
+ * later change to a default never changes how a saved theme looks.
+ */
+
+/** Writes and reads -0f as 0f, so a parsed theme equals one built with 0f. Rejects NaN and infinities. */
+object CanonicalFloatSerializer : KSerializer<Float> {
+    override val descriptor = PrimitiveSerialDescriptor("dev.iconoclast.Float", PrimitiveKind.FLOAT)
+    override fun serialize(encoder: Encoder, value: Float) = encoder.encodeFloat(canonical(value))
+    override fun deserialize(decoder: Decoder): Float = canonical(decoder.decodeFloat())
+
+    private fun canonical(v: Float): Float {
+        if (!v.isFinite()) throw SerializationException("not a finite number: $v")
+        return if (v == 0f) 0f else v
+    }
+}
+
+/** Straight ARGB as "#AARRGGBB". */
+object ArgbSerializer : KSerializer<Int> {
+    override val descriptor = PrimitiveSerialDescriptor("dev.iconoclast.Argb", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: Int) = encoder.encodeString("#%08X".format(value))
+    override fun deserialize(decoder: Decoder): Int {
+        val s = decoder.decodeString()
+        if (!COLOR.matches(s)) throw SerializationException("colour must be #AARRGGBB: $s")
+        return s.substring(1).toLong(16).toInt()
+    }
+
+    private val COLOR = Regex("#[0-9A-Fa-f]{8}")
+}
+
+private typealias JFloat = @Serializable(CanonicalFloatSerializer::class) Float
+private typealias Argb = @Serializable(ArgbSerializer::class) Int
+
+@Serializable
+private sealed interface PaintJson {
+    @Serializable @SerialName("solid")
+    data class Solid(val color: Argb) : PaintJson
+
+    @Serializable @SerialName("linear")
+    data class Linear(val x0: JFloat, val y0: JFloat, val x1: JFloat, val y1: JFloat, val stops: List<StopJson>) : PaintJson
+
+    @Serializable @SerialName("radial")
+    data class Radial(val cx: JFloat, val cy: JFloat, val radius: JFloat, val stops: List<StopJson>) : PaintJson
+}
+
+@Serializable
+private data class StopJson(val offset: JFloat, val color: Argb)
+
+@Serializable
+private sealed interface ShapeJson {
+    @Serializable @SerialName("circle") data object Circle : ShapeJson
+    @Serializable @SerialName("square") data object Square : ShapeJson
+    @Serializable @SerialName("teardrop") data object Teardrop : ShapeJson
+    @Serializable @SerialName("squircle") data class Squircle(val exponent: JFloat) : ShapeJson
+    @Serializable @SerialName("roundedSquare") data class RoundedSquare(val cornerRadius: JFloat) : ShapeJson
+}
+
+/** The sealed [Paint], tagged by "type": solid, linear or radial. */
+object PaintSerializer : KSerializer<Paint> {
+    private val surrogate = PaintJson.serializer()
+    override val descriptor = surrogate.descriptor
+    override fun serialize(encoder: Encoder, value: Paint) = encoder.encodeSerializableValue(surrogate, value.toJson())
+    override fun deserialize(decoder: Decoder): Paint = decoder.decodeSerializableValue(surrogate).toPaint()
+}
+
+/** The sealed [BackgroundShape], tagged by "type": circle, square, teardrop, squircle or roundedSquare. */
+object BackgroundShapeSerializer : KSerializer<BackgroundShape> {
+    private val surrogate = ShapeJson.serializer()
+    override val descriptor = surrogate.descriptor
+    override fun serialize(encoder: Encoder, value: BackgroundShape) = encoder.encodeSerializableValue(surrogate, value.toJson())
+    override fun deserialize(decoder: Decoder): BackgroundShape = decoder.decodeSerializableValue(surrogate).toShape()
+}
+
+@Serializable
+private data class ShapeParamsJson(
+    val strokeWeight: JFloat, val cap: LineCap, val join: LineJoin, val miterLimit: JFloat,
+    val iconScale: JFloat, val offsetX: JFloat, val offsetY: JFloat, val dots: DotMode,
+)
+
+@Serializable
+private data class FillParamsJson(
+    val mode: FillMode, val gapWidth: JFloat, val gapClosing: JFloat, val fallbackThreshold: JFloat, val keepLoneLines: Boolean,
+)
+
+@Serializable
+private data class BorderJson(val width: JFloat, val color: Argb, val opacity: JFloat)
+
+@Serializable
+private data class BackgroundJson(
+    val enabled: Boolean,
+    @Serializable(BackgroundShapeSerializer::class) val shape: BackgroundShape,
+    val size: JFloat,
+    @Serializable(PaintSerializer::class) val paint: Paint,
+    val border: BorderJson?,
+)
+
+@Serializable
+private data class GlyphJson(val line: Argb, val body: Argb)
+
+@Serializable
+private data class ThemeJson(val shape: ShapeParamsJson, val fill: FillParamsJson, val background: BackgroundJson, val glyph: GlyphJson)
+
+/**
+ * The whole [Theme]. Out-of-range values fail in the :render constructors with
+ * IllegalArgumentException, which the parser reports as a [SerializationException].
+ */
+object ThemeSerializer : KSerializer<Theme> {
+    private val surrogate = ThemeJson.serializer()
+    override val descriptor = surrogate.descriptor
+
+    override fun serialize(encoder: Encoder, value: Theme) = encoder.encodeSerializableValue(surrogate, value.toJson())
+
+    override fun deserialize(decoder: Decoder): Theme {
+        val json = decoder.decodeSerializableValue(surrogate)
+        return try {
+            json.toTheme()
+        } catch (e: IllegalArgumentException) {
+            throw SerializationException("theme value out of range: ${e.message}", e)
+        }
+    }
+}
+
+private fun Paint.toJson(): PaintJson = when (this) {
+    is Paint.Solid -> PaintJson.Solid(argb)
+    is Paint.LinearGradient -> PaintJson.Linear(x0, y0, x1, y1, stops.map { StopJson(it.offset, it.argb) })
+    is Paint.RadialGradient -> PaintJson.Radial(cx, cy, radius, stops.map { StopJson(it.offset, it.argb) })
+}
+
+private fun PaintJson.toPaint(): Paint = when (this) {
+    is PaintJson.Solid -> Paint.Solid(color)
+    is PaintJson.Linear -> Paint.LinearGradient(x0, y0, x1, y1, stops.map { ColorStop(it.offset, it.color) })
+    is PaintJson.Radial -> Paint.RadialGradient(cx, cy, radius, stops.map { ColorStop(it.offset, it.color) })
+}
+
+private fun BackgroundShape.toJson(): ShapeJson = when (this) {
+    BackgroundShape.Circle -> ShapeJson.Circle
+    BackgroundShape.Square -> ShapeJson.Square
+    BackgroundShape.Teardrop -> ShapeJson.Teardrop
+    is BackgroundShape.Squircle -> ShapeJson.Squircle(exponent)
+    is BackgroundShape.RoundedSquare -> ShapeJson.RoundedSquare(cornerRadius)
+}
+
+private fun ShapeJson.toShape(): BackgroundShape = when (this) {
+    ShapeJson.Circle -> BackgroundShape.Circle
+    ShapeJson.Square -> BackgroundShape.Square
+    ShapeJson.Teardrop -> BackgroundShape.Teardrop
+    is ShapeJson.Squircle -> BackgroundShape.Squircle(exponent)
+    is ShapeJson.RoundedSquare -> BackgroundShape.RoundedSquare(cornerRadius)
+}
+
+private fun Theme.toJson() = ThemeJson(
+    shape.run { ShapeParamsJson(strokeWeight, cap, join, miterLimit, iconScale, offsetX, offsetY, dots) },
+    fill.run { FillParamsJson(mode, gapWidth, gapClosing, fallbackThreshold, keepLoneLines) },
+    background.run { BackgroundJson(enabled, shape, size, paint, border?.let { BorderJson(it.width, it.argb, it.opacity) }) },
+    GlyphJson(glyph.line, glyph.body),
+)
+
+private fun ThemeJson.toTheme() = Theme(
+    shape.run { ShapeParams(strokeWeight, cap, join, miterLimit, iconScale, offsetX, offsetY, dots) },
+    fill.run { FillParams(mode, gapWidth, gapClosing, fallbackThreshold, keepLoneLines) },
+    background.run { BackgroundParams(enabled, shape, size, paint, border?.let { Border(it.width, it.color, it.opacity) }) },
+    GlyphPaint(glyph.line, glyph.body),
+)
