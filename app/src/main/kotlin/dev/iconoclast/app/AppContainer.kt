@@ -1,6 +1,7 @@
 package dev.iconoclast.app
 
 import android.app.Application
+import android.util.Log
 import dev.iconoclast.app.theme.Presets
 import dev.iconoclast.app.theme.ThemeRepository
 import dev.iconoclast.iconsource.IconSource
@@ -12,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.IOException
 
 /** The app-scoped objects, created once in [IconoclastApp] and passed down. No DI framework. */
 class AppContainer(private val app: Application) {
@@ -30,7 +32,19 @@ class AppContainer(private val app: Application) {
 
     val previews = ThemePreviews(this)
 
+    private companion object {
+        const val TAG = "Iconoclast"
+    }
+
     init {
-        scope.launch { themes.load() }
+        scope.launch {
+            // HomeViewModel loads again and shows the failure; here it is only logged.
+            try {
+                themes.load()
+            } catch (e: IOException) {
+                Log.w(TAG, "Themes could not be loaded", e)
+            }
+            themes.unreadable.value.forEach { Log.w(TAG, "Theme file skipped: $it") }
+        }
     }
 }

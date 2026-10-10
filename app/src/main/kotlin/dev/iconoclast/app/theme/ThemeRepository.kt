@@ -10,6 +10,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
@@ -18,6 +19,8 @@ import java.util.UUID
  * The saved themes: one JSON file per theme in [dir], plus the active theme's id.
  * See docs/theme-format.md, Storage. Every write is atomic. The first load seeds
  * [presets], each a theme file's text, once per install.
+ *
+ * Writes throw IOException when the disk fails; callers surface it.
  *
  * Thread-safe. Every suspend operation loads the directory first if nothing has yet;
  * the plain getters read the flows, which are empty until [load] has run.
@@ -39,6 +42,10 @@ class ThemeRepository(
     private val _activeId = MutableStateFlow<String?>(null)
     /** The theme Apply uses. Null only when no theme exists. */
     val activeId: StateFlow<String?> = _activeId
+
+    private val _unreadable = MutableStateFlow<List<String>>(emptyList())
+    /** Theme files the last load skipped, as "file: reason". They stay on disk. */
+    val unreadable: StateFlow<List<String>> = _unreadable
 
     private val activeFile = File(dir, "active")
     private val seededFile = File(dir, "seeded")
@@ -87,7 +94,8 @@ class ThemeRepository(
      */
     suspend fun import(json: String): ThemeDocument = locked {
         val t = now()
-        migrate(json, now, newId).copy(id = newId(), created = t, modified = t).also(::write)
+        val doc = migrate(json, now, newId)
+        doc.copy(id = newId(), name = doc.name.clean(), created = t, modified = t).also(::write)
     }
 
     /** The theme's file content, for sharing. */
@@ -105,14 +113,20 @@ class ThemeRepository(
 
     private fun readAll() {
         dir.mkdirs()
+        val unreadable = mutableListOf<String>()
         val docs = dir.listFiles { f -> f.name.endsWith(".json") && !f.name.startsWith(".") }.orEmpty().mapNotNull { f ->
             // A damaged file is left on disk and skipped, so one bad theme cannot hide the rest.
             try {
                 migrate(f.readText(), now, newId).copy(id = f.name.removeSuffix(".json"))
             } catch (e: ThemeFormatException) {
+                unreadable += "${f.name}: ${e.message}"
+                null
+            } catch (e: IOException) {
+                unreadable += "${f.name}: ${e.message ?: e.javaClass.simpleName}"
                 null
             }
         }
+        _unreadable.value = unreadable
         _themes.value = docs.sortedWith(ORDER)
         _activeId.value = activeFile.takeIf { it.exists() }?.readText()?.trim()?.takeIf { id -> docs.any { it.id == id } }
         if (!seededFile.exists()) seed()

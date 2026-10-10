@@ -77,6 +77,12 @@ class ThemeRepositoryTest {
         assertTrue(imported.id != jade.id)
         assertEquals(jade.theme, imported.theme)
         assertEquals(3, repo.themes.value.size)
+        val padded = repo.import(repo.exportJson(jade.id)!!.replace("\"Jade\"", "\"  Jade two  \""))
+        assertEquals("Jade two", padded.name)
+        val blank = repo.import(repo.exportJson(jade.id)!!.replace("\"Jade\"", "\"   \""))
+        assertEquals("Untitled", blank.name)
+        repo.delete(padded.id)
+        repo.delete(blank.id)
         assertFailsWith<ThemeFormatException> { repo.import("{\"schemaVersion\": 1}") }
         assertEquals(3, repo.themes.value.size)
     }
@@ -87,5 +93,7 @@ class ThemeRepositoryTest {
         File(dir, "broken.json").writeText("{ not json")
         val repo = repo().apply { load() }
         assertEquals(2, repo.themes.value.size)
+        assertEquals(1, repo.unreadable.value.size)
+        assertTrue(repo.unreadable.value.single().startsWith("broken.json: "), repo.unreadable.value.toString())
     }
 }

@@ -29,7 +29,7 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
     val nav = rememberNavController()
     NavHost(nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            HomeScreen(home, onOpen = { nav.navigate(Routes.editor(it)) }, onApply = { nav.navigate(Routes.APPLY) })
+            HomeScreen(home, onOpen = { nav.navigate(Routes.editor(it)) { launchSingleTop = true } }, onApply = { nav.navigate(Routes.APPLY) { launchSingleTop = true } })
         }
         composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
             val themes by home.themes.collectAsState()

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,6 +64,7 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
     val themes by model.themes.collectAsState()
     val activeId by model.activeId.collectAsState()
     val message by model.message.collectAsState()
+    val unreadable by model.unreadable.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var renaming by remember { mutableStateOf<ThemeDocument?>(null) }
     var deleting by remember { mutableStateOf<ThemeDocument?>(null) }
@@ -97,6 +99,15 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (unreadable.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    val n = unreadable.size
+                    Text(
+                        if (n == 1) "1 theme could not be read" else "$n themes could not be read",
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
             items(themes, key = { it.id }) { doc ->
                 ThemeCard(
                     doc = doc,
