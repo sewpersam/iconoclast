@@ -11,7 +11,8 @@ Also read `spike/FINDINGS.md`.
 - F-Droid clean from the first commit: no Google Play Services, no
   analytics, no crash reporters, no proprietary or non-free dependency. Every
   dependency must come from Maven Central or Google Maven with a free licence.
-  No prebuilt binaries checked in except the pinned Arcticons submodule.
+  No prebuilt binaries checked in except the pinned Arcticons submodule and
+  the standard Gradle wrapper jar, whose checksum F-Droid verifies.
 - Licences: app code GPL-3.0-or-later. Arcticons icons CC BY-SA 4.0, credited
   everywhere they are shipped, including inside every generated pack.
 - Working app name is "Icon Designer", applicationId `dev.icondesigner.app`,
