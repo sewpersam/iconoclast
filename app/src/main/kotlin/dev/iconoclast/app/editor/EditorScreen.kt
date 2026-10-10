@@ -1,7 +1,19 @@
 package dev.iconoclast.app.editor
 
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.stateDescription
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +28,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -54,6 +65,8 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
     val ui by vm.ui.collectAsState()
     val frame by vm.frame.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    // The process may be killed any time after the activity stops: save what is pending.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.flush() }
     LaunchedEffect(ui.message) {
         ui.message?.let {
             snackbar.showSnackbar(it)
@@ -123,13 +136,38 @@ private fun PreviewBar(vm: EditorViewModel, ui: EditorUi) {
         FilterChip(ui.source == PreviewSource.INSTALLED, { vm.setSource(PreviewSource.INSTALLED) }, { Text("Installed apps") })
         FilterChip(ui.source == PreviewSource.SAMPLES, { vm.setSource(PreviewSource.SAMPLES) }, { Text("Samples") })
         Box(Modifier.weight(1f))
-        val press = remember { MutableInteractionSource() }
-        val pressed by press.collectIsPressedAsState()
-        LaunchedEffect(pressed) { vm.compare(pressed) }
-        OutlinedButton(
-            onClick = {},
-            interactionSource = press,
-            modifier = Modifier.semantics { contentDescription = "Compare. Hold to show plain Arcticons." },
-        ) { Text(if (ui.comparing) "Plain" else "Compare", style = MaterialTheme.typography.labelLarge) }
+        CompareButton(ui.comparing, vm::compare)
     }
+}
+
+/**
+ * Touch: plain Arcticons while pressed. Accessibility services cannot hold a press, so
+ * their click and long-click actions toggle it instead, and the state is announced.
+ */
+@Composable
+private fun CompareButton(comparing: Boolean, compare: (Boolean) -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Box(
+        Modifier
+            .height(40.dp)
+            .clip(shape)
+            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .background(if (comparing) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .pointerInput(compare) {
+                detectTapGestures(onPress = {
+                    compare(true)
+                    tryAwaitRelease()
+                    compare(false)
+                })
+            }
+            .semantics {
+                role = Role.Button
+                contentDescription = "Compare with plain Arcticons"
+                stateDescription = if (comparing) "Showing plain Arcticons" else "Showing this theme"
+                onClick(label = if (comparing) "Show this theme" else "Show plain Arcticons") { compare(!comparing); true }
+                onLongClick(label = if (comparing) "Show this theme" else "Show plain Arcticons") { compare(!comparing); true }
+            }
+            .padding(horizontal = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(if (comparing) "Plain" else "Compare", style = MaterialTheme.typography.labelLarge) }
 }

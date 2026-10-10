@@ -141,6 +141,8 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     fun drag(theme: Theme) {
         val h = history ?: return
         h.drag(theme)
+        // Saved too, so a process death mid-drag keeps the value under the finger.
+        pending.value = h.theme
         publish()
     }
 
@@ -149,6 +151,16 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     fun undo() = edit { it.undo() }
 
     fun redo() = edit { it.redo() }
+
+    /**
+     * Saves the newest change now, skipping the debounce. The screen calls it when the
+     * activity stops, the last moment before the process may be killed. Runs on the app
+     * scope, so it finishes even if this view model is cleared meanwhile.
+     */
+    fun flush() {
+        val theme = pending.value ?: return
+        container.scope.launch { save(theme) }
+    }
 
     /** Press and hold: the preview shows plain Arcticons while [on]. */
     fun compare(on: Boolean) {
@@ -216,7 +228,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     override fun onCleared() {
         // Leaving within the debounce: the last change still reaches the disk.
-        pending.value?.let { theme -> container.scope.launch { save(theme) } }
+        flush()
     }
 
     companion object {
