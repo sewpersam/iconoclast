@@ -16,6 +16,7 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -41,7 +42,7 @@ abstract class ConvertIconsTask : DefaultTask() {
     @TaskAction
     fun convert() {
         val start = System.nanoTime()
-        val files = svgFiles.files.sortedBy { it.name }
+        val files = sortByDrawableName(svgFiles.files)
         val names = files.map { it.name.removeSuffix(".svg") }
         val icons = arrayOfNulls<Icon>(files.size)
         val perIcon = arrayOfNulls<ConversionStats>(files.size)
@@ -109,3 +110,6 @@ https://creativecommons.org/licenses/by-sa/4.0/. Converted to a binary path form
 """
     }
 }
+
+/** Sorts by the bare drawable name, the order DrawableNames binary-searches names.txt in. */
+internal fun sortByDrawableName(files: Collection<File>): List<File> = files.sortedBy { it.name.removeSuffix(".svg") }

@@ -357,4 +357,12 @@ class IconConverterTest {
         assertEquals(listOf(0f to 0f, 1f to 1f), p.points())
         assertEquals(1, stats.counts["geometry.error.path"])
     }
+
+    /** "a-b.svg" sorts before "a.svg" as a file name, but after "a" as a drawable name. */
+    @Test
+    fun drawableOrderIsBinarySearchable() {
+        val names = sortByDrawableName(listOf("a.svg", "a_b.svg", "a-b.svg").map { java.io.File(it) })
+            .map { it.name.removeSuffix(".svg") }.toTypedArray()
+        names.forEachIndexed { i, n -> assertEquals(i, names.binarySearch(n), n) }
+    }
 }
