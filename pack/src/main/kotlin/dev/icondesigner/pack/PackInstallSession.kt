@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
+import android.os.Build
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -45,8 +46,11 @@ class PackInstallSession(private val context: Context) {
                 val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                     setAppPackageName(packageName)
                     setSize(apk.length())
-                    // Updates of a pack this app installed need no confirmation on API 31+.
+                    // UPDATE_PACKAGES_WITHOUT_USER_ACTION alone did not skip the update prompt on the
+                    // API 36 emulator. From API 34 update ownership is enforced, so the designer
+                    // must also own the pack's updates; see docs/verification/m3.md.
                     setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) setRequestUpdateOwnership(true)
                 }
                 val id = installer.createSession(params)
                 try {

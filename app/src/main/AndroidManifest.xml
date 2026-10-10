@@ -4,6 +4,10 @@
     <!-- Installs and, on a key mismatch, uninstalls the generated pack. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Lets same-key pack updates skip the confirmation prompt, API 31+. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- Makes the designer the pack's update owner, API 34+, so updates can skip the prompt. -->
+    <uses-permission android:name="android.permission.ENFORCE_UPDATE_OWNERSHIP" />
 
     <queries>
         <!-- The generated pack: is it installed already? -->
