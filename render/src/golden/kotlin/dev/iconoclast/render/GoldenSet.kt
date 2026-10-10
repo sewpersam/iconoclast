@@ -46,4 +46,12 @@ object GoldenSet {
             glyph = GlyphPaint(line = WHITE, body = 0xFF3D5A80.toInt()),
         ),
     )
+
+    /**
+     * Invert fill with a closing far wider than the gap, so channels between strokes on
+     * the outside are sealed by the closing but left uncut by the gap. They must stay
+     * empty: the dashes of signal's ring and the slot between fdroid's head and body.
+     */
+    val POCKET_THEME: Theme = THEMES.getValue(FillMode.INVERT).let { it.copy(fill = it.fill.copy(gapWidth = 0.25f, gapClosing = 2f)) }
+    val POCKET_SAMPLES = listOf("signal", "fdroid")
 }

@@ -14,7 +14,8 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * Golden images: 24 sample icons in each fill mode, at the output size, compared byte
+ * Golden images: 24 sample icons in each fill mode, plus the exterior pocket case in
+ * [GoldenSet.POCKET_THEME], at the output size, compared byte
  * for byte as PNG files. The encoder is deterministic, so equal pixels give equal bytes.
  * The goldens and the sample bundle live in src/test/resources/golden.
  * `./gradlew :render:test -PupdateGoldens` rewrites both from the converted Arcticons bundle.
@@ -45,9 +46,12 @@ class GoldenTest {
     fun goldens() {
         val renderer = IconRenderer()
         val mismatches = mutableListOf<String>()
-        for ((mode, theme) in THEMES) for ((i, name) in SAMPLES.withIndex()) {
+        val cases = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
+            GoldenSet.POCKET_SAMPLES.map { Triple("pockets", GoldenSet.POCKET_THEME, it) }
+        for ((dir, theme, name) in cases) {
+            val i = SAMPLES.indexOf(name)
             val png = renderer.renderPng(i, bundle.icon(i), theme, SIZE)
-            val path = "${mode.name.lowercase()}/$name.png"
+            val path = "$dir/$name.png"
             if (update) {
                 File(System.getProperty("golden.dir"), path).apply { parentFile.mkdirs() }.writeBytes(png)
                 continue

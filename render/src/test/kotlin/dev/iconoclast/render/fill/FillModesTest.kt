@@ -31,7 +31,7 @@ class FillModesTest {
 
     private val square = line(16f, 16f, 48f, 16f, 48f, 48f, 16f, 48f, closed = true)
 
-    private fun input(vararg prims: Primitive, closing: Float = 0f): FillInput {
+    private fun input(vararg prims: Primitive, closing: Float = 0f, gap: Float = this.gap): FillInput {
         val icon = Icon(prims.toList())
         val g = rasterizeGlyph(icon, GlyphSpec(Affine(1f, 0f, 0f), strokeScale = stroke), size)
         val cut = rasterizeGlyph(
@@ -99,6 +99,26 @@ class FillModesTest {
         val sealed = FillModes.invert(input(c, closing = 2f), 0.1f, true)
         assertFalse(sealed.fellBack)
         assertEquals(1f, at(assertNotNull(sealed.body), 32, 32))
+    }
+
+    /**
+     * A bracket off the square's top right corner makes a channel 6 px wide between
+     * strokes, open at the bottom: outside the icon. Closing 4 px seals its width, so the
+     * channel is a pocket neither side reaches. It must stay outside. The gap of 1 px
+     * leaves the channel's middle uncut, so a wrong fill would show there.
+     */
+    @Test
+    fun exteriorPocketsStayOutsideWhenClosingExceedsGap() {
+        val bracket = line(48f, 16f, 56f, 16f, 56f, 40f)
+        val m = FillModes.invert(input(square, bracket, closing = 4f, gap = 1f), 0.1f, keepLoneLines = false)
+        val fill = assertNotNull(m.body)
+        assertEquals(1f, at(fill, 32, 32), "the square is still filled")
+        for (y in 20..36) assertEquals(0f, at(fill, 52, y), "channel at y $y")
+        // Silhouette reads the same regions: the channel is not part of the shape.
+        val sil = FillModes.silhouette(input(square, bracket, closing = 4f, gap = 1f))
+        assertEquals(0f, at(sil, 52, 28))
+        // A pocket inside still fills: the square's corners under the same closing.
+        assertEquals(1f, at(fill, 20, 20))
     }
 
     @Test

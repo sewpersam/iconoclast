@@ -110,9 +110,13 @@ object FillModes {
      * pixel-grid closing reopens the gap between two thin stroke ends: disks slide in from
      * both sides and leave a seal thinner than a pixel. Here the strokes are dilated by the
      * closing radius and the remaining regions labelled. Each side is then grown back by
-     * that radius. Where both reach, as in a sealed gap, the enclosed side wins. Pixels
-     * neither reaches, such as narrow pockets where strokes meet, are enclosed too: they
-     * are not outside.
+     * that radius. Where both reach, as in a sealed gap, the enclosed side wins.
+     *
+     * Pixels neither side reaches are pockets: corners where strokes meet, channels
+     * narrower than the seal. A pocket belongs to the inside when it borders the grown
+     * inside, or borders nothing reached at all, as a small closed loop does. A pocket that
+     * borders only the grown outside is an exterior notch and stays outside; without this,
+     * a closing wider than the gap filled the channels between strokes on the outside.
      */
     private fun regions(input: FillInput): Regions {
         val size = input.size
@@ -128,8 +132,32 @@ object FillModes {
         val inside = BooleanArray(n) { l[it] != 0 && !border[l[it]] }
         val outsideGrown = Morphology.dilate(outside, size, size, r)
         val insideGrown = Morphology.dilate(inside, size, size, r)
-        val enclosed = BooleanArray(n) { !stroke[it] && (insideGrown[it] || !outsideGrown[it]) }
+        val pocket = BooleanArray(n) { !stroke[it] && !insideGrown[it] && !outsideGrown[it] }
+        val exterior = exteriorPockets(pocket, insideGrown, outsideGrown, stroke, size)
+        val enclosed = BooleanArray(n) {
+            !stroke[it] && (insideGrown[it] || pocket[it] && !exterior[it])
+        }
         return Regions(stroke, enclosed)
+    }
+
+    /** The [pocket] pixels whose component borders reached outside and no reached inside. */
+    private fun exteriorPockets(
+        pocket: BooleanArray, insideGrown: BooleanArray, outsideGrown: BooleanArray, stroke: BooleanArray, size: Int,
+    ): BooleanArray {
+        val pl = label4(pocket, size, size)
+        val l = pl.labels
+        val nearInside = BooleanArray(pl.count + 1)
+        val nearOutside = BooleanArray(pl.count + 1)
+        for (p in l.indices) {
+            val id = l[p]
+            if (id == 0) continue
+            val x = p % size
+            for (q in intArrayOf(if (x > 0) p - 1 else -1, if (x < size - 1) p + 1 else -1, p - size, p + size)) {
+                if (q < 0 || q >= l.size || stroke[q] || pocket[q]) continue
+                if (insideGrown[q]) nearInside[id] = true else if (outsideGrown[q]) nearOutside[id] = true
+            }
+        }
+        return BooleanArray(l.size) { l[it] != 0 && nearOutside[l[it]] && !nearInside[l[it]] }
     }
 
     /** Whether a 4-neighbour of pixel [p] is set in [mask]. */
