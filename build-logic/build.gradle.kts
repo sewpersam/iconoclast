@@ -16,12 +16,12 @@ dependencies {
 gradlePlugin {
     plugins {
         create("arcticons") {
-            id = "icondesigner.arcticons"
-            implementationClass = "dev.icondesigner.buildlogic.arcticons.ArcticonsPlugin"
+            id = "iconoclast.arcticons"
+            implementationClass = "dev.iconoclast.buildlogic.arcticons.ArcticonsPlugin"
         }
         create("templatepack") {
-            id = "icondesigner.templatepack"
-            implementationClass = "dev.icondesigner.buildlogic.templatepack.TemplatePackPlugin"
+            id = "iconoclast.templatepack"
+            implementationClass = "dev.iconoclast.buildlogic.templatepack.TemplatePackPlugin"
         }
     }
 }

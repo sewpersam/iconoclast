@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Placeholder working name. Defined here only. -->
-    <string name="app_name">Icon Designer</string>
+    <!-- The app name. Defined here only; the pack label derives from it. -->
+    <string name="app_name">Iconoclast</string>
 </resources>

@@ -1,12 +1,12 @@
 // The icon pack APK template. The designer rewrites its icons and re-signs it on the phone.
 // Built with aapt2 and d8 from build-tools, as spike/pack.py proved, not by AGP.
-import dev.icondesigner.buildlogic.templatepack.BuildTemplatePackTask
+import dev.iconoclast.buildlogic.templatepack.BuildTemplatePackTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
-    id("icondesigner.templatepack")
+    id("iconoclast.templatepack")
 }
 
 val sdkDir: File = Properties().run {
@@ -46,8 +46,8 @@ fun BuildTemplatePackTask.configure(name: String) {
     androidJar = platformJar
     activityClasses.from(sourceSets.main.map { it.output.classesDirs })
     ccLicense = rootProject.layout.projectDirectory.file("licenses/CC-BY-SA-4.0.txt")
-    packageName = providers.gradleProperty("icondesigner.packApplicationId")
-    designerPackage = providers.gradleProperty("icondesigner.applicationId")
+    packageName = providers.gradleProperty("iconoclast.packApplicationId")
+    designerPackage = providers.gradleProperty("iconoclast.applicationId")
     appName = designerAppName
     minSdk = libs.versions.minSdk.get().toInt()
     targetSdk = libs.versions.targetSdk.get().toInt()

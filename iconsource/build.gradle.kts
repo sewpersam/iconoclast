@@ -1,13 +1,13 @@
-import dev.icondesigner.buildlogic.arcticons.CompileAppfilterTask
-import dev.icondesigner.buildlogic.arcticons.ConvertIconsTask
+import dev.iconoclast.buildlogic.arcticons.CompileAppfilterTask
+import dev.iconoclast.buildlogic.arcticons.ConvertIconsTask
 
 plugins {
     alias(libs.plugins.android.library)
-    id("icondesigner.arcticons")
+    id("iconoclast.arcticons")
 }
 
 android {
-    namespace = "dev.icondesigner.iconsource"
+    namespace = "dev.iconoclast.iconsource"
     compileSdk = libs.versions.compileSdk.get().toInt()
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()

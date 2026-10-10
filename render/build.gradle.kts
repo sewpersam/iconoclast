@@ -34,7 +34,7 @@ tasks.register<JavaExec>("verifyIconConversion") {
     group = "verification"
     description = "Rasterizes every converted icon at 96 px and gates IoU against inkscape renders."
     classpath = verify.runtimeClasspath
-    mainClass = "dev.icondesigner.render.verify.VerifyConversionKt"
+    mainClass = "dev.iconoclast.render.verify.VerifyConversionKt"
     maxHeapSize = "2g"
     systemProperty("java.awt.headless", "true")
     // Marlin samples 8 sub-rows per pixel by default, which quantizes horizontal edges.
@@ -74,7 +74,7 @@ tasks.register<JavaExec>("benchmarkRenderer") {
     group = "verification"
     description = "Times the renderer on the JVM against the spec 3.3 budgets."
     classpath = verify.runtimeClasspath
-    mainClass = "dev.icondesigner.render.verify.RenderBenchmarkKt"
+    mainClass = "dev.iconoclast.render.verify.RenderBenchmarkKt"
     maxHeapSize = "2g"
     inputs.dir(iconAssets)
     argumentProviders += CommandLineArgumentProvider {

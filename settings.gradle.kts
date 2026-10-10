@@ -14,6 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "icon-designer"
+rootProject.name = "iconoclast"
 
 include(":app", ":render", ":pack", ":iconsource", ":template-pack")

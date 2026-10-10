@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.icondesigner.pack"
+    namespace = "dev.iconoclast.pack"
     compileSdk = libs.versions.compileSdk.get().toInt()
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()

@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "dev.icondesigner.app"
+    namespace = "dev.iconoclast.app"
     compileSdk = libs.versions.compileSdk.get().toInt()
     defaultConfig {
-        applicationId = providers.gradleProperty("icondesigner.applicationId").get()
+        applicationId = providers.gradleProperty("iconoclast.applicationId").get()
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1"
-        val packPackage = providers.gradleProperty("icondesigner.packApplicationId").get()
+        val packPackage = providers.gradleProperty("iconoclast.packApplicationId").get()
         buildConfigField("String", "PACK_PACKAGE", "\"$packPackage\"")
         manifestPlaceholders["packPackage"] = packPackage
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -1,11 +1,10 @@
-# Icon Designer
+# Iconoclast
 
-Icon Designer is an Android app for building your own icon pack from the
+Iconoclast is an Android app for building your own icon pack from the
 Arcticons line icons. You style the icons on the phone: stroke weight, fill,
 background, textures and effects. The app then generates a real icon pack
 APK, signs it on the device and installs it, so any launcher that supports
-icon packs can use it. It needs no network and no Google services. "Icon
-Designer" is a working name.
+icon packs can use it. It needs no network and no Google services.
 
 ## Build
 
@@ -17,8 +16,8 @@ Requirements:
   `local.properties` at it: `sdk.dir=/path/to/Android/Sdk`.
 
 ```
-git clone --recurse-submodules <repo-url>
-cd icon-designer
+git clone --recurse-submodules <repo-url> iconoclast
+cd iconoclast
 ./gradlew assembleDebug
 ```
 
