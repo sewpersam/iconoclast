@@ -84,8 +84,11 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val t2 = SystemClock.elapsedRealtime()
 
         _state.value = ApplyState.Working("Signing the pack")
+        val key = withContext(Dispatchers.IO) { PackKeyStore(app.noBackupFilesDir, "$appName Pack").loadOrCreate() }
+        // Spec 6.5: a pack from an earlier install of the designer has another key. Say so
+        // before the system offers an update that can only fail.
+        if (installedPackSigner()?.let { !it.contentEquals(key.certificate.encoded) } == true) return mismatch()
         val apk = withContext(Dispatchers.IO) {
-            val key = PackKeyStore(app.noBackupFilesDir, "$appName Pack").loadOrCreate()
             File(app.cacheDir, "pack").apply { mkdirs() }.resolve("pack.apk").also { PackSigner.sign(unsigned, key, it) }
         }
         val t3 = SystemClock.elapsedRealtime()
@@ -102,13 +105,24 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
                 "To install the pack, allow $appName to install apps. Turn on the switch, come back, and tap Apply again.",
                 Fix.GRANT_INSTALL_PERMISSION,
             )
-            is InstallResult.SignatureMismatch -> ApplyState.Problem(
-                "A pack signed with a different key is installed, probably from an earlier install of $appName. " +
-                    "Uninstall the old pack, then tap Apply again.",
-                Fix.UNINSTALL_OLD_PACK,
-            )
+            is InstallResult.SignatureMismatch -> mismatch()
             is InstallResult.Failed -> ApplyState.Problem(result.message)
         }
+    }
+
+    private fun mismatch() = ApplyState.Problem(
+        "A pack signed with a different key is installed, probably from an earlier install of $appName. " +
+            "Uninstall the old pack, then tap Apply again.",
+        Fix.UNINSTALL_OLD_PACK,
+    )
+
+    /** The installed pack's signing certificate, or null when no pack is installed. */
+    private fun installedPackSigner(): ByteArray? = try {
+        getApplication<Application>().packageManager
+            .getPackageInfo(PACK_PACKAGE, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()))
+            .signingInfo?.apkContentsSigners?.singleOrNull()?.toByteArray()
+    } catch (e: PackageManager.NameNotFoundException) {
+        null
     }
 
     fun fix(fix: Fix) {
