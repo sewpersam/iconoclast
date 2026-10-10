@@ -40,6 +40,10 @@ class PackSignerTest {
         assertEquals(first.certificate, second.certificate)
         assertEquals(first.privateKey, second.privateKey)
         assertEquals(256, (first.certificate.publicKey as ECPublicKey).params.order.bitLength())
+        // The SubjectPublicKeyInfo names the curve: OID 1.2.840.10045.3.1.7 is secp256r1, P-256.
+        val p256 = byteArrayOf(0x06, 0x08, 0x2A, 0x86.toByte(), 0x48, 0xCE.toByte(), 0x3D, 0x03, 0x01, 0x07)
+        val spki = first.certificate.publicKey.encoded
+        assertTrue((0..spki.size - p256.size).any { i -> p256.indices.all { spki[i + it] == p256[it] } }, "not P-256")
         assertTrue(File(keys, "pack-signing.p12").exists())
         first.certificate.verify(first.certificate.publicKey)
         assertEquals("CN=Test Pack", first.certificate.subjectX500Principal.name)

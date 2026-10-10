@@ -87,13 +87,32 @@ class ZipRewriterTest {
             z.write(stored); z.closeEntry()
             z.putNextEntry(ZipEntry("c.txt")); z.write("old".toByteArray()); z.closeEntry()
         }
+        assertTrue(entryFlags(src.toByteArray()).any { (local, _) -> local and 0x8 != 0 }, "input must use data descriptors")
         val out = write(ZipRewriter.rewrite(src.toByteArray(), mapOf("c.txt" to "new".toByteArray())), "small.zip")
         assertZipaligned(out)
+        for ((local, central) in entryFlags(out.readBytes())) {
+            assertEquals(0, local and 0x8, "local header data descriptor bit")
+            assertEquals(0, central and 0x8, "central directory data descriptor bit")
+        }
         ZipFile(out).use { z ->
             assertEquals(listOf("a.txt", "b.bin", "c.txt"), z.entries().toList().map { it.name })
             assertEquals("a".repeat(500), z.getInputStream(z.getEntry("a.txt")).readBytes().decodeToString())
             assertEquals("stored!", z.getInputStream(z.getEntry("b.bin")).readBytes().decodeToString())
             assertEquals("new", z.getInputStream(z.getEntry("c.txt")).readBytes().decodeToString())
+        }
+    }
+
+    /** (local header flags, central directory flags) of every entry, read from the raw bytes. */
+    private fun entryFlags(zip: ByteArray): List<Pair<Int, Int>> {
+        val b = java.nio.ByteBuffer.wrap(zip).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        val end = (zip.size - 22 downTo 0).first { b.getInt(it) == 0x06054b50 }
+        var p = b.getInt(end + 16)
+        return List(b.getShort(end + 10).toInt() and 0xFFFF) {
+            check(b.getInt(p) == 0x02014b50)
+            val central = b.getShort(p + 8).toInt() and 0xFFFF
+            val local = b.getShort(b.getInt(p + 42) + 6).toInt() and 0xFFFF
+            p += 46 + (b.getShort(p + 28).toInt() and 0xFFFF) + (b.getShort(p + 30).toInt() and 0xFFFF) + (b.getShort(p + 32).toInt() and 0xFFFF)
+            local to central
         }
     }
 
