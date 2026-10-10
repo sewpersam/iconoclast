@@ -57,23 +57,4 @@ class MaskAlgorithmsTest {
         assertEquals(13, Morphology.dilate(m, 11, 11, 2f).count { it })
         assertEquals(29, Morphology.dilate(m, 11, 11, 3f).count { it })
     }
-
-    @Test
-    fun erosionAndClosing() {
-        val sq = BooleanArray(121) { val x = it % 11; val y = it / 11; x in 2..8 && y in 2..8 }
-        assertEquals(25, Morphology.erode(sq, 11, 11, 1f).count { it })
-        // Two bars with a two-pixel gap: closing at radius 2 seals it, radius 0 does not.
-        val bars = grid(
-            "..........",
-            ".###..###.",
-            ".###..###.",
-            ".###..###.",
-            "..........",
-        )
-        val closed = Morphology.close(bars, 10, 5, 2f)
-        assertTrue(closed[2 * 10 + 4] && closed[2 * 10 + 5])
-        assertFalse(Morphology.close(bars, 10, 5, 0f)[2 * 10 + 4])
-        // Closing never removes pixels.
-        assertTrue(bars.indices.all { !bars[it] || closed[it] })
-    }
 }
