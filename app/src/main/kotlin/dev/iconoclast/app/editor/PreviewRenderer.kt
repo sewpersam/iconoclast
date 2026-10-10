@@ -53,6 +53,9 @@ class PreviewRenderer<T : Any>(
     /** Passes run, for the gate log and tests. */
     @Volatile var passes = 0; private set
 
+    /** Passes that failed, for tests. */
+    @Volatile var failures = 0; private set
+
     init {
         // A StateFlow is conflated: while a pass runs, newer requests overwrite each other.
         scope.launch { requests.filterNotNull().collect { pass(it) } }
@@ -72,6 +75,9 @@ class PreviewRenderer<T : Any>(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // Forget the request, so asking again for the same one is not swallowed as equal.
+            requests.compareAndSet(r, null)
+            failures++
             log("preview pass failed: $e")
             return
         }

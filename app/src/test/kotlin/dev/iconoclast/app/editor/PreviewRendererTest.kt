@@ -67,4 +67,22 @@ class PreviewRendererTest {
         assertEquals(before, calls.size)
         scope.cancel()
     }
+
+    @Test
+    fun aFailedPassCanBeRequestedAgain() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default)
+        val fail = java.util.concurrent.atomic.AtomicBoolean(true)
+        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, t ->
+            if (fail.get()) error("disk gone")
+            "$d@${t.shape.strokeWeight}"
+        })
+        val req = PreviewRequest(weight(1f), listOf(0))
+        r.request(req)
+        withTimeout(5000) { while (r.failures == 0) kotlinx.coroutines.delay(10) }
+        fail.set(false)
+        r.request(req)
+        val frame = withTimeout(5000) { r.frame.first { it.complete } }
+        assertEquals(mapOf(0 to "0@1.0"), frame.images)
+        scope.cancel()
+    }
 }
