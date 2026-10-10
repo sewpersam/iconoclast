@@ -1,0 +1,8 @@
+com.android.camera2/com.android.camera.CameraLauncher
+com.android.chrome/com.google.android.apps.chrome.Main
+com.android.settings/com.android.settings.Settings
+com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity
+com.google.android.contacts/com.android.contacts.activities.PeopleActivity
+com.google.android.deskclock/com.android.deskclock.DeskClock
+com.google.android.dialer/com.google.android.dialer.extensions.GoogleDialtactsActivity
+com.google.android.documentsui/com.android.documentsui.LauncherActivity

@@ -1,0 +1,23 @@
+# Spike reference artefacts kept on disk, not in history
+spike/launchers/
+spike/shots/
+spike/out/
+spike/ondevice/
+spike/*.apk
+spike/*.idsig
+spike/*.keystore
+spike/emu.log
+spike/arcticons_appfilter.xml
+spike/build_*
+spike/icons_*
+spike/template/
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+captures/
+# SDD scratch
+.superpowers/
