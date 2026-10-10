@@ -24,6 +24,7 @@ android {
     // The ART byte identity check renders the :render goldens on the device.
     sourceSets["androidTest"].assets.directories += rootProject.file("render/src/test/resources/golden").path
     sourceSets["androidTest"].kotlin.directories += rootProject.file("render/src/golden/kotlin").path
+    sourceSets["test"].kotlin.directories += rootProject.file("render/src/golden/kotlin").path
 }
 
 // The pack template, built by :template-pack with aapt2, ships in the assets under pack/.
@@ -60,6 +61,14 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
 
+    testImplementation(libs.kotlin.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
+}
+
+// PackBuilderTest rewrites the real template with icons from the golden sample bundle.
+tasks.withType<Test>().configureEach {
+    inputs.file(builtTemplate)
+    systemProperty("template.apk", builtTemplate.get().asFile.path)
+    systemProperty("golden.samples", rootProject.file("render/src/test/resources/golden/samples.bin").path)
 }
