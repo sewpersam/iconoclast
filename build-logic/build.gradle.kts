@@ -19,6 +19,10 @@ gradlePlugin {
             id = "iconoclast.arcticons"
             implementationClass = "dev.iconoclast.buildlogic.arcticons.ArcticonsPlugin"
         }
+        create("licenses") {
+            id = "iconoclast.licenses"
+            implementationClass = "dev.iconoclast.buildlogic.licenses.LicensesPlugin"
+        }
         create("templatepack") {
             id = "iconoclast.templatepack"
             implementationClass = "dev.iconoclast.buildlogic.templatepack.TemplatePackPlugin"
