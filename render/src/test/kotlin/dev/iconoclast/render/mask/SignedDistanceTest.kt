@@ -101,6 +101,17 @@ class SignedDistanceTest {
         for (y in 0 until w) for (x in 0 until w) assertEquals(20.3f - x, f[y * w + x], 1e-4f, "($x, $y)")
     }
 
+    /** Faint coverage that never reaches one half, a lone line's ramp in a gap, plants no edge. */
+    @Test
+    fun faintSpecksAreNoEdge() {
+        val w = 40
+        val cov = FloatArray(w * w) { ((20.3f - (it % w - 0.5f)).coerceIn(0f, 1f)) }
+        cov[10 * w + 28] = 0.1f
+        cov[10 * w + 29] = 0.2f
+        val f = SignedDistance.of(cov, w, w)
+        for (x in 26..31) assertEquals(20.3f - x, f[10 * w + x], 1e-4f, "($x, 10)")
+    }
+
     @Test
     fun noEdgeIsFarInsideOrOut() {
         assertEquals(SignedDistance.NO_EDGE, SignedDistance.of(FloatArray(16) { 1f }, 4, 4)[5])

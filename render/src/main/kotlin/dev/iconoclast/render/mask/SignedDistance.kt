@@ -14,7 +14,8 @@ import dev.iconoclast.render.math.sqrt
  *
  * [of] is the anti-aliased Euclidean distance transform after Gustavson and Strand, "Anti-
  * aliased Euclidean distance transform", Pattern Recognition Letters 32 (2011). Each edge
- * pixel, one with partial coverage or a hard 0 to 1 step to a neighbour, gets the
+ * pixel, one on the half-level contour (partial coverage next to the other side of one
+ * half, or a hard 0 to 1 step to a neighbour), gets the
  * point where the edge crosses it: the coverage gradient (their Sobel-like operator with
  * sqrt 2 weights) gives the edge's normal, and their `edgedf` gives its distance from the
  * pixel centre for that coverage, treating the edge as straight within the pixel. Every
@@ -93,11 +94,23 @@ object SignedDistance {
     }
 
     /**
-     * Partial coverage; or full coverage beside empty, or empty beside full: a hard edge
-     * on the pixel boundary with no partial pixel to place it.
+     * On the half-level contour: partial coverage with a 3 x 3 neighbour on the other side
+     * of one half, or full coverage beside empty, a hard edge on the pixel boundary with no
+     * partial pixel to place it. Faint coverage with nothing across the half level, such
+     * as a lone line's ramp inside a gap, is no edge: it would plant a false edge point
+     * there and dent the field.
      */
     private fun isEdge(cov: FloatArray, w: Int, h: Int, x: Int, y: Int, a: Float): Boolean {
-        if (a > 0f && a < 1f) return true
+        if (a > 0f && a < 1f) {
+            val inside = a >= 0.5f
+            for (dy in -1..1) for (dx in -1..1) {
+                val nx = x + dx
+                val ny = y + dy
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
+                if ((cov[ny * w + nx] >= 0.5f) != inside) return true
+            }
+            return false
+        }
         val other = 1f - a
         return (x > 0 && cov[y * w + x - 1] == other) || (x < w - 1 && cov[y * w + x + 1] == other) ||
             (y > 0 && cov[(y - 1) * w + x] == other) || (y < h - 1 && cov[(y + 1) * w + x] == other)
