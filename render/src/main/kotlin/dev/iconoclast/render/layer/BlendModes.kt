@@ -21,7 +21,11 @@ import dev.iconoclast.render.math.sqrt
  */
 internal object BlendModes {
 
-    fun composite(mode: BlendMode, sr: Float, sg: Float, sb: Float, sa: Float, buf: FloatArray, o: Int) {
+    /**
+     * Composites one source pixel into [buf] at [o]. [scratch] holds three floats of working
+     * space; a caller looping over pixels passes one array so nothing is allocated per pixel.
+     */
+    fun composite(mode: BlendMode, sr: Float, sg: Float, sb: Float, sa: Float, buf: FloatArray, o: Int, scratch: FloatArray = FloatArray(3)) {
         when (mode) {
             BlendMode.NORMAL -> {
                 val inv = 1f - sa
@@ -36,7 +40,10 @@ internal object BlendModes {
                 buf[o + 2] = minOf(1f, sb + buf[o + 2])
                 buf[o + 3] = minOf(1f, sa + buf[o + 3])
             }
-            else -> {
+            BlendMode.HUE, BlendMode.SATURATION, BlendMode.COLOR, BlendMode.LUMINOSITY,
+            BlendMode.MULTIPLY, BlendMode.SCREEN, BlendMode.OVERLAY, BlendMode.DARKEN, BlendMode.LIGHTEN,
+            BlendMode.COLOR_DODGE, BlendMode.COLOR_BURN, BlendMode.HARD_LIGHT, BlendMode.SOFT_LIGHT,
+            BlendMode.DIFFERENCE, BlendMode.EXCLUSION -> {
                 if (sa == 0f) return
                 val ab = buf[o + 3]
                 val br = buf[o]
@@ -49,8 +56,8 @@ internal object BlendModes {
                 val cbr = if (ab > 0f) br / ab else 0f
                 val cbg = if (ab > 0f) bg / ab else 0f
                 val cbb = if (ab > 0f) bb / ab else 0f
-                val out = FloatArray(3)
-                if (mode.ordinal >= BlendMode.HUE.ordinal) nonSeparable(mode, cbr, cbg, cbb, csr, csg, csb, out)
+                val out = scratch
+                if (mode in NON_SEPARABLE) nonSeparable(mode, cbr, cbg, cbb, csr, csg, csb, out)
                 else {
                     out[0] = separable(mode, cbr, csr)
                     out[1] = separable(mode, cbg, csg)
@@ -64,6 +71,8 @@ internal object BlendModes {
             }
         }
     }
+
+    private val NON_SEPARABLE = java.util.EnumSet.of(BlendMode.HUE, BlendMode.SATURATION, BlendMode.COLOR, BlendMode.LUMINOSITY)
 
     /** B(Cb, Cs) for the separable modes, section 9.1. */
     fun separable(mode: BlendMode, cb: Float, cs: Float): Float = when (mode) {
@@ -142,23 +151,23 @@ internal object BlendModes {
 
     /** SetSat: the largest channel becomes [s], the smallest 0, the middle scaled between. */
     private fun setSat(r: Float, g: Float, b: Float, s: Float, out: FloatArray) {
-        val c = floatArrayOf(r, g, b)
         // Channel indices sorted by value; ties keep channel order.
         var lo = 0
         var mid = 1
         var hi = 2
-        if (c[mid] < c[lo]) { val t = lo; lo = mid; mid = t }
-        if (c[hi] < c[mid]) { val t = mid; mid = hi; hi = t }
-        if (c[mid] < c[lo]) { val t = lo; lo = mid; mid = t }
-        val max = hi
-        val min = lo
-        val v = FloatArray(3)
-        if (c[max] > c[min]) {
-            v[mid] = (c[mid] - c[min]) * s / (c[max] - c[min])
-            v[max] = s
+        if (channel(mid, r, g, b) < channel(lo, r, g, b)) { val t = lo; lo = mid; mid = t }
+        if (channel(hi, r, g, b) < channel(mid, r, g, b)) { val t = mid; mid = hi; hi = t }
+        if (channel(mid, r, g, b) < channel(lo, r, g, b)) { val t = lo; lo = mid; mid = t }
+        val cmax = channel(hi, r, g, b)
+        val cmin = channel(lo, r, g, b)
+        out[0] = 0f
+        out[1] = 0f
+        out[2] = 0f
+        if (cmax > cmin) {
+            out[mid] = (channel(mid, r, g, b) - cmin) * s / (cmax - cmin)
+            out[hi] = s
         }
-        out[0] = v[0]
-        out[1] = v[1]
-        out[2] = v[2]
     }
+
+    private fun channel(i: Int, r: Float, g: Float, b: Float) = when (i) { 0 -> r; 1 -> g; else -> b }
 }
