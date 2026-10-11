@@ -3,6 +3,7 @@ package dev.iconoclast.pack
 import java.io.File
 import java.security.KeyPairGenerator
 import java.security.KeyStore
+import java.security.KeyStoreException
 import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -30,8 +31,10 @@ class PackKeyStore(private val dir: File, private val commonName: String) {
         val password = passwordFile.readText().toCharArray()
         val store = KeyStore.getInstance("PKCS12")
         storeFile.inputStream().use { store.load(it, password) }
-        val key = store.getKey(ALIAS, password) as PrivateKey
-        return SigningKey(key, store.getCertificate(ALIAS) as X509Certificate)
+        // A damaged store throws KeyStoreException, never a ClassCastException.
+        val key = store.getKey(ALIAS, password) as? PrivateKey ?: throw KeyStoreException("no signing key in $storeFile")
+        val cert = store.getCertificate(ALIAS) as? X509Certificate ?: throw KeyStoreException("no certificate in $storeFile")
+        return SigningKey(key, cert)
     }
 
     private fun create(): SigningKey {

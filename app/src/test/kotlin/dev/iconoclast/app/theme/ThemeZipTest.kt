@@ -208,7 +208,10 @@ class ThemeZipTest {
         val withKey = ThemeZipExport.write(d, sourceStore(), key)
         assertEquals(plain.keys.toList() + listOf("key/pack.p12", "key/password"), entries(withKey).keys.toList())
         assertContentEquals(withKey, ThemeZipExport.write(d, sourceStore(), key), "deterministic")
-        val read = ThemeZipImport.read(withKey) { false }.key!!
+        val skipped = ThemeZipImport.read(withKey) { false }
+        assertEquals(null, skipped.key, "unread without readKey")
+        assertTrue(skipped.hasKey)
+        val read = ThemeZipImport.read(withKey, readKey = true) { false }.key!!
         assertContentEquals(key.p12, read.p12)
         assertContentEquals(key.password, read.password)
     }
@@ -222,7 +225,13 @@ class ThemeZipTest {
             zip("theme.json" to json, "key/pack.p12" to key.p12, "key/password" to "wrong".toByteArray()),
             zip("theme.json" to json, "key/pack.p12" to ByteArray(ThemeZipImport.MAX_KEY_STORE + 1), "key/password" to key.password),
         )
-        for (z in bad) assertFailsWith<ThemeFormatException> { ThemeZipImport.read(z) { false } }
+        for (z in bad) {
+            assertFailsWith<ThemeFormatException> { ThemeZipImport.read(z, readKey = true) { false } }
+            // Not restoring the key: the damaged entries are ignored and the theme imports.
+            val theme = ThemeZipImport.read(z) { false }
+            assertEquals(null, theme.key)
+            assertTrue(theme.hasKey)
+        }
     }
 
     /** A different key on the phone: an error before anything is stored, and the phone keeps its key. */
@@ -233,7 +242,7 @@ class ThemeZipTest {
         val mine = keys.backup()!!
         val textures = dev.iconoclast.app.texture.TextureFiles(tmp())
         val themes = ThemeRepository(tmp())
-        val archive = ThemeZipImport.read(ThemeZipExport.write(doc(GoldenSet.LOOKS.entries.first { GoldenSet.TEXTURE in it.value.textureHashes() }.key), sourceStore(), key)) { false }
+        val archive = ThemeZipImport.read(ThemeZipExport.write(doc(GoldenSet.LOOKS.entries.first { GoldenSet.TEXTURE in it.value.textureHashes() }.key), sourceStore(), key), readKey = true) { false }
         assertFailsWith<ThemeFormatException> { ArchiveImport.store(archive, restoreKey = true, keys, textures, themes) }
         assertEquals(emptyList(), themes.themes.value)
         assertEquals(emptyList(), textures.recent())

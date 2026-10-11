@@ -8,6 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PackKeyBackupTest {
     private fun dir(): File = Files.createTempDirectory("key").toFile().apply { deleteOnExit() }
@@ -48,6 +49,19 @@ class PackKeyBackupTest {
             assertFailsWith<InvalidKeyBackupException> { store(d).restore(bad) }
             assertFalse(store(d).exists)
             assertEquals(0, d.list()!!.size)
+        }
+    }
+
+    /** Review fix: a damaged local store fails as an IOException or a GeneralSecurityException, what the app catches. */
+    @Test
+    fun aDamagedLocalStoreFailsWithACaughtType() {
+        val good = store().apply { loadOrCreate() }.backup()!!
+        for (damage in listOf(byteArrayOf(1, 2, 3), ByteArray(0))) {
+            val d = dir()
+            store(d).loadOrCreate()
+            File(d, "pack-signing.p12").writeBytes(damage)
+            val e = assertFailsWith<Exception> { store(d).restore(good) }
+            assertTrue(e is java.io.IOException || e is java.security.GeneralSecurityException, "${e.javaClass}")
         }
     }
 }

@@ -50,6 +50,8 @@ class AppContainer(private val app: Application) {
 
     init {
         scope.launch { RenderWarmup.run() }
+        // A shared export, possibly carrying the signing key, never outlives the process that shared it.
+        scope.launch(Dispatchers.IO) { ThemeTransfer.clearExports(app) }
         scope.launch {
             // HomeViewModel loads again and shows the failure; here it is only logged.
             try {

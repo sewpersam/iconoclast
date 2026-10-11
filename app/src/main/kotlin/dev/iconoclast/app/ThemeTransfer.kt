@@ -26,9 +26,14 @@ object ThemeTransfer {
     /**
      * Every texture of [doc] must be in [textures]. [key] goes into the archive only when
      * given, after the user tapped through the key export warning, spec 6.5.
+     *
+     * The file lives in `cacheDir/export` until the next export or the next app start,
+     * [clearExports], whichever comes first. Not on the share result: ACTION_SEND returns at
+     * once, and the receiving app may read the URI later, so deleting then could hand it
+     * nothing.
      */
     fun shareIntent(context: Context, doc: ThemeDocument, textures: TextureStore, key: KeyBackup? = null): Intent {
-        val dir = File(context.cacheDir, "export").apply { deleteRecursively(); mkdirs() }
+        val dir = exportDir(context).apply { deleteRecursively(); mkdirs() }
         val file = File(dir, fileName(doc.name)).apply { writeBytes(ThemeZipExport.write(doc, textures, key)) }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
         val send = Intent(Intent.ACTION_SEND)
@@ -44,15 +49,22 @@ object ThemeTransfer {
      * [ThemeZipImport]'s per-entry and total bounds, never loaded whole. Throws
      * [ThemeFormatException] for the user when it cannot be read or is not a theme.
      */
-    fun read(context: Context, uri: Uri, onPhone: (String) -> Boolean): ThemeArchive = try {
+    fun read(context: Context, uri: Uri, readKey: Boolean = false, onPhone: (String) -> Boolean): ThemeArchive = try {
         ThemeZipImport.read({
             context.contentResolver.openInputStream(uri) ?: throw ThemeFormatException("The file could not be opened.")
-        }, onPhone)
+        }, readKey, onPhone)
     } catch (e: IOException) {
         throw ThemeFormatException("The file could not be read.", e)
     } catch (e: SecurityException) {
         throw ThemeFormatException("The file could not be read.", e)
     }
+
+    /** Deletes every shared export, a key-carrying one included. Called once at app start. */
+    fun clearExports(context: Context) {
+        exportDir(context).deleteRecursively()
+    }
+
+    private fun exportDir(context: Context) = File(context.cacheDir, "export")
 
     /** A safe file name from the theme name, for the receiving app to show. */
     fun fileName(name: String): String =

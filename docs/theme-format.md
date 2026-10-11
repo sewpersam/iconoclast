@@ -369,6 +369,10 @@ and a test, and update this file.
 Version 1 (M5) is the same without `key/`. There is no layout marker: a v1
 reader skips `key/` unread, and a v2 reader reads a v1 archive as having no key.
 
+The shared file sits in `cacheDir/export` until the next export or the next
+app start, whichever is first; both delete it. It is not deleted on the share
+result, because ACTION_SEND returns at once and the receiver may read later.
+
 Export writes `<name>.zip` with `theme.json`, then `textures/<sha256>.png` for
 each hash in `Theme.textureHashes()`, then the two `key/` entries only when
 the caller passes the key (`ThemeZipExport.write(doc, textures, key)`,

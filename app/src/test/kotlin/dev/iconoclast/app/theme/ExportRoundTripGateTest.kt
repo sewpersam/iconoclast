@@ -45,7 +45,7 @@ class ExportRoundTripGateTest {
         val keys = PackKeyStore(tmp("key-new"), "New Pack")
 
         fun import(zip: ByteArray): ImportResult = runBlocking {
-            val archive = ThemeZipImport.read(zip) { false }
+            val archive = ThemeZipImport.read(zip, readKey = true) { false }
             ArchiveImport.store(archive, restoreKey = true, keys, textures, themes)
         }
     }

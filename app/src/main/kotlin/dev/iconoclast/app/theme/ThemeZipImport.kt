@@ -11,10 +11,12 @@ import java.util.zip.ZipInputStream
 
 /**
  * A theme file checked for import: its JSON, the canonical files of the textures it
- * brought, by hash, and the signing key when the export included it, already opened once
- * to prove it is whole. Nothing is stored yet; [ArchiveImport] stores these.
+ * brought, by hash, and the signing key when the export included it and the caller asked
+ * for it, already opened once to prove it is whole. [hasKey] says the archive carries
+ * `key/` entries, read or not: what decides whether to ask the user. Nothing is stored
+ * yet; [ArchiveImport] stores these.
  */
-class ThemeArchive(val json: String, val textures: Map<String, ByteArray>, val key: KeyBackup? = null)
+class ThemeArchive(val json: String, val textures: Map<String, ByteArray>, val key: KeyBackup? = null, val hasKey: Boolean = key != null)
 
 /**
  * Theme import, spec 2.4. Takes an exported `.zip` or a bare theme JSON. The theme is
@@ -40,17 +42,23 @@ object ThemeZipImport {
     /** The password is 44 Base64 characters. */
     const val MAX_KEY_PASSWORD = 1024
 
+    private const val KEY_DIR = "key/"
+
     private val TEXTURE_ENTRY = Regex("textures/([0-9a-f]{64})\\.png")
 
     /** [bytes] is the picked file. [onPhone] says whether a texture the archive lacks is available anyway. */
-    fun read(bytes: ByteArray, onPhone: (String) -> Boolean): ThemeArchive = read({ ByteArrayInputStream(bytes) }, onPhone)
+    fun read(bytes: ByteArray, readKey: Boolean = false, onPhone: (String) -> Boolean): ThemeArchive =
+        read({ ByteArrayInputStream(bytes) }, readKey, onPhone)
 
     /**
      * Reads the picked file from [open], which gives a new stream from its start on each call.
      * The file is streamed, never held whole: a zip is read entry by entry under the bounds
      * above, a bare JSON up to [MAX_JSON]. An [IOException] from [open] itself propagates.
+     * The `key/` entries are read and checked only with [readKey], which the caller passes
+     * when the user asked to restore the key; otherwise they are skipped unread, so a
+     * damaged key never blocks the theme.
      */
-    fun read(open: () -> InputStream, onPhone: (String) -> Boolean): ThemeArchive {
+    fun read(open: () -> InputStream, readKey: Boolean = false, onPhone: (String) -> Boolean): ThemeArchive {
         if (!isZip(open().use { it.readNBytes(4) })) {
             val bytes = open().use { it.readNBytes(MAX_JSON + 1) }
             if (bytes.size > MAX_JSON) throw ThemeFormatException("This file is too large to be a theme.")
@@ -67,7 +75,9 @@ object ThemeZipImport {
             ?: throw ThemeFormatException("This archive has no theme.json, so it is not a theme export.")
         // Built-in brushes are on every phone and never in an archive.
         val hashes = migrate(json).theme.textureHashes().filterNot(BuiltInBrushes::isBuiltIn).toSet()
+        var sawKey = false
         val found = entries(open, budget) { name ->
+            if (name.startsWith(KEY_DIR)) sawKey = true
             TEXTURE_ENTRY.matchEntire(name)?.groupValues?.get(1)?.takeIf { it in hashes }?.let { MAX_TEXTURE }
         }.mapKeys { TEXTURE_ENTRY.matchEntire(it.key)!!.groupValues[1] }
         val brought = LinkedHashMap<String, ByteArray>()
@@ -85,7 +95,7 @@ object ThemeZipImport {
             if (c.hash != hash) throw ThemeFormatException("A texture in the archive is damaged, ${hash.take(12)}.")
             brought[hash] = c.png
         }
-        return ThemeArchive(json, brought, key(open, budget))
+        return ThemeArchive(json, brought, if (readKey && sawKey) key(open, budget) else null, sawKey)
     }
 
     /** The signing key entries: both or neither, and the store must open with the password. */

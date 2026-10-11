@@ -13,6 +13,7 @@ import dev.iconoclast.pack.backup
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeFormatException
 import dev.iconoclast.render.Theme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.security.GeneralSecurityException
 
 /** The themes home, spec 2.2 screen 1: list, new, duplicate, rename, delete, export, import, set active. */
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
@@ -109,7 +111,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val textures = container.textures
             val result = withContext(Dispatchers.IO) {
                 // The whole file is validated before anything is stored.
-                val archive = ThemeTransfer.read(getApplication(), uri) { textures.load(setOf(it)).isEmpty() }
+                val archive = ThemeTransfer.read(getApplication(), uri, readKey = restoreKey) { textures.load(setOf(it)).isEmpty() }
                 ArchiveImport.store(archive, restoreKey, container.packKey, textures, repo)
             }
             "Imported ${result.doc.name}" + if (result.key == RestoreResult.RESTORED) " and its signing key" else ""
@@ -128,6 +130,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: IOException) {
                 Log.w(TAG, failure, e)
                 _message.value = "$failure. Storage error: ${e.message ?: e.javaClass.simpleName}"
+            } catch (e: GeneralSecurityException) {
+                // A damaged signing key store on this phone, read by export or key restore.
+                Log.w(TAG, failure, e)
+                _message.value = "$failure. The signing key on this phone could not be read: ${e.message ?: e.javaClass.simpleName}"
+            } catch (e: IllegalStateException) {
+                // CancellationException is an IllegalStateException: cancellation must pass.
+                if (e is CancellationException) throw e
+                Log.w(TAG, failure, e)
+                _message.value = "$failure. ${e.message ?: e.javaClass.simpleName}"
             }
         }
     }
