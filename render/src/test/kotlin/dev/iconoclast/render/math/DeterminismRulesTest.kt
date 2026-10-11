@@ -24,6 +24,20 @@ class DeterminismRulesTest {
         assertTrue(f.all { it >= 0f && it < 1f })
     }
 
+    /** The arithmetic floor and ceil give StrictMath's bits, signed zeros and halves included. */
+    @Test
+    fun arithmeticFloorAndCeilMatchStrictMath() {
+        val r = SplitMix64(77)
+        val cases = mutableListOf(0f, -0f, 0.5f, -0.5f, 1f, -1f, 1e-30f, -1e-30f, 2.1e9f, -2.1e9f, 3e9f, -3e9f, 16777217f, -8388607.5f,
+            Float.MAX_VALUE, -Float.MAX_VALUE, Float.MIN_VALUE, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)
+        repeat(200_000) { cases += (r.nextFloat() - 0.5f) * (1 shl (it % 32)) }
+        for (x in cases) {
+            assertEquals(StrictMath.floor(x.toDouble()).toFloat().toRawBits(), floor(x).toRawBits(), "floor $x")
+            assertEquals(StrictMath.ceil(x.toDouble()).toFloat().toRawBits(), ceil(x).toRawBits(), "ceil $x")
+        }
+        assertTrue(floor(Float.NaN).isNaN() && ceil(Float.NaN).isNaN())
+    }
+
     @Test
     fun mainSourcesUseOnlyStrictMathAndSeededRandomness() {
         val root = File("src/main/kotlin")
