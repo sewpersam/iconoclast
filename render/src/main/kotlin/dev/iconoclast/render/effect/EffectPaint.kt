@@ -15,7 +15,7 @@ import dev.iconoclast.render.layer.StackInput
 internal object EffectPaint {
 
     fun outputs(layer: EffectLayer, layers: List<Layer>, input: StackInput): List<EffectOutput> = when (val e = layer.effect) {
-        is Effect.Streaks -> emptyList() // lands in its own commit
+        is Effect.Streaks -> listOf(Streaks.paint(e, layer.blend, layers, input))
         is Effect.Bevel -> Bevel.paint(e, input)
         is Effect.DropShadow -> listOf(DropShadow.paint(e, layer.blend, input))
         is Effect.InnerShadow -> listOf(InnerShadow.paint(e, layer.blend, input))

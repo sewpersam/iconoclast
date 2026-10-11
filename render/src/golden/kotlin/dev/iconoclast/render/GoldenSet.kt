@@ -199,6 +199,12 @@ object GoldenSet {
 
     /** One golden set per effect, M6. Built-in brush for the streaks; bevel in both styles. */
     val EFFECTS: Map<String, Theme> = mapOf(
+        "effect_streaks" to below(EffectLayer("streaks", Effect.Streaks(angle = 300f, length = 0.35f, decay = Decay.EXPONENTIAL,
+            breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.6f, contrast = 0.4f),
+            paintLayer = Layer.ICON_FILL_ID), opacity = 0.6f)),
+        "effect_streaks_linear" to below(EffectLayer("streaks", Effect.Streaks(angle = 45f, length = 0.2f, decay = Decay.LINEAR,
+            breakup = Breakup(scale = 2f, stretch = 12f, density = 0.5f, contrast = 0.7f, seed = 4), color = 0xFFF2CC8F.toInt()),
+            blend = BlendMode.SCREEN, opacity = 0.5f)),
         "effect_bevel" to above(EffectLayer("bevel", Effect.Bevel(size = 0.012f, depth = 1.5f, softness = 0.3f))),
         "effect_emboss" to above(EffectLayer("bevel", Effect.Bevel(BevelStyle.EMBOSS, lightAngle = 45f, size = 0.02f, depth = 1f,
             highlight = 0x99FFFFFF.toInt(), shadow = 0x99000000.toInt()))),
