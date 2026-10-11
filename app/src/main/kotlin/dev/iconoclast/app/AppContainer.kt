@@ -2,6 +2,7 @@ package dev.iconoclast.app
 
 import android.app.Application
 import android.util.Log
+import dev.iconoclast.app.texture.TextureFiles
 import dev.iconoclast.app.theme.Presets
 import dev.iconoclast.app.theme.ThemeRepository
 import dev.iconoclast.iconsource.IconSource
@@ -22,6 +23,9 @@ class AppContainer(private val app: Application) {
 
     /** The one renderer. Its mask cache is shared by previews, editor and Apply. */
     val renderer = IconRenderer()
+
+    /** Imported textures, on disk and loaded into the renderer's store on demand. */
+    val textures = TextureFiles(File(app.filesDir, "textures"), renderer.textures)
 
     private val source = scope.async(Dispatchers.IO, start = CoroutineStart.LAZY) { IconSource.open(app.assets) }
 
