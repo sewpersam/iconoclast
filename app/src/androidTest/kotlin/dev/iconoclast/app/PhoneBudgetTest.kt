@@ -94,9 +94,9 @@ class PhoneBudgetTest {
         val full = grain.copy(layers = grain.layers.map { l ->
             if (l is EffectLayer && l.effect is Effect.Grain) l.copy(effect = (l.effect as Effect.Grain).copy(amount = 1f), opacity = 1f) else l
         })
-        val none = apply(base, "grain-none", runs = 1)
-        val at06 = apply(grain, "grain-0.6")
-        val atFull = apply(full, "grain-full", runs = 1)
+        val none = measure(base, "grain-none", runs = 1)
+        val at06 = measure(grain, "grain-0.6")
+        val atFull = measure(full, "grain-full", runs = 1)
         Log.i(TAG, "grain per icon: none ${none / 1024} KB, 0.6 ${at06 / 1024} KB (+${(at06 - none) / 1024}), " +
             "full ${atFull / 1024} KB (+${(atFull - none) / 1024})")
     }
@@ -105,7 +105,11 @@ class PhoneBudgetTest {
         migrate(instrumentation.targetContext.assets.open("${Presets.DIR}/$file").use { it.readBytes().decodeToString() }).theme
 
     /** Builds the pack [runs] times; gates the warm runs, logs time and peak heap. Returns the mean icon PNG size. */
-    private fun apply(theme: Theme, label: String, runs: Int = RUNS): Long {
+    private fun apply(theme: Theme, label: String) {
+        measure(theme, label)
+    }
+
+    private fun measure(theme: Theme, label: String, runs: Int = RUNS): Long {
         val target = instrumentation.targetContext.assets
         val source = IconSource.open(target)
         val template = target.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
