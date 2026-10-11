@@ -44,9 +44,33 @@ class MappingTest {
 
     @Test
     fun fitShowsAllOfAWideTextureAndLeavesTheRestClear() {
-        val out = Mappings.texture(texture(16, 8), Mapping(mode = MappingMode.FIT), "x", 16)
+        val out = Mappings.texture(texture(16, 8), Mapping(mode = MappingMode.FIT, lockOffset = true), "x", 16)
         assertEquals(0f, out[3], "top row is outside the texture")
         assertEquals(1f, out[(8 * 16 + 8) * 4 + 3], "centre is inside")
+    }
+
+    /** Ruling 5: FIT moves within its room. A smaller texture stays whole; a zoomed one differs per icon. */
+    @Test
+    fun fitMovesWithinTheRoom() {
+        val wide = texture(16, 8)
+        for (name in listOf("fdroid", "camera", "signal")) {
+            val out = Mappings.texture(wide, Mapping(mode = MappingMode.FIT), name, 16)
+            assertEquals(16 * 8, (0 until 256).count { out[it * 4 + 3] == 1f }, "$name: the whole texture shows")
+        }
+        val a = Mappings.texture(wide, Mapping(mode = MappingMode.FIT), "fdroid", 16)
+        assertFalse(a.contentEquals(Mappings.texture(wide, Mapping(mode = MappingMode.FIT), "camera", 16)))
+        val sq = texture(32, 32)
+        val z = Mapping(mode = MappingMode.FIT, scale = 2f)
+        assertFalse(Mappings.texture(sq, z, "fdroid", 8).contentEquals(Mappings.texture(sq, z, "camera", 8)))
+    }
+
+    /** A square texture at scale 1 leaves FILL no room: one patch for all. Scale 2 gives each icon its own. */
+    @Test
+    fun fillNeedsRoomToMove() {
+        val sq = texture(32, 32)
+        assertContentEquals(Mappings.texture(sq, Mapping(), "fdroid", 8), Mappings.texture(sq, Mapping(), "camera", 8))
+        val m = Mapping(scale = 2f)
+        assertFalse(Mappings.texture(sq, m, "fdroid", 8).contentEquals(Mappings.texture(sq, m, "camera", 8)))
     }
 
     /** Every icon gets its own patch, and the same patch every time. */

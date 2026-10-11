@@ -18,10 +18,13 @@ import dev.iconoclast.render.texture.Texture
  * - TILE: the texture's short side spans the canvas, k = min(W, H) / scale, repeating.
  *
  * The per-icon offset is two uniform numbers (ox, oy) in [0, 1): the first two outputs of
- * SplitMix64 seeded with [IconSeed.of] the drawable name. Locked, both are 0.5. FILL moves
- * the window by (o - 0.5) times the room the texture leaves around it, so the patch never
- * leaves the texture; TILE shifts by o times the texture size; FIT has no room and ignores
- * it. Noise shifts by o times [NOISE_PERIOD] lattice cells.
+ * SplitMix64 seeded with [IconSeed.of] the drawable name. Locked, both are 0.5, the centred
+ * patch. FIT and FILL move the canvas window by (o - 0.5) times the room between the window
+ * and the texture on each axis: FILL only where the texture is larger, so the patch never
+ * leaves the texture; FIT either way, so a texture smaller than the canvas moves inside it
+ * and stays whole, and a zoomed-in one shows its own patch. At scale 1 a square texture
+ * leaves FILL no room, which is why a new texture layer starts at scale 2. TILE is a wrapped
+ * translation by o times the texture size. Noise shifts by o times [NOISE_PERIOD] lattice cells.
  */
 internal object Mappings {
 
@@ -53,7 +56,11 @@ internal object Mappings {
         var cx = w / 2f
         var cy = h / 2f
         when (mapping.mode) {
-            MappingMode.FIT -> Unit
+            MappingMode.FIT -> {
+                val extent = k * (ac + asn)
+                cx += (ox - 0.5f) * (w - extent)
+                cy += (oy - 0.5f) * (h - extent)
+            }
             MappingMode.FILL -> {
                 val extent = k * (ac + asn)
                 cx += (ox - 0.5f) * maxOf(0f, w - extent)
