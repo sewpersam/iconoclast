@@ -191,3 +191,11 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 6. Export and import add the key entry (PKCS12 plus password) behind the warning, gate is render every golden theme from the imported document and compare bytes.
 7. Output resolution setting capped or exempted from the budget with goldens at each offered size, grain cells are 1/432 so grain washes out below 432.
 8. Settings/About licence list generated from `:app:dependencies --configuration releaseRuntimeClasspath`, committed, and THIRD_PARTY_LICENSES.md extended to every runtime dependency with its licence.
+
+### M6 residual and rulings (ledger, 2026-10-11)
+- Residual: ZipRewriter.rewrite streams straight to the final output path; a failure leaves a truncated file. PackSigner uses tmp+rename. Carried into M7 Task 11 commit 1: write to .tmp and rename.
+- Ruling: M5 fix-wave residuals (corrupt-file onDisk, KDoc typo) folded into T9 commit 1 instead of a second fix wave — cost: none.
+- Ruling: streak smear uses a hold model (max-decay) instead of normalised integration — his reference is a brush streak and thin lines must streak — cost if wrong: goldens regen once more.
+- Ruling: streaks link to icon-fill; no hidden source layer — the model already reads the linked source regardless of clip/opacity — cost: none.
+- Ruling: preset seeding by seeded-id set; never overwrite, never resurrect; a changed look ships under a new id — cost: none.
+- Ruling: preset-id rule (changed look ships under a new id) applies from the first public release; nothing is released, so preset-jade keeps its id now — cost: none today, and the ruling is written into followups.
