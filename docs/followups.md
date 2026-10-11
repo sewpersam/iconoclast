@@ -122,16 +122,16 @@ guarantees documented. Details: `.superpowers/sdd/plan-m5/final-fix-report.md`.
   is gated: faster match search or a lower effort level, bytes still pinned.
 
 ### M6 readiness, from the M5 whole-milestone review (do these first, in order)
-1. Each effect its own Layer subtype EffectLayer(id, effect, enabled, blend, opacity), marker kept as border anchor and default insertion point, schema v3 with pure v2→v3.
-2. Define EFFECTS as a clip target before re-enabling it.
-3. EffectKey gains a kind, typed MaskCache method, allow a non-coverage float Field.
-4. Streaks and bevel read the icon mask (body union lines), not masks.body.
-5. textureHashes() covers effect textures and linked layers, built-in brushes bundled by hash and always present.
-6. Expose layer source evaluation under mapping and per-icon offset, unclipped, for streak paint.
-7. Signed sub-pixel EDT for bevel, validated on the binary build first.
-8. Shared separable Gaussian, box passes or EDT falloff for large radii.
-9. Streak smear via axis rotation plus IIR or prefix sums, decide allowed decay curves.
-10. Decide whether Grain is a preset noise layer or a real effect, and fix grain cell size to canvas-relative so previews match Apply.
+1. Each effect its own Layer subtype EffectLayer(id, effect, enabled, blend, opacity), marker kept as border anchor and default insertion point, schema v3 with pure v2→v3. DONE in M6 Task 9, dbf900c.
+2. Define EFFECTS as a clip target before re-enabling it. DONE in M6 Task 9, 74d68ae.
+3. EffectKey gains a kind, typed MaskCache method, allow a non-coverage float Field. DONE in M6 Task 9, ff6fb77.
+4. Streaks and bevel read the icon mask (body union lines), not masks.body. DONE in M6 Task 9, c012dcb.
+5. textureHashes() covers effect textures and linked layers, built-in brushes bundled by hash and always present. DONE in M6 Task 9, 406cf6d.
+6. Expose layer source evaluation under mapping and per-icon offset, unclipped, for streak paint. DONE in M6 Task 9, bb115f7.
+7. Signed sub-pixel EDT for bevel, validated on the binary build first. DONE in M6 Task 9, 62306a2, 15fb2d0.
+8. Shared separable Gaussian, box passes or EDT falloff for large radii. DONE in M6 Task 9, 569b61a.
+9. Streak smear via axis rotation plus IIR or prefix sums, decide allowed decay curves. DONE in M6 Task 9, 164d8e2.
+10. Decide whether Grain is a preset noise layer or a real effect, and fix grain cell size to canvas-relative so previews match Apply. DONE in M6 Task 9, f003f02.
 
 ## M5 additions (2026-10-10)
 
@@ -147,8 +147,8 @@ guarantees documented. Details: `.superpowers/sdd/plan-m5/final-fix-report.md`.
 - Task 8: minor (deferred): removing base Background or Icon lines layer is allowed; taste call on a guard.
 - Task 8: minor (deferred): ColorControl open state kept by position; two info logs remain.
 - Task 8: minor (deferred): threshold matte, grain and feather never driven on device.
-- Residual from the M5 fix wave: TextureStore.entry() clears onDisk only when the file is missing, not when it is corrupt or undecodable; and the Mapping.kt noise KDoc says 16 cells where 32 is used. Both carried into M6 Task 9 commit 1.
-- Textured Apply: PNG encode is about 190 ms per icon in the own Deflate on the JVM, 7.4x the solid case; breaks the 20 s phone budget. M6 Task 9 fixes the encoder.
+- Residual from the M5 fix wave: TextureStore.entry() clears onDisk only when the file is missing, not when it is corrupt or undecodable; and the Mapping.kt noise KDoc says 16 cells where 32 is used. Both carried into M6 Task 9 commit 1. DONE in M6 Task 9, ec3d723.
+- Textured Apply: PNG encode is about 190 ms per icon in the own Deflate on the JVM, 7.4x the solid case; breaks the 20 s phone budget. M6 Task 9 fixes the encoder. DONE in M6 Task 9, 7d0f85d: 187.1 to 17.1 ms.
 
 ### Rulings made in M5
 - Ruling: M5 split engine (T7) then UI+import+zip (T8) — cost: none.
