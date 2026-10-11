@@ -82,4 +82,28 @@ class SignedDistanceTest {
         assertTrue(angle > 10f, "binary angle $angle")
         assertTrue(shade > 0.15f, "binary shading $shade")
     }
+
+    @Test
+    fun antiAliasedFieldIsSmooth() {
+        val (err, angle, shade) = measure(SignedDistance.of(coverage, n, n))
+        println("anti-aliased EDT: max error %.3f px, gradient off by up to %.1f deg, shading off by up to %.3f".format(err, angle, shade))
+        assertTrue(err < 0.12f, "error $err")
+        assertTrue(angle < 4f, "angle $angle")
+        assertTrue(shade < 0.08f, "shading $shade")
+    }
+
+    @Test
+    fun straightEdgesAreExact() {
+        // A half plane at x = 20.3: pixel x covers [x - 0.5, x + 0.5].
+        val w = 40
+        val cov = FloatArray(w * w) { ((20.3f - (it % w - 0.5f)).coerceIn(0f, 1f)) }
+        val f = SignedDistance.of(cov, w, w)
+        for (y in 0 until w) for (x in 0 until w) assertEquals(20.3f - x, f[y * w + x], 1e-4f, "($x, $y)")
+    }
+
+    @Test
+    fun noEdgeIsFarInsideOrOut() {
+        assertEquals(SignedDistance.NO_EDGE, SignedDistance.of(FloatArray(16) { 1f }, 4, 4)[5])
+        assertEquals(-SignedDistance.NO_EDGE, SignedDistance.of(FloatArray(16), 4, 4)[5])
+    }
 }
