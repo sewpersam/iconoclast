@@ -13,6 +13,7 @@ object GoldenSet {
 
     private const val WHITE = 0xFFFFFFFF.toInt()
     private const val TEAL = 0xFF7FD1B9.toInt()
+    private const val JADE = 0xFF00A86B.toInt()
 
     val THEMES: Map<FillMode, Theme> = mapOf(
         FillMode.OUTLINE to Theme(),
@@ -55,4 +56,26 @@ object GoldenSet {
      */
     val POCKET_THEME: Theme = THEMES.getValue(FillMode.INVERT).let { it.copy(fill = it.fill.copy(gapWidth = 0.25f, gapClosing = 2f)) }
     val POCKET_SAMPLES = listOf("signal", "fdroid")
+
+    /**
+     * The two starter presets, app/src/main/assets/presets, built in code. Their goldens were
+     * made by the M4 renderer; the M5 layer stack must reproduce them byte for byte.
+     */
+    val PRESETS: Map<String, Theme> = mapOf(
+        "plain" to Theme(
+            background = BackgroundParams(enabled = false, paint = Paint.Solid(0x00000000)),
+            glyph = GlyphPaint(line = WHITE, body = WHITE),
+        ),
+        "jade" to Theme(
+            fill = FillParams(mode = FillMode.INVERT),
+            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f), paint = Paint.Solid(0xFF000000.toInt())),
+            glyph = GlyphPaint(line = JADE, body = JADE),
+        ),
+    )
+
+    /** Every golden: directory, theme and sample name. */
+    val CASES: List<Triple<String, Theme, String>>
+        get() = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
+            POCKET_SAMPLES.map { Triple("pockets", POCKET_THEME, it) } +
+            PRESETS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } }
 }

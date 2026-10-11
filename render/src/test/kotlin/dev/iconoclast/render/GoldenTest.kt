@@ -46,9 +46,7 @@ class GoldenTest {
     fun goldens() {
         val renderer = IconRenderer()
         val mismatches = mutableListOf<String>()
-        val cases = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
-            GoldenSet.POCKET_SAMPLES.map { Triple("pockets", GoldenSet.POCKET_THEME, it) }
-        for ((dir, theme, name) in cases) {
+        for ((dir, theme, name) in GoldenSet.CASES) {
             val i = SAMPLES.indexOf(name)
             val png = renderer.renderPng(i, bundle.icon(i), theme, SIZE)
             val path = "$dir/$name.png"

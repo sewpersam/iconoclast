@@ -1,6 +1,7 @@
 package dev.iconoclast.app.theme
 
 import dev.iconoclast.render.FillMode
+import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.format.IconBundle
 import java.io.File
@@ -30,6 +31,13 @@ class PresetsTest {
             val png = IconRenderer().render(0, bundle.icon(0), doc.theme, 64)
             assertTrue(png.pixels.any { it != 0.toByte() }, "${doc.name} renders nothing")
         }
+    }
+
+    /** The golden set builds the presets in code; the files must say the same. */
+    @Test
+    fun presetFilesMatchTheGoldenSet() {
+        assertEquals(GoldenSet.PRESETS.getValue("plain"), preset("plain-arcticons.json").theme)
+        assertEquals(GoldenSet.PRESETS.getValue("jade"), preset("jade.json").theme)
     }
 
     @Test
