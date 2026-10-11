@@ -58,7 +58,7 @@ shares a `.zip` holding that JSON as `theme.json` and the textures it uses. Code
 | Field | Meaning |
 |---|---|
 | `schemaVersion` | Integer. Missing means version 0. Newer than the app's version: refused. |
-| `id` | Random UUID. Presets use fixed ids, `preset-plain-arcticons` and `preset-jade`. Import assigns a fresh one. |
+| `id` | Random UUID. Presets use fixed ids, `preset-plain-arcticons`, `preset-jade` and `preset-neon`. Import assigns a fresh one. |
 | `name` | Shown on the themes home. |
 | `created`, `modified` | Epoch milliseconds. |
 | `theme` | The `Theme` from `:render`, field for field. Ranges and meanings are in `render/.../Theme.kt`, `render/.../Layers.kt`, `render/.../Effects.kt` and spec 2.3. |

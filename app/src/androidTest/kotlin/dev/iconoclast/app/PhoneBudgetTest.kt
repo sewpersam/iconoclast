@@ -4,6 +4,8 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.iconoclast.app.theme.Presets
+import dev.iconoclast.app.theme.migrate
 import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.CoveragePlan
 import dev.iconoclast.pack.ZipRewriter
@@ -65,6 +67,17 @@ class PhoneBudgetTest {
         GoldenSet.JADE_LIKE.let { t -> t.copy(layers = t.layers.filterNot { it.id == "bevel" || it.id == "grain" }) },
         "jade-spec",
     )
+
+    /** M6 Task 10: the shipped Jade preset, read from its JSON in the app's assets as the app reads it. */
+    @Test
+    fun applyOf300IconsJadePreset() = apply(preset("jade.json"), "jade-preset")
+
+    /** The Neon preset, the third starter: outline, gradient line, outer glow. */
+    @Test
+    fun applyOf300IconsNeonPreset() = apply(preset("neon.json"), "neon-preset")
+
+    private fun preset(file: String): Theme =
+        migrate(instrumentation.targetContext.assets.open("${Presets.DIR}/$file").use { it.readBytes().decodeToString() }).theme
 
     private fun apply(theme: Theme, label: String) {
         val target = instrumentation.targetContext.assets

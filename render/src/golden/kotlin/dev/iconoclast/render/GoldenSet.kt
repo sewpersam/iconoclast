@@ -15,6 +15,10 @@ object GoldenSet {
     private const val TEAL = 0xFF7FD1B9.toInt()
     private const val JADE = 0xFF00A86B.toInt()
 
+    /** The jade of the Jade preset and the jade-like look: fBm through a jade gradient map. */
+    private val JADE_NOISE = Paint.Noise(NoiseKind.FBM, 5, 17,
+        listOf(ColorStop(0f, 0xFF06402C.toInt()), ColorStop(0.55f, 0xFF1E8C5E.toInt()), ColorStop(1f, 0xFF8FE0B8.toInt())))
+
     val THEMES: Map<FillMode, Theme> = mapOf(
         FillMode.OUTLINE to Theme(),
         FillMode.INVERT to Theme(
@@ -61,9 +65,11 @@ object GoldenSet {
     val POCKET_SAMPLES = listOf("signal", "fdroid")
 
     /**
-     * The two starter presets, app/src/main/assets/presets, built in code. Their goldens were
-     * made by the M4 renderer from its glyph paint; the M5 layer stack reproduces them byte
-     * for byte, as it does every golden above.
+     * The two M4 starter presets, built in code. Their goldens were made by the M4 renderer
+     * from its glyph paint; the M5 layer stack reproduces them byte for byte, as it does
+     * every golden above. "plain" is still the shipped Plain Arcticons. "jade" is the M4
+     * Jade, flat colour: since M6 only the schema 1 and 2 migration fixtures use it, and
+     * the shipped Jade is [STARTERS].
      */
     val PRESETS: Map<String, Theme> = mapOf(
         "plain" to Theme(
@@ -240,15 +246,60 @@ object GoldenSet {
             EffectLayer("streaks", Effect.Streaks(angle = 300f, length = 0.35f, decay = Decay.EXPONENTIAL,
                 breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.55f, contrast = 0.4f),
                 paintLayer = Layer.ICON_FILL_ID), opacity = 0.35f),
-            PaintLayer(Layer.ICON_FILL_ID, Paint.Noise(NoiseKind.FBM, 5, 17,
-                listOf(ColorStop(0f, 0xFF06402C.toInt()), ColorStop(0.55f, 0xFF1E8C5E.toInt()), ColorStop(1f, 0xFF8FE0B8.toInt()))),
-                clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
+            PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
             PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
                 blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
             PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
             EffectLayer("bevel", Effect.Bevel(size = 0.008f, depth = 1.5f, softness = 0.4f,
                 highlight = 0x80FFFFFF.toInt(), shadow = 0x80000000.toInt())),
             EffectLayer("grain", Effect.Grain(amount = 0.3f), blend = BlendMode.OVERLAY, opacity = 0.5f),
+        ),
+    )
+
+    /**
+     * The M6 starter presets, app/src/main/assets/presets/jade.json and neon.json, built in
+     * code: PresetsTest checks the files equal these and render their goldens byte for byte.
+     *
+     * Jade, spec 2.4 and the user's words: black rounded square, jade texture, thicker icons,
+     * textured low-opacity streaks between icon and background. Stroke 1.75, invert fill;
+     * procedural jade (fBm through a jade gradient map) as the icon fill with ridged veins
+     * screened over it; the same jade as a layer clipped to the background at opacity 0,
+     * under the icon paint, which paints nothing itself and is what the streaks are linked
+     * to; dry-brush streaks at 35% between background and icon. No bevel, no grain.
+     *
+     * Neon, the range preset: outline only, a magenta to cyan gradient line on a near-black
+     * circle with a violet outer glow. Glow instead of streaks, outline instead of invert, a
+     * gradient instead of noise, a circle instead of a square.
+     */
+    val STARTERS: Map<String, Theme> = mapOf(
+        "preset_jade" to Theme(
+            shape = ShapeParams(strokeWeight = 1.75f),
+            fill = FillParams(mode = FillMode.INVERT),
+            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+            layers = listOf(
+                PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF000000.toInt()), clip = ClipTarget.BACKGROUND),
+                PaintLayer("jade", JADE_NOISE, clip = ClipTarget.BACKGROUND, opacity = 0f, mapping = Mapping(scale = 1.5f)),
+                EffectsLayer(),
+                EffectLayer("streaks", Effect.Streaks(angle = 300f, length = 0.35f, decay = Decay.EXPONENTIAL,
+                    breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.55f, contrast = 0.4f),
+                    paintLayer = "jade"), opacity = 0.35f),
+                PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
+                PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
+                    blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
+                PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
+            ),
+        ),
+        "preset_neon" to Theme(
+            shape = ShapeParams(strokeWeight = 1.25f),
+            background = BackgroundParams(shape = BackgroundShape.Circle),
+            layers = listOf(
+                PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF0D0B1E.toInt()), clip = ClipTarget.BACKGROUND),
+                EffectsLayer(),
+                EffectLayer("glow", Effect.OuterGlow(size = 0.035f, spread = 0.2f, color = 0xFFB04DFF.toInt()), blend = BlendMode.SCREEN, opacity = 0.9f),
+                PaintLayer(Layer.ICON_FILL_ID, Paint.Solid(0xFFFFFFFF.toInt()), clip = ClipTarget.ICON_FILL),
+                PaintLayer(Layer.ICON_LINES_ID, Paint.LinearGradient(0f, 0f, 1f, 1f, listOf(ColorStop(0.2f, 0xFFFF2BD6.toInt()), ColorStop(0.8f, 0xFF2BF0FF.toInt()))),
+                    clip = ClipTarget.ICON_LINES),
+            ),
         ),
     )
 
@@ -260,5 +311,6 @@ object GoldenSet {
             LOOKS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
             BLENDS.flatMap { (dir, theme) -> BLEND_SAMPLES.map { Triple(dir, theme, it) } } +
             EFFECTS.flatMap { (dir, theme) -> EFFECT_SAMPLES.map { Triple(dir, theme, it) } } +
-            LOOK_SAMPLES.map { Triple("effects_jade", JADE_LIKE, it) }
+            LOOK_SAMPLES.map { Triple("effects_jade", JADE_LIKE, it) } +
+            STARTERS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } }
 }

@@ -3,10 +3,13 @@ package dev.iconoclast.app.theme
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
+import dev.iconoclast.render.Layer
+import dev.iconoclast.render.OUTPUT_SIZE
 import dev.iconoclast.render.format.IconBundle
 import java.io.File
 import java.nio.ByteBuffer
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -25,8 +28,9 @@ class PresetsTest {
     @Test
     fun presetsParseWithFixedIdsAndRender() {
         val docs = Presets.FILES.map(::preset)
-        assertEquals(listOf("preset-plain-arcticons", "preset-jade"), docs.map { it.id })
-        assertEquals(listOf("Plain Arcticons", "Jade"), docs.map { it.name })
+        assertEquals(listOf("preset-plain-arcticons", "preset-jade", "preset-neon"), docs.map { it.id })
+        assertEquals(listOf("Plain Arcticons", "Jade", "Neon"), docs.map { it.name })
+        assertTrue(docs.all { it.schemaVersion == 3 })
         for (doc in docs) {
             val png = IconRenderer().render(GoldenSet.SAMPLES[0], bundle.icon(0), doc.theme, 64)
             assertTrue(png.pixels.any { it != 0.toByte() }, "${doc.name} renders nothing")
@@ -37,7 +41,22 @@ class PresetsTest {
     @Test
     fun presetFilesMatchTheGoldenSet() {
         assertEquals(GoldenSet.PRESETS.getValue("plain"), preset("plain-arcticons.json").theme)
-        assertEquals(GoldenSet.PRESETS.getValue("jade"), preset("jade.json").theme)
+        assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), preset("jade.json").theme)
+        assertEquals(GoldenSet.STARTERS.getValue("preset_neon"), preset("neon.json").theme)
+    }
+
+    /** Each preset file, as shipped, renders its golden set on the 24 samples byte for byte. */
+    @Test
+    fun presetFilesRenderTheirGoldens() {
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val renderer = IconRenderer()
+        for ((file, dir) in listOf("plain-arcticons.json" to "plain", "jade.json" to "preset_jade", "neon.json" to "preset_neon")) {
+            val theme = preset(file).theme
+            for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
+                val png = renderer.renderPng(name, bundle.icon(i), theme, OUTPUT_SIZE)
+                assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
+            }
+        }
     }
 
     @Test
@@ -48,6 +67,14 @@ class PresetsTest {
         assertEquals(dev.iconoclast.render.Paint.Solid(0xFFFFFFFF.toInt()), plain.layer(dev.iconoclast.render.Layer.ICON_LINES_ID).source)
         val jade = preset("jade.json").theme
         assertEquals(FillMode.INVERT, jade.fill.mode)
+        assertTrue(jade.shape.strokeWeight in 1.5f..2f, "thicker icons")
+        val streaks = jade.layers.filterIsInstance<dev.iconoclast.render.EffectLayer>().single()
+        assertTrue(streaks.effect is dev.iconoclast.render.Effect.Streaks && streaks.opacity < 0.5f, "low-opacity streaks are its only effect")
+        val ids = jade.layers.map { it.id }
+        assertTrue(ids.indexOf(Layer.BACKGROUND_ID) < ids.indexOf(streaks.id) && ids.indexOf(streaks.id) < ids.indexOf(Layer.ICON_FILL_ID),
+            "streaks between background and icon")
+        assertTrue(jade.layers.first { it.id == (streaks.effect as dev.iconoclast.render.Effect.Streaks).paintLayer } is dev.iconoclast.render.PaintLayer,
+            "streaks paint from the jade layer")
         assertEquals(dev.iconoclast.render.BackgroundShape.RoundedSquare(0.2f), jade.background.shape)
         assertEquals(dev.iconoclast.render.Paint.Solid(0xFF000000.toInt()), jade.layer(dev.iconoclast.render.Layer.BACKGROUND_ID).source)
     }

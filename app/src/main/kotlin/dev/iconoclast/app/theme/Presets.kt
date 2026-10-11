@@ -10,7 +10,7 @@ object Presets {
     const val DIR = "presets"
 
     /** In seeding order. The first becomes the active theme on a fresh install. */
-    val FILES = listOf("plain-arcticons.json", "jade.json")
+    val FILES = listOf("plain-arcticons.json", "jade.json", "neon.json")
 
     fun read(assets: AssetManager): List<String> = FILES.map { name ->
         assets.open("$DIR/$name").use { it.readBytes().decodeToString() }

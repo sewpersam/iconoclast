@@ -28,12 +28,12 @@ class ThemeRepositoryTest {
     @Test
     fun firstLoadSeedsPresetsOnce() = runBlocking {
         val first = repo().apply { load() }
-        assertEquals(listOf("Plain Arcticons", "Jade"), first.themes.value.map { it.name })
+        assertEquals(listOf("Plain Arcticons", "Jade", "Neon"), first.themes.value.map { it.name })
         assertEquals("preset-plain-arcticons", first.activeId.value)
 
         first.delete("preset-jade")
         val again = repo().apply { load() }
-        assertEquals(listOf("preset-plain-arcticons"), again.themes.value.map { it.id }, "a deleted preset stays deleted")
+        assertEquals(listOf("preset-plain-arcticons", "preset-neon"), again.themes.value.map { it.id }, "a deleted preset stays deleted")
     }
 
     @Test
@@ -76,7 +76,7 @@ class ThemeRepositoryTest {
         val imported = repo.import(repo.get(jade.id)!!.toJson())
         assertTrue(imported.id != jade.id)
         assertEquals(jade.theme, imported.theme)
-        assertEquals(3, repo.themes.value.size)
+        assertEquals(4, repo.themes.value.size)
         val padded = repo.import(repo.get(jade.id)!!.toJson().replace("\"Jade\"", "\"  Jade two  \""))
         assertEquals("Jade two", padded.name)
         val blank = repo.import(repo.get(jade.id)!!.toJson().replace("\"Jade\"", "\"   \""))
@@ -84,7 +84,7 @@ class ThemeRepositoryTest {
         repo.delete(padded.id)
         repo.delete(blank.id)
         assertFailsWith<ThemeFormatException> { repo.import("{\"schemaVersion\": 1}") }
-        assertEquals(3, repo.themes.value.size)
+        assertEquals(4, repo.themes.value.size)
     }
 
     @Test
@@ -92,7 +92,7 @@ class ThemeRepositoryTest {
         repo().load()
         File(dir, "broken.json").writeText("{ not json")
         val repo = repo().apply { load() }
-        assertEquals(2, repo.themes.value.size)
+        assertEquals(3, repo.themes.value.size)
         assertEquals(1, repo.unreadable.value.size)
         assertTrue(repo.unreadable.value.single().startsWith("broken.json: "), repo.unreadable.value.toString())
     }

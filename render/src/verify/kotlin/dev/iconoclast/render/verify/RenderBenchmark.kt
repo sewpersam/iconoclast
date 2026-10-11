@@ -79,7 +79,7 @@ fun main(args: Array<String>) {
     println("JADE apply 300@432 render, paint change with warm cache %.0f ms".format(warmApply))
 }
 
-/** The Jade preset, app/src/main/assets/presets/jade.json, built in code: :render has no JSON. */
+/** The M4 Jade preset, flat colour, GoldenSet.PRESETS "jade": the M4 and M5 baseline these numbers compare with. */
 private val JADE = Theme(
     fill = FillParams(mode = FillMode.INVERT),
     background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),

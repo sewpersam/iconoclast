@@ -50,20 +50,20 @@ class ThemeMigrationTest {
 
     /**
      * The schema 2 migration test: the M4 preset files, schema 1, migrate to the same
-     * documents as the rewritten schema 2 presets, and render byte for byte the PNGs the M4
-     * renderer made, the plain and jade goldens. Plain covers the transparent background
-     * and outline, Jade the shaped background and invert fill.
+     * documents as the schema 2 presets, kept as fixtures, and render byte for byte the PNGs
+     * the M4 renderer made, the plain and jade goldens. Plain covers the transparent
+     * background and outline, Jade the shaped background and invert fill. The shipped Jade
+     * is the M6 one since Task 10, so the M4 Jade lives on only in these fixtures.
      */
     @Test
     fun version1PresetsMigrateToTheBaseStackAndRenderTheM4Bytes() {
-        val presets = File(requireNotNull(System.getProperty("presets.dir")))
         val goldens = File(requireNotNull(System.getProperty("golden.dir")))
         val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
         for ((file, dir) in listOf("plain-arcticons.json" to "plain", "jade.json" to "jade")) {
             val v1 = fixture("v1-$file")
             assertTrue("\"schemaVersion\": 1" in v1)
             val migrated = migrate(v1, now = { error("no clock") }, newId = { error("no id") })
-            assertEquals(migrate(File(presets, file).readText()), migrated, file)
+            assertEquals(migrate(fixture("v2-$file")), migrated, file)
             assertEquals(GoldenSet.PRESETS.getValue(dir), migrated.theme)
             val renderer = IconRenderer()
             for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
@@ -74,9 +74,10 @@ class ThemeMigrationTest {
     }
 
     /**
-     * The schema 3 migration test: the schema 2 preset files, kept as fixtures, migrate to
-     * the schema 3 presets unchanged but for the version, with no clock and no new id, and
-     * render the preset goldens byte for byte.
+     * The schema 3 migration test: the schema 2 preset files, kept as fixtures, migrate
+     * unchanged but for the version, with no clock and no new id, and render the M4 preset
+     * goldens byte for byte. Plain Arcticons still ships as it was, so its schema 3 file is
+     * the migrated fixture.
      */
     @Test
     fun version2PresetsMigrateUnchanged() {
@@ -87,9 +88,8 @@ class ThemeMigrationTest {
             val v2 = fixture("v2-$file")
             assertTrue("\"schemaVersion\": 2" in v2)
             val migrated = migrate(v2, now = { error("no clock") }, newId = { error("no id") })
-            val current = migrate(File(presets, file).readText())
-            assertEquals(3, current.schemaVersion)
-            assertEquals(current, migrated, file)
+            assertEquals(3, migrated.schemaVersion)
+            if (file == "plain-arcticons.json") assertEquals(migrate(File(presets, file).readText()), migrated, file)
             assertEquals(v2.replace("\"schemaVersion\": 2", "\"schemaVersion\": 3").trim(), migrated.toJson().trim(), "only the version changes")
             val renderer = IconRenderer()
             for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
