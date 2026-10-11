@@ -3,6 +3,7 @@ package dev.iconoclast.app
 import android.app.Application
 import android.util.Log
 import dev.iconoclast.app.coverage.CoverageStore
+import dev.iconoclast.app.settings.AppSettings
 import dev.iconoclast.app.texture.TextureFiles
 import dev.iconoclast.app.theme.Presets
 import dev.iconoclast.app.theme.ThemeRepository
@@ -40,6 +41,9 @@ class AppContainer(private val app: Application) {
 
     /** What the last successful Apply installed, for the coverage diff on open. */
     val coverage = CoverageStore(File(app.filesDir, "coverage"))
+
+    /** The output resolution, read by Apply and the previews. */
+    val settings = AppSettings(app)
 
     /** The pack signing key, spec 3.5: one instance, so Apply, export and import never race on its files. */
     val packKey = PackKeyStore(app.noBackupFilesDir, "${app.getString(R.string.app_name)} Pack")

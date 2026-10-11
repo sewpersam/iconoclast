@@ -101,7 +101,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val dir = withContext(Dispatchers.IO) { File(app.cacheDir, "pack").apply { mkdirs() } }
         val unsigned = dir.resolve("unsigned.apk")
         val look = { name: String -> SlotLook(doc.effectiveGeometry(name), doc.effectiveTheme(name)) }
-        PackBuilder(icons, container.renderer).build(template, plan, look, dir.resolve("icons"), unsigned) { done, total ->
+        val resolution = container.settings.resolution.value
+        PackBuilder(icons, container.renderer).build(template, plan, look, dir.resolve("icons"), unsigned, resolution) { done, total ->
             _state.value = ApplyState.Working("Drawing icons", done, total)
         }
         val t2 = SystemClock.elapsedRealtime()
@@ -115,7 +116,7 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             dir.resolve("pack.apk").also { PackSigner.sign(unsigned, key, it); unsigned.delete() }
         }
         val t3 = SystemClock.elapsedRealtime()
-        Log.i(TAG, "apply: ${components.size} activities, ${plan.items.size} themed, ${plan.drawables.size} slots; " +
+        Log.i(TAG, "apply: ${resolution.px} px, ${components.size} activities, ${plan.items.size} themed, ${plan.drawables.size} slots; " +
             "load ${t1 - t0} ms, render+rewrite ${t2 - t1} ms, sign ${t3 - t2} ms, ${apk.length()} bytes")
 
         val firstInstall = !isPackInstalled()
