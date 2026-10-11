@@ -219,6 +219,34 @@ object GoldenSet {
         "effect_grain" to above(EffectLayer("grain", Effect.Grain(amount = 0.6f, size = 1.5f, seed = 2), blend = BlendMode.OVERLAY, opacity = 0.6f)),
     )
 
+    /**
+     * The jade-like look, M6: invert fill at stroke 1.75, a procedural jade fill (fBm through
+     * a jade gradient, ridged veins screened over it), low-opacity textured streaks between
+     * icon and background taking their paint from the jade fill, a soft inner bevel and a
+     * little grain. Task 10 authors the real Jade preset; this is the budget and identity case.
+     */
+    val JADE_LIKE: Theme = Theme(
+        shape = ShapeParams(strokeWeight = 1.75f),
+        fill = FillParams(mode = FillMode.INVERT),
+        background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+        layers = listOf(
+            PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF000000.toInt()), clip = ClipTarget.BACKGROUND),
+            EffectsLayer(),
+            EffectLayer("streaks", Effect.Streaks(angle = 300f, length = 0.35f, decay = Decay.EXPONENTIAL,
+                breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.55f, contrast = 0.4f),
+                paintLayer = Layer.ICON_FILL_ID), opacity = 0.35f),
+            PaintLayer(Layer.ICON_FILL_ID, Paint.Noise(NoiseKind.FBM, 5, 17,
+                listOf(ColorStop(0f, 0xFF06402C.toInt()), ColorStop(0.55f, 0xFF1E8C5E.toInt()), ColorStop(1f, 0xFF8FE0B8.toInt()))),
+                clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
+            PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
+                blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
+            PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
+            EffectLayer("bevel", Effect.Bevel(size = 0.008f, depth = 1.5f, softness = 0.4f,
+                highlight = 0x80FFFFFF.toInt(), shadow = 0x80000000.toInt())),
+            EffectLayer("grain", Effect.Grain(amount = 0.3f), blend = BlendMode.OVERLAY, opacity = 0.5f),
+        ),
+    )
+
     /** Every golden: directory, theme and sample name. */
     val CASES: List<Triple<String, Theme, String>>
         get() = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
@@ -226,5 +254,6 @@ object GoldenSet {
             PRESETS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } } +
             LOOKS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
             BLENDS.flatMap { (dir, theme) -> BLEND_SAMPLES.map { Triple(dir, theme, it) } } +
-            EFFECTS.flatMap { (dir, theme) -> EFFECT_SAMPLES.map { Triple(dir, theme, it) } }
+            EFFECTS.flatMap { (dir, theme) -> EFFECT_SAMPLES.map { Triple(dir, theme, it) } } +
+            LOOK_SAMPLES.map { Triple("effects_jade", JADE_LIKE, it) }
 }
