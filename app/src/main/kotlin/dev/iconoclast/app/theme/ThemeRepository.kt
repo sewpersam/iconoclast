@@ -67,6 +67,31 @@ class ThemeRepository(
         doc.copy(schemaVersion = ThemeDocument.CURRENT_SCHEMA, name = doc.name.clean(), modified = now()).also(::write)
     }
 
+    /**
+     * Field-scoped writes. Each reads the stored document and writes back only its own
+     * field, under the repository lock, so the editor saving the theme and the override
+     * sheet saving an override never overwrite each other. Null when [id] is gone.
+     */
+    suspend fun updateTheme(id: String, theme: Theme): ThemeDocument? = locked {
+        get(id)?.let { if (it.theme == theme) it else it.copy(theme = theme, modified = now()).also(::write) }
+    }
+
+    /** Sets [drawable]'s override; an empty one removes it, as [clearOverride] does. */
+    suspend fun setOverride(id: String, drawable: String, override: IconOverride): ThemeDocument? = locked {
+        writeOverride(id, drawable, override)
+    }
+
+    /** "Reset to theme": removes [drawable]'s override. */
+    suspend fun clearOverride(id: String, drawable: String): ThemeDocument? = locked {
+        writeOverride(id, drawable, null)
+    }
+
+    private fun writeOverride(id: String, drawable: String, override: IconOverride?): ThemeDocument? {
+        val doc = get(id) ?: return null
+        val next = doc.withOverride(drawable, override)
+        return if (next.overrides == doc.overrides) doc else next.copy(modified = now()).also(::write)
+    }
+
     suspend fun rename(id: String, name: String): ThemeDocument? = locked {
         get(id)?.copy(name = name.clean(), modified = now())?.also(::write)
     }

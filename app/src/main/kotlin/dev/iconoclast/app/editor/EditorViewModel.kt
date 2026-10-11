@@ -376,11 +376,10 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         return container.renderer.render(icons.names.name(drawable), icons.icon(drawable), theme, SIZE).toImageBitmap()
     }
 
+    /** Writes the theme field only, so overrides saved meanwhile by the override sheet stay. */
     private suspend fun save(theme: Theme) {
-        val doc = repo.get(id) ?: return
-        if (doc.theme == theme) return
         try {
-            repo.save(doc.copy(theme = theme))
+            repo.updateTheme(id, theme)
         } catch (e: IOException) {
             Log.w(TAG, "Theme not saved", e)
             _ui.value = _ui.value.copy(message = "Not saved. Storage error: ${e.message ?: e.javaClass.simpleName}")

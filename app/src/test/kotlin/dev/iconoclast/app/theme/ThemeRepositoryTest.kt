@@ -2,6 +2,9 @@ package dev.iconoclast.app.theme
 
 import dev.iconoclast.render.ShapeParams
 import dev.iconoclast.render.Theme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files
@@ -132,5 +135,26 @@ class ThemeRepositoryTest {
         assertEquals(listOf("preset-neon"), repo.themes.value.map { it.id })
         repo.delete("preset-neon")
         assertEquals(emptyList(), repo().apply { load() }.themes.value.map { it.id })
+    }
+
+    /** Review fix: the editor's theme saves and the override sheet's writes interleave and both land. */
+    @Test
+    fun concurrentThemeAndOverrideWritesBothLand() = runBlocking {
+        val r = repo(emptyList())
+        val id = r.create("T", Theme()).id
+        val weights = (0 until 40).map { 1f + it * 0.05f }
+        coroutineScope {
+            for (w in weights) launch(Dispatchers.Default) { r.updateTheme(id, Theme(shape = ShapeParams(strokeWeight = w))) }
+            for (i in weights.indices) launch(Dispatchers.Default) { r.setOverride(id, "app_$i", IconOverride(strokeWeight = 2f)) }
+        }
+        val reread = repo(emptyList()).apply { load() }.get(id)!!
+        assertEquals((weights.indices).map { "app_$it" }.toSet(), reread.overrides.keys, "every override landed")
+        assertTrue(reread.theme.shape.strokeWeight in weights, "a theme save landed")
+        assertEquals(r.get(id), reread)
+
+        r.clearOverride(id, "app_0")
+        r.setOverride(id, "app_1", IconOverride())
+        assertEquals(weights.indices.drop(2).map { "app_$it" }.toSet(), r.get(id)!!.overrides.keys)
+        assertNull(r.updateTheme("gone", Theme()))
     }
 }
