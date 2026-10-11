@@ -72,6 +72,13 @@ data class EffectKey(
 }
 
 /** Background shape and border coverage. */
+/**
+ * A noise paint's value field over the whole canvas for one icon: what Mappings.noise
+ * gives without a need mask. It depends on no geometry, so a drag that changes the shape
+ * reuses it. Only preview sizes are cached; see IconRenderer.
+ */
+data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val drawable: String, val size: Int)
+
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 
 /**
@@ -116,6 +123,10 @@ class MaskCache(private val maxBytes: Long = 64L shl 20) {
         require(!key.kind.coverage) { "${key.kind} is coverage" }
         return get(key, compute) { 4L * it.pixels }
     }
+
+    /** A noise field, read-only once cached. */
+    fun noise(key: NoiseKey, compute: () -> FloatArray): FloatArray =
+        get(key, compute) { 4L * it.size }
 
     fun background(key: BackgroundKey, compute: () -> Pair<Mask, Mask?>): Pair<Mask, Mask?> =
         get(key, compute) { 4L * (it.first.pixels + (it.second?.pixels ?: 0)) }

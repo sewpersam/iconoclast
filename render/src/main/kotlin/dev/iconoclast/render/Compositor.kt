@@ -39,7 +39,12 @@ const val SAFE_ZONE = 66f / 108f
  * Texture layers read [textures]; a theme's textures must be in the store before it
  * renders. Textures never enter the mask cache.
  */
-class IconRenderer(val cache: MaskCache = MaskCache(), val textures: TextureStore = TextureStore()) {
+class IconRenderer(
+    val cache: MaskCache = MaskCache(),
+    val textures: TextureStore = TextureStore(),
+    /** Below this size noise fields are cached per icon, [StackInput.cacheNoise]. 0 turns it off. */
+    private val noiseCacheBelow: Int = OUTPUT_SIZE,
+) {
 
     /**
      * Renders one drawable. [drawable] is its stable identity, the Arcticons drawable name:
@@ -75,6 +80,7 @@ class IconRenderer(val cache: MaskCache = MaskCache(), val textures: TextureStor
             textures = textures,
             cache = cache,
             iconKey = iconKey(drawable, theme, size, masks),
+            cacheNoise = size < noiseCacheBelow,
         )
     }
 

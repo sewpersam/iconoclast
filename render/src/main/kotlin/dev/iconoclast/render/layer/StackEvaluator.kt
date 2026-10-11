@@ -8,6 +8,7 @@ import dev.iconoclast.render.Layer
 import dev.iconoclast.render.EffectKey
 import dev.iconoclast.render.Mask
 import dev.iconoclast.render.MaskCache
+import dev.iconoclast.render.NoiseKey
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.background.Paints
@@ -31,6 +32,12 @@ internal class StackInput(
     /** Where effects cache what they derive from the icon mask, under [iconKey] and a kind. */
     val cache: MaskCache = MaskCache(),
     val iconKey: EffectKey? = null,
+    /**
+     * Whether noise paints read their whole-canvas field from [cache]. True at preview
+     * sizes, where the same icon is drawn again on every change; at pack size each icon is
+     * drawn once, so the field is evaluated only where the layer can show.
+     */
+    val cacheNoise: Boolean = false,
 )
 
 /**
@@ -189,10 +196,19 @@ internal object StackEvaluator {
                 Source(null, px, lum)
             }
             is Paint.Noise -> {
-                val v = Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size, need)
+                // The cached field is the whole canvas; outside [need] nothing reads it, so the
+                // pixels are the same either way. Read-only: the gradient map writes to px.
+                val v = if (input.cacheNoise) {
+                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size)) {
+                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size)
+                    }
+                } else {
+                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size, need)
+                }
                 val px = FloatArray(v.size * 4)
                 val c = FloatArray(4)
                 for (i in v.indices) {
+                    if (need != null && need[i] == 0f) continue
                     Paints.sample(paint.stops, v[i], c)
                     c.copyInto(px, 4 * i)
                 }
