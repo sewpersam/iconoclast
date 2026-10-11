@@ -37,6 +37,6 @@ class ArtByteIdentityTest {
         }
         android.util.Log.i("ArtByteIdentity", "compared ${compared.size} PNGs, ${differ.size} differ: $differ")
         assertEquals("PNGs differing from the JVM goldens", emptyList<String>(), differ)
-        assertEquals(208, compared.size)
+        assertEquals(212, compared.size)
     }
 }

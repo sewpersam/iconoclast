@@ -12,7 +12,9 @@ import dev.iconoclast.render.layer.StackInput
  * Grain, readiness item 10: a thin wrapper over the grain noise source, so grain has one
  * code path. The field is layer/Mappings' box-filtered grain at mapping scale [Effect.Grain.size],
  * cells size/432 of the canvas, each icon its own patch. Grey `0.5 + (n - 0.5) amount`,
- * opaque, over the whole canvas; a contrast blend such as overlay makes it grain.
+ * opaque, source-atop: it lands only on what is already painted, weighted by its alpha,
+ * and keeps that alpha, so with the background off a transparent canvas stays
+ * transparent. A contrast blend such as overlay makes it grain.
  */
 internal object Grain {
 
@@ -26,6 +28,6 @@ internal object Grain {
             px[4 * i + 2] = g
             px[4 * i + 3] = 1f
         }
-        return EffectOutput(FloatArray(n.size) { 1f }, null, px, blend)
+        return EffectOutput(FloatArray(n.size) { 1f }, null, px, blend, atop = true)
     }
 }

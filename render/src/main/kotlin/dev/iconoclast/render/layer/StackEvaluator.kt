@@ -66,7 +66,15 @@ internal object StackEvaluator {
      * What an effect paints: per-pixel [coverage], 0 to 1 (clamped there), and a premultiplied colour,
      * one ([solid]) or one per pixel ([colors]), composited with [blend].
      */
-    class EffectOutput(val coverage: FloatArray, val solid: FloatArray?, val colors: FloatArray?, val blend: BlendMode)
+    class EffectOutput(
+        val coverage: FloatArray, val solid: FloatArray?, val colors: FloatArray?, val blend: BlendMode,
+        /**
+         * Source-atop: the coverage is weighted by the backdrop's alpha and the backdrop's
+         * alpha is kept, so the output lands only on what is already painted. Grain uses it,
+         * so over a transparent backdrop it adds nothing.
+         */
+        val atop: Boolean = false,
+    )
 
     /**
      * Composites [out] at [opacity] into [buf] and adds it to the EFFECTS clip target. The
@@ -82,15 +90,25 @@ internal object StackEvaluator {
             if (cov <= 0f) continue
             if (cov > 1f) cov = 1f
             if (opacity != 1f) cov *= opacity
+            val o = 4 * i
+            val backdrop = buf[o + 3]
+            if (out.atop) {
+                cov *= backdrop
+                if (cov == 0f) continue
+            }
             val e = acc[i]
             acc[i] = e + cov - e * cov
-            val o = 4 * i
             val s = out.solid
             if (s != null) {
                 BlendModes.composite(out.blend, s[0] * cov, s[1] * cov, s[2] * cov, s[3] * cov, buf, o, scratch)
             } else {
                 val c = out.colors!!
                 BlendModes.composite(out.blend, c[o] * cov, c[o + 1] * cov, c[o + 2] * cov, c[o + 3] * cov, buf, o, scratch)
+            }
+            if (out.atop && backdrop < 1f) {
+                // Keep the backdrop's alpha; colour stays premultiplied within it.
+                buf[o + 3] = backdrop
+                for (k in 0..2) if (buf[o + k] > backdrop) buf[o + k] = backdrop
             }
         }
     }

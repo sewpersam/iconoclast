@@ -92,6 +92,30 @@ class EffectsTest {
         assertTrue(lit > 500, "the shadow covers $lit px")
     }
 
+    /**
+     * Review finding 1: grain is source-atop. With the background off, every pixel keeps
+     * the alpha it had without grain, so a transparent canvas stays transparent and the
+     * icon is not turned into a grey tile; the icon itself does get grain.
+     */
+    @Test
+    fun grainLandsOnlyOnWhatIsPainted() {
+        val theme = GoldenSet.EFFECTS.getValue("effect_grain_plain")
+        assertFalse(theme.background.enabled)
+        val bare = theme.copy(layers = theme.layers.filterNot { it is EffectLayer })
+        val r = IconRenderer()
+        for (size in listOf(128, 432)) {
+            val a = r.render(name, icon, theme, size).pixels
+            val b = r.render(name, icon, bare, size).pixels
+            var changed = 0
+            for (i in 0 until size * size) {
+                assertEquals(b[4 * i + 3], a[4 * i + 3], "alpha at $i, $size px")
+                if ((b[4 * i + 3].toInt() and 0xFF) == 0) for (k in 0..2) assertEquals(0, a[4 * i + k].toInt(), "colour at $i")
+                if (!(0..3).all { a[4 * i + it] == b[4 * i + it] }) changed++
+            }
+            assertTrue(changed > 100, "grain shows on the icon: $changed px at $size")
+        }
+    }
+
     /** A streak linked to a solid layer paints what the same colour unlinked paints; a dangling link falls back. */
     @Test
     fun streaksTakeTheLinkedLayersPaint() {
