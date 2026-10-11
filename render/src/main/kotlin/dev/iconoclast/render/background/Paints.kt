@@ -2,7 +2,7 @@ package dev.iconoclast.render.background
 
 import dev.iconoclast.render.ColorStop
 import dev.iconoclast.render.Paint
-import kotlin.math.sqrt
+import dev.iconoclast.render.math.sqrt
 
 /**
  * Evaluates a [Paint] at every pixel centre into premultiplied RGBA floats, 0 to 1.

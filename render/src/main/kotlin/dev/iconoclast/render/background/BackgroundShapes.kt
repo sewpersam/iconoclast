@@ -10,7 +10,7 @@ import dev.iconoclast.render.raster.EdgeList
 import dev.iconoclast.render.raster.FLATTEN_TOLERANCE
 import dev.iconoclast.render.raster.fillCoverage
 import kotlin.math.PI
-import kotlin.math.ceil
+import dev.iconoclast.render.math.ceil
 import kotlin.math.max
 
 /**
@@ -97,8 +97,8 @@ object BackgroundShapes {
             val t = 2 * PI * i / count
             val c = StrictMath.cos(t)
             val s = StrictMath.sin(t)
-            val x = Math.copySign(StrictMath.pow(StrictMath.abs(c), e), c)
-            val y = Math.copySign(StrictMath.pow(StrictMath.abs(s), e), s)
+            val x = StrictMath.copySign(StrictMath.pow(StrictMath.abs(c), e), c)
+            val y = StrictMath.copySign(StrictMath.pow(StrictMath.abs(s), e), s)
             out.add((cx + a * x).toFloat(), (cy + a * y).toFloat())
         }
         return out.toArray()

@@ -3,10 +3,10 @@ package dev.iconoclast.render.geom
 import dev.iconoclast.render.format.Primitive
 import dev.iconoclast.render.format.Verb
 import kotlin.math.abs
-import kotlin.math.ceil
+import dev.iconoclast.render.math.ceil
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sqrt
+import dev.iconoclast.render.math.sqrt
 
 /** Uniform scale then translate: (x, y) to (x * scale + tx, y * scale + ty). */
 data class Affine(val scale: Float, val tx: Float, val ty: Float) {

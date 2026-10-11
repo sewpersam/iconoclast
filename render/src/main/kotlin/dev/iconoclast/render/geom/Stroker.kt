@@ -5,9 +5,9 @@ import dev.iconoclast.render.LineJoin
 import dev.iconoclast.render.raster.EdgeList
 import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.ceil
+import dev.iconoclast.render.math.ceil
 import kotlin.math.max
-import kotlin.math.sqrt
+import dev.iconoclast.render.math.sqrt
 
 /**
  * Strokes polylines as a union of convex pieces: a quad per segment, a wedge per join on

@@ -6,8 +6,8 @@ import dev.iconoclast.render.mask.Morphology
 import dev.iconoclast.render.mask.label4
 import dev.iconoclast.render.mask.squaredEdt
 import dev.iconoclast.render.mask.touchesBorder
-import kotlin.math.ceil
-import kotlin.math.sqrt
+import dev.iconoclast.render.math.ceil
+import dev.iconoclast.render.math.sqrt
 
 /**
  * The fill stage's output, coverage 0 to 1 per pixel. [body] is painted first, then

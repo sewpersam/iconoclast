@@ -1,7 +1,7 @@
 package dev.iconoclast.render.raster
 
-import kotlin.math.ceil
-import kotlin.math.floor
+import dev.iconoclast.render.math.ceil
+import dev.iconoclast.render.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
