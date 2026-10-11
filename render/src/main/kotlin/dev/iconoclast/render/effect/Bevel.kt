@@ -43,7 +43,7 @@ internal object Bevel {
                 rise * t * t * (3f - 2f * t)
             }
         }
-        h = Blur.gaussian(h, n, n, maxOf(MIN_SIGMA * n / OUTPUT_SIZE, e.softness * w / 2f))
+        h = blurNonZero(h, n, maxOf(MIN_SIGMA * n / OUTPUT_SIZE, e.softness * w / 2f))
         val (lx, ly) = EffectPaint.toward(e.lightAngle)
         val lz = ALTITUDE_SIN
         val dx = lx * ALTITUDE_COS
@@ -68,6 +68,39 @@ internal object Bevel {
         )
     }
 
+    /**
+     * [h] blurred, zero outside the grid, computing only the box around its non-zero
+     * pixels padded by the blur's reach, for the sampled kernel. Outside that box [h] is
+     * 0, and a zero term adds nothing to the convolution's sums, so the result is the
+     * whole-grid blur bit for bit.
+     */
+    private fun blurNonZero(h: FloatArray, n: Int, sigma: Float): FloatArray {
+        // Box passes keep running sums whose rounding can outlast their reach: whole grid.
+        if (sigma > Blur.EXACT_SIGMA) return Blur.gaussian(h, n, n, sigma)
+        var x0 = n
+        var x1 = -1
+        var y0 = n
+        var y1 = -1
+        for (y in 0 until n) for (x in 0 until n) if (h[y * n + x] != 0f) {
+            if (x < x0) x0 = x
+            if (x > x1) x1 = x
+            if (y < y0) y0 = y
+            if (y > y1) y1 = y
+        }
+        if (x1 < 0) return h
+        val pad = ceil(4f * sigma).toInt() + 4
+        x0 = maxOf(0, x0 - pad); y0 = maxOf(0, y0 - pad)
+        x1 = minOf(n - 1, x1 + pad); y1 = minOf(n - 1, y1 + pad)
+        val cw = x1 - x0 + 1
+        val ch = y1 - y0 + 1
+        if (cw == n && ch == n) return Blur.gaussian(h, n, n, sigma)
+        val crop = FloatArray(cw * ch)
+        for (y in 0 until ch) h.copyInto(crop, y * cw, (y0 + y) * n + x0, (y0 + y) * n + x0 + cw)
+        val blurred = Blur.gaussian(crop, cw, ch, sigma)
+        val out = FloatArray(n * n)
+        for (y in 0 until ch) blurred.copyInto(out, (y0 + y) * n + x0, y * cw, y * cw + cw)
+        return out
+    }
 
     /**
      * The least surface blur, sigma in pixels at [OUTPUT_SIZE], scaled with the render.
