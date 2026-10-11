@@ -17,8 +17,9 @@ import java.util.UUID
 
 /**
  * The saved themes: one JSON file per theme in [dir], plus the active theme's id.
- * See docs/theme-format.md, Storage. Every write is atomic. The first load seeds
- * [presets], each a theme file's text, once per install.
+ * See docs/theme-format.md, Storage. Every write is atomic. Each load seeds the
+ * [presets], each a theme file's text, that this install has not seeded before, so a
+ * preset added in an update arrives and a deleted one stays deleted.
  *
  * Writes throw IOException when the disk fails; callers surface it.
  *
@@ -126,18 +127,37 @@ class ThemeRepository(
         _unreadable.value = unreadable
         _themes.value = docs.sortedWith(ORDER)
         _activeId.value = activeFile.takeIf { it.exists() }?.readText()?.trim()?.takeIf { id -> docs.any { it.id == id } }
-        if (!seededFile.exists()) seed()
+        seed()
         if (_activeId.value == null) writeActive(_themes.value.firstOrNull()?.id)
     }
 
-    /** Presets keep their fixed ids, so seeding twice cannot duplicate them. */
+    /**
+     * Seeds every preset whose id is not in the seeded set, then records it. A preset whose
+     * id is already there is never written again, so a deleted one stays deleted and an
+     * edited one keeps its edits; a document that already has the id is never overwritten.
+     */
     private fun seed() {
+        val seeded = seededIds()
+        val texts = presets()
         val t = now()
-        presets().forEachIndexed { i, text ->
+        val added = LinkedHashSet<String>()
+        texts.forEachIndexed { i, text ->
             val preset = migrate(text, now, newId)
+            if (preset.id in seeded) return@forEachIndexed
             if (get(preset.id) == null) write(preset.copy(created = t + i, modified = t + i))
+            added += preset.id
         }
-        writeAtomic(seededFile, "1\n")
+        if (added.isNotEmpty() || !seededFile.exists()) writeAtomic(seededFile, (seeded + added).joinToString("") { "$it\n" })
+    }
+
+    /**
+     * The preset ids seeded on this install, one per line. Before M6 the file held a bare
+     * "1", written once both M4 presets were seeded.
+     */
+    private fun seededIds(): Set<String> {
+        if (!seededFile.exists()) return emptySet()
+        val lines = seededFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }
+        return if (lines == listOf(LEGACY_MARKER)) LEGACY_PRESETS else lines.toCollection(LinkedHashSet())
     }
 
     private fun write(doc: ThemeDocument) {
@@ -166,5 +186,7 @@ class ThemeRepository(
 
     private companion object {
         val ORDER = compareBy<ThemeDocument>({ it.created }, { it.id })
+        const val LEGACY_MARKER = "1"
+        val LEGACY_PRESETS = linkedSetOf("preset-plain-arcticons", "preset-jade")
     }
 }

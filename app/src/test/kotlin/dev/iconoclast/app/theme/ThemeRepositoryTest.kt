@@ -18,7 +18,7 @@ class ThemeRepositoryTest {
     private var ids = 0
     private val presets = File(requireNotNull(System.getProperty("presets.dir"))).let { d -> Presets.FILES.map { File(d, it).readText() } }
 
-    private fun repo() = ThemeRepository(dir, { presets }, now = { clock++ }, newId = { "id${ids++}" })
+    private fun repo(presets: List<String> = this.presets) = ThemeRepository(dir, { presets }, now = { clock++ }, newId = { "id${ids++}" })
 
     @AfterTest
     fun cleanUp() {
@@ -95,5 +95,42 @@ class ThemeRepositoryTest {
         assertEquals(3, repo.themes.value.size)
         assertEquals(1, repo.unreadable.value.size)
         assertTrue(repo.unreadable.value.single().startsWith("broken.json: "), repo.unreadable.value.toString())
+    }
+
+    /** A preset added in an update reaches an install seeded before it. */
+    @Test
+    fun aNewPresetArrivesOnAnExistingInstall() = runBlocking {
+        repo(presets.take(2)).load()
+        assertEquals(listOf("preset-plain-arcticons", "preset-jade"), repo(presets.take(2)).apply { load() }.themes.value.map { it.id })
+        val updated = repo().apply { load() }
+        assertEquals(listOf("preset-plain-arcticons", "preset-jade", "preset-neon"), updated.themes.value.map { it.id })
+        assertEquals(listOf("preset-plain-arcticons", "preset-jade", "preset-neon"), File(dir, "seeded").readLines())
+    }
+
+    /** Seeding never overwrites a document that holds the preset's id, edited or not. */
+    @Test
+    fun seedingNeverOverwritesAnExistingDocument() = runBlocking {
+        val first = repo(presets.take(2)).apply { load() }
+        first.rename("preset-jade", "My jade")
+        val mine = migrate(presets[2]).copy(name = "My neon", created = 1, modified = 1)
+        File(dir, "preset-neon.json").writeText(mine.toJson())
+        val again = repo().apply { load() }
+        assertEquals("My jade", again.get("preset-jade")!!.name)
+        assertEquals("My neon", again.get("preset-neon")!!.name)
+        assertEquals(listOf("preset-plain-arcticons", "preset-jade", "preset-neon"), File(dir, "seeded").readLines())
+    }
+
+    /**
+     * A deleted preset is never resurrected, including on an install seeded before M6,
+     * whose marker was a bare "1" for the two M4 presets: only the new preset arrives.
+     */
+    @Test
+    fun deletedPresetsStayDeletedAcrossTheLegacyMarker() = runBlocking {
+        dir.mkdirs()
+        File(dir, "seeded").writeText("1\n")
+        val repo = repo().apply { load() }
+        assertEquals(listOf("preset-neon"), repo.themes.value.map { it.id })
+        repo.delete("preset-neon")
+        assertEquals(emptyList(), repo().apply { load() }.themes.value.map { it.id })
     }
 }

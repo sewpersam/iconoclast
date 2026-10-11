@@ -292,8 +292,12 @@ and a test, and update this file.
   same directory, then renamed over the target, so a crash leaves the old or
   the new file, never half of one.
 - `filesDir/themes/active`: the active theme's id, plain text, same atomic write.
-- `filesDir/themes/seeded`: present once the starter presets were seeded. A
-  deleted preset stays deleted.
+- `filesDir/themes/seeded`: the ids of the starter presets this install has
+  seeded, one per line. Each load seeds the presets not listed and adds them,
+  so a preset added in an update arrives. A listed preset is never seeded
+  again: a deleted one stays deleted, an edited one keeps its edits. A
+  document that already has a preset's id is never overwritten. A file
+  holding only `1`, from before M6, means the two M4 presets.
 - `filesDir/textures/<sha256>.png`: one canonical PNG per imported texture,
   written once, atomically. A texture is present when its file is. The
   renderer's store keeps at most 64 MB of decoded textures and files in memory,
