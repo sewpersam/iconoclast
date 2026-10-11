@@ -45,10 +45,12 @@ class PresetsTest {
         val plain = preset("plain-arcticons.json").theme
         assertFalse(plain.background.enabled, "Plain Arcticons is white line on transparent")
         assertEquals(FillMode.OUTLINE, plain.fill.mode)
-        assertEquals(0xFFFFFFFF.toInt(), plain.glyph.line)
+        assertEquals(dev.iconoclast.render.Paint.Solid(0xFFFFFFFF.toInt()), plain.layer(dev.iconoclast.render.Layer.ICON_LINES_ID).source)
         val jade = preset("jade.json").theme
         assertEquals(FillMode.INVERT, jade.fill.mode)
         assertEquals(dev.iconoclast.render.BackgroundShape.RoundedSquare(0.2f), jade.background.shape)
-        assertEquals(dev.iconoclast.render.Paint.Solid(0xFF000000.toInt()), jade.background.paint)
+        assertEquals(dev.iconoclast.render.Paint.Solid(0xFF000000.toInt()), jade.layer(dev.iconoclast.render.Layer.BACKGROUND_ID).source)
     }
+
+    private fun dev.iconoclast.render.Theme.layer(id: String) = layers.first { it.id == id } as dev.iconoclast.render.PaintLayer
 }

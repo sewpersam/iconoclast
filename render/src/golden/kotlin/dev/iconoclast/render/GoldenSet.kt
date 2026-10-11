@@ -21,19 +21,23 @@ object GoldenSet {
             fill = FillParams(mode = FillMode.INVERT),
             background = BackgroundParams(
                 shape = BackgroundShape.Circle,
-                paint = Paint.LinearGradient(0f, 0f, 1f, 1f, listOf(ColorStop(0f, 0xFF1B3B36.toInt()), ColorStop(1f, 0xFF0E1A18.toInt()))),
             ),
-            glyph = GlyphPaint(line = WHITE, body = TEAL),
+            layers = Theme.baseLayers(
+                Paint.LinearGradient(0f, 0f, 1f, 1f, listOf(ColorStop(0f, 0xFF1B3B36.toInt()), ColorStop(1f, 0xFF0E1A18.toInt()))),
+                body = TEAL, line = WHITE,
+            ),
         ),
         FillMode.SILHOUETTE to Theme(
             shape = ShapeParams(strokeWeight = 1.5f, join = LineJoin.MITER),
             fill = FillParams(mode = FillMode.SILHOUETTE),
             background = BackgroundParams(
                 shape = BackgroundShape.RoundedSquare(0.25f),
-                paint = Paint.RadialGradient(0.35f, 0.3f, 0.9f, listOf(ColorStop(0f, 0xFF4A3F6B.toInt()), ColorStop(1f, 0xFF16121F.toInt()))),
                 border = Border(0.02f, 0xFFE0D7FF.toInt(), 0.6f),
             ),
-            glyph = GlyphPaint(line = WHITE, body = 0xFFE0D7FF.toInt()),
+            layers = Theme.baseLayers(
+                Paint.RadialGradient(0.35f, 0.3f, 0.9f, listOf(ColorStop(0f, 0xFF4A3F6B.toInt()), ColorStop(1f, 0xFF16121F.toInt()))),
+                body = 0xFFE0D7FF.toInt(), line = WHITE,
+            ),
         ),
         FillMode.OUTLINE_SILHOUETTE to Theme(
             shape = ShapeParams(iconScale = 0.9f, cap = LineCap.SQUARE),
@@ -41,10 +45,9 @@ object GoldenSet {
             background = BackgroundParams(
                 shape = BackgroundShape.Teardrop,
                 size = 0.92f,
-                paint = Paint.Solid(0xFF263238.toInt()),
                 border = Border(0.015f, WHITE, 0.3f),
             ),
-            glyph = GlyphPaint(line = WHITE, body = 0xFF3D5A80.toInt()),
+            layers = Theme.baseLayers(Paint.Solid(0xFF263238.toInt()), body = 0xFF3D5A80.toInt(), line = WHITE),
         ),
     )
 
@@ -59,17 +62,18 @@ object GoldenSet {
 
     /**
      * The two starter presets, app/src/main/assets/presets, built in code. Their goldens were
-     * made by the M4 renderer; the M5 layer stack must reproduce them byte for byte.
+     * made by the M4 renderer from its glyph paint; the M5 layer stack reproduces them byte
+     * for byte, as it does every golden above.
      */
     val PRESETS: Map<String, Theme> = mapOf(
         "plain" to Theme(
-            background = BackgroundParams(enabled = false, paint = Paint.Solid(0x00000000)),
-            glyph = GlyphPaint(line = WHITE, body = WHITE),
+            background = BackgroundParams(enabled = false),
+            layers = Theme.baseLayers(Paint.Solid(0x00000000), body = WHITE, line = WHITE),
         ),
         "jade" to Theme(
             fill = FillParams(mode = FillMode.INVERT),
-            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f), paint = Paint.Solid(0xFF000000.toInt())),
-            glyph = GlyphPaint(line = JADE, body = JADE),
+            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+            layers = Theme.baseLayers(Paint.Solid(0xFF000000.toInt()), body = JADE, line = JADE),
         ),
     )
 

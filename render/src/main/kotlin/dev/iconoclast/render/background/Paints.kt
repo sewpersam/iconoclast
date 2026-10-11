@@ -5,8 +5,9 @@ import dev.iconoclast.render.Paint
 import dev.iconoclast.render.math.sqrt
 
 /**
- * Evaluates a [Paint] at every pixel centre into premultiplied RGBA floats, 0 to 1.
- * Gradients interpolate premultiplied colours, so a fade to transparent does not darken.
+ * Evaluates a solid or gradient [Paint] at every pixel centre into premultiplied RGBA
+ * floats, 0 to 1. Gradients interpolate premultiplied colours, so a fade to transparent
+ * does not darken. Textures and noise depend on the icon and go through layer/Mapping.
  */
 object Paints {
 
@@ -30,6 +31,7 @@ object Paints {
                     val dy = v - paint.cy
                     sample(paint.stops, sqrt(dx * dx + dy * dy) / paint.radius, c)
                 }
+                is Paint.Texture, is Paint.Noise -> throw IllegalArgumentException("$paint is placed per icon")
             }
             c.copyInto(out, (y * size + x) * 4)
         }
@@ -45,8 +47,8 @@ object Paints {
         out[3] = a
     }
 
-    /** Clamped, piecewise linear between stops. */
-    private fun sample(stops: List<ColorStop>, t: Float, out: FloatArray) {
+    /** Clamped, piecewise linear between stops, premultiplied, into [out]. */
+    internal fun sample(stops: List<ColorStop>, t: Float, out: FloatArray) {
         if (t <= stops.first().offset) return premultiply(stops.first().argb, out)
         if (t >= stops.last().offset) return premultiply(stops.last().argb, out)
         var i = 0

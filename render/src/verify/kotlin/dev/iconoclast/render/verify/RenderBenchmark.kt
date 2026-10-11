@@ -4,8 +4,9 @@ import dev.iconoclast.render.BackgroundParams
 import dev.iconoclast.render.BackgroundShape
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
-import dev.iconoclast.render.GlyphPaint
 import dev.iconoclast.render.IconRenderer
+import dev.iconoclast.render.Layer
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.IconBundle
@@ -47,22 +48,27 @@ fun main(args: Array<String>) {
     }
     // A paint-only change: geometry and fill come from the cache.
     val r = IconRenderer()
+    val recolored = JADE.recolored
     preview.forEach { r.render("icon$it", bundle.icon(it), JADE, 128) }
-    val warm = best { preview.forEach { r.render("icon$it", bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 128) } }
+    val warm = best { preview.forEach { r.render("icon$it", bundle.icon(it), recolored, 128) } }
     println("JADE preview 24@128, paint change with warm cache %.1f ms".format(warm))
     // The compositing cost alone: 300 icons at full size with geometry and fill cached.
     val big = IconRenderer(dev.iconoclast.render.MaskCache(1L shl 31))
     apply.forEach { big.render("icon$it", bundle.icon(it), JADE, 432) }
-    val warmApply = best { apply.forEach { big.render("icon$it", bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 432) } }
+    val warmApply = best { apply.forEach { big.render("icon$it", bundle.icon(it), recolored, 432) } }
     println("JADE apply 300@432 render, paint change with warm cache %.0f ms".format(warmApply))
 }
 
 /** The Jade preset, app/src/main/assets/presets/jade.json, built in code: :render has no JSON. */
 private val JADE = Theme(
     fill = FillParams(mode = FillMode.INVERT),
-    background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f), paint = Paint.Solid(0xFF000000.toInt())),
-    glyph = GlyphPaint(line = 0xFF00A86B.toInt(), body = 0xFF00A86B.toInt()),
+    background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+    layers = Theme.baseLayers(Paint.Solid(0xFF000000.toInt()), body = 0xFF00A86B.toInt(), line = 0xFF00A86B.toInt()),
 )
+
+/** Jade with another fill colour: a paint-only change. */
+private val Theme.recolored: Theme
+    get() = copy(layers = layers.map { if (it.id == Layer.ICON_FILL_ID) (it as PaintLayer).copy(source = Paint.Solid(0xFF336699.toInt())) else it })
 
 private const val RUNS = 3
 

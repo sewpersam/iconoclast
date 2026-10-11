@@ -2,15 +2,24 @@ package dev.iconoclast.app.theme
 
 import dev.iconoclast.render.BackgroundParams
 import dev.iconoclast.render.BackgroundShape
+import dev.iconoclast.render.BlendMode
+import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Border
 import dev.iconoclast.render.ColorStop
 import dev.iconoclast.render.DotMode
+import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
-import dev.iconoclast.render.GlyphPaint
+import dev.iconoclast.render.Layer
 import dev.iconoclast.render.LineCap
 import dev.iconoclast.render.LineJoin
+import dev.iconoclast.render.Mapping
+import dev.iconoclast.render.MappingMode
+import dev.iconoclast.render.Matte
+import dev.iconoclast.render.MatteMode
+import dev.iconoclast.render.NoiseKind
 import dev.iconoclast.render.Paint
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.ShapeParams
 import dev.iconoclast.render.Theme
 import kotlinx.serialization.KSerializer
@@ -67,6 +76,12 @@ private sealed interface PaintJson {
 
     @Serializable @SerialName("radial")
     data class Radial(val cx: JFloat, val cy: JFloat, val radius: JFloat, val stops: List<StopJson>) : PaintJson
+
+    @Serializable @SerialName("texture")
+    data class Texture(val sha256: String, val stops: List<StopJson>?) : PaintJson
+
+    @Serializable @SerialName("noise")
+    data class Noise(val kind: NoiseKind, val octaves: Int, val seed: Int, val stops: List<StopJson>) : PaintJson
 }
 
 @Serializable
@@ -81,7 +96,7 @@ private sealed interface ShapeJson {
     @Serializable @SerialName("roundedSquare") data class RoundedSquare(val cornerRadius: JFloat) : ShapeJson
 }
 
-/** The sealed [Paint], tagged by "type": solid, linear or radial. */
+/** The sealed [Paint], tagged by "type": solid, linear, radial, texture or noise. */
 object PaintSerializer : KSerializer<Paint> {
     private val surrogate = PaintJson.serializer()
     override val descriptor = surrogate.descriptor
@@ -116,15 +131,37 @@ private data class BackgroundJson(
     val enabled: Boolean,
     @Serializable(BackgroundShapeSerializer::class) val shape: BackgroundShape,
     val size: JFloat,
-    @Serializable(PaintSerializer::class) val paint: Paint,
     val border: BorderJson?,
 )
 
 @Serializable
-private data class GlyphJson(val line: Argb, val body: Argb)
+private data class MappingJson(val mode: MappingMode, val scale: JFloat, val rotation: JFloat, val lockOffset: Boolean)
 
 @Serializable
-private data class ThemeJson(val shape: ShapeParamsJson, val fill: FillParamsJson, val background: BackgroundJson, val glyph: GlyphJson)
+private data class MatteJson(
+    val mode: MatteMode, val black: JFloat, val white: JFloat, val threshold: JFloat, val invert: Boolean, val feather: JFloat,
+)
+
+@Serializable
+private sealed interface LayerJson {
+    @Serializable @SerialName("paint")
+    data class Paint(
+        val id: String,
+        @Serializable(PaintSerializer::class) val source: dev.iconoclast.render.Paint,
+        val clip: ClipTarget,
+        val clipInverse: Boolean,
+        val blend: BlendMode,
+        val opacity: JFloat,
+        val mapping: MappingJson,
+        val matte: MatteJson?,
+    ) : LayerJson
+
+    @Serializable @SerialName("effects")
+    data class Effects(val id: String) : LayerJson
+}
+
+@Serializable
+private data class ThemeJson(val shape: ShapeParamsJson, val fill: FillParamsJson, val background: BackgroundJson, val layers: List<LayerJson>)
 
 /**
  * The whole [Theme]. Out-of-range values fail in the :render constructors with
@@ -150,12 +187,34 @@ private fun Paint.toJson(): PaintJson = when (this) {
     is Paint.Solid -> PaintJson.Solid(argb)
     is Paint.LinearGradient -> PaintJson.Linear(x0, y0, x1, y1, stops.map { StopJson(it.offset, it.argb) })
     is Paint.RadialGradient -> PaintJson.Radial(cx, cy, radius, stops.map { StopJson(it.offset, it.argb) })
+    is Paint.Texture -> PaintJson.Texture(sha256, stops?.map { StopJson(it.offset, it.argb) })
+    is Paint.Noise -> PaintJson.Noise(kind, octaves, seed, stops.map { StopJson(it.offset, it.argb) })
 }
 
 private fun PaintJson.toPaint(): Paint = when (this) {
     is PaintJson.Solid -> Paint.Solid(color)
     is PaintJson.Linear -> Paint.LinearGradient(x0, y0, x1, y1, stops.map { ColorStop(it.offset, it.color) })
     is PaintJson.Radial -> Paint.RadialGradient(cx, cy, radius, stops.map { ColorStop(it.offset, it.color) })
+    is PaintJson.Texture -> Paint.Texture(sha256, stops?.map { ColorStop(it.offset, it.color) })
+    is PaintJson.Noise -> Paint.Noise(kind, octaves, seed, stops.map { ColorStop(it.offset, it.color) })
+}
+
+private fun Layer.toJson(): LayerJson = when (this) {
+    is EffectsLayer -> LayerJson.Effects(id)
+    is PaintLayer -> LayerJson.Paint(
+        id, source, clip, clipInverse, blend, opacity,
+        mapping.run { MappingJson(mode, scale, rotation, lockOffset) },
+        matte?.run { MatteJson(mode, black, white, threshold, invert, feather) },
+    )
+}
+
+private fun LayerJson.toLayer(): Layer = when (this) {
+    is LayerJson.Effects -> EffectsLayer(id)
+    is LayerJson.Paint -> PaintLayer(
+        id, source, clip, clipInverse, blend, opacity,
+        mapping.run { Mapping(mode, scale, rotation, lockOffset) },
+        matte?.run { Matte(mode, black, white, threshold, invert, feather) },
+    )
 }
 
 private fun BackgroundShape.toJson(): ShapeJson = when (this) {
@@ -177,13 +236,13 @@ private fun ShapeJson.toShape(): BackgroundShape = when (this) {
 private fun Theme.toJson() = ThemeJson(
     shape.run { ShapeParamsJson(strokeWeight, cap, join, miterLimit, iconScale, offsetX, offsetY, dots) },
     fill.run { FillParamsJson(mode, gapWidth, gapClosing, fallbackThreshold, keepLoneLines) },
-    background.run { BackgroundJson(enabled, shape, size, paint, border?.let { BorderJson(it.width, it.argb, it.opacity) }) },
-    GlyphJson(glyph.line, glyph.body),
+    background.run { BackgroundJson(enabled, shape, size, border?.let { BorderJson(it.width, it.argb, it.opacity) }) },
+    layers.map { it.toJson() },
 )
 
 private fun ThemeJson.toTheme() = Theme(
     shape.run { ShapeParams(strokeWeight, cap, join, miterLimit, iconScale, offsetX, offsetY, dots) },
     fill.run { FillParams(mode, gapWidth, gapClosing, fallbackThreshold, keepLoneLines) },
-    background.run { BackgroundParams(enabled, shape, size, paint, border?.let { Border(it.width, it.color, it.opacity) }) },
-    GlyphPaint(glyph.line, glyph.body),
+    background.run { BackgroundParams(enabled, shape, size, border?.let { Border(it.width, it.color, it.opacity) }) },
+    layers.map { it.toLayer() },
 )

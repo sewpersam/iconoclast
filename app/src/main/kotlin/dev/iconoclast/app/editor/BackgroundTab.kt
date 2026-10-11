@@ -8,11 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.BackgroundParams
 import dev.iconoclast.render.Border
+import dev.iconoclast.render.Layer
+import dev.iconoclast.render.Paint
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
 
 /**
- * Spec 2.3, Background. The shape is baked into the PNG, so the tab says to turn off
- * launcher masking if the two conflict. With no border set, the width reads 0 and the
+ * Spec 2.3, Background. The paint is the base stack's background layer. The shape is
+ * baked into the PNG, so the tab says to turn off launcher masking if the two conflict. With no border set, the width reads 0 and the
  * colour and opacity start from white at full opacity. Resetting the width removes the
  * border, back to the default of none.
  */
@@ -36,7 +39,9 @@ fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit:
         ShapeControl(b.shape, d.shape, { drag(with(b.copy(shape = it))) }, done, { commit(with(b.copy(shape = it))) })
         SliderControl("Size", b.size, 0.7f..1f, d.size, percent,
             { drag(with(b.copy(size = it))) }, done, { commit(with(b.copy(size = d.size))) })
-        PaintControl(b.paint, d.paint, { drag(with(b.copy(paint = it))) }, done, { commit(with(b.copy(paint = it))) })
+        backgroundPaint(theme)?.let { paint ->
+            PaintControl(paint, DEFAULT_PAINT, { drag(withBackgroundPaint(theme, it)) }, done, { commit(withBackgroundPaint(theme, it)) })
+        }
         SliderControl("Border width", border.width, 0f..0.1f, 0f, percent,
             { drag(withBorder(border.copy(width = it))) }, done, { commit(with(b.copy(border = d.border))) })
         if (border.width > 0f) {
@@ -49,3 +54,17 @@ fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit:
 }
 
 private val NO_BORDER = Border(0f, 0xFFFFFFFF.toInt(), 1f)
+
+/** The default background paint: the base stack's background layer source. */
+private val DEFAULT_PAINT: Paint = (Theme().layers.first { it.id == Layer.BACKGROUND_ID } as PaintLayer).source
+
+/**
+ * The paint of the base stack's background layer, when it is a colour or gradient this tab
+ * can edit. Texture and noise sources, or a removed background layer, belong to the Layers tab.
+ */
+private fun backgroundPaint(theme: Theme): Paint? =
+    (theme.layers.firstOrNull { it.id == Layer.BACKGROUND_ID } as? PaintLayer)?.source
+        ?.takeIf { it is Paint.Solid || it is Paint.LinearGradient || it is Paint.RadialGradient }
+
+private fun withBackgroundPaint(theme: Theme, paint: Paint): Theme =
+    theme.copy(layers = theme.layers.map { if (it.id == Layer.BACKGROUND_ID && it is PaintLayer) it.copy(source = paint) else it })

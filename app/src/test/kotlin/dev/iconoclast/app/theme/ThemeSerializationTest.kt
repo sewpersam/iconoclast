@@ -1,6 +1,16 @@
 package dev.iconoclast.app.theme
 
 import dev.iconoclast.render.BackgroundShape
+import dev.iconoclast.render.BlendMode
+import dev.iconoclast.render.ClipTarget
+import dev.iconoclast.render.ColorStop
+import dev.iconoclast.render.Mapping
+import dev.iconoclast.render.MappingMode
+import dev.iconoclast.render.Matte
+import dev.iconoclast.render.MatteMode
+import dev.iconoclast.render.NoiseKind
+import dev.iconoclast.render.Paint
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Border
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
@@ -43,6 +53,34 @@ class ThemeSerializationTest {
             val parsed = migrate(doc(theme).toJson()).theme
             val icon = bundle.icon(3)
             assertContentEquals(IconRenderer().renderPng("test", icon, theme, 128), IconRenderer().renderPng("test", icon, parsed, 128))
+        }
+    }
+
+    /** Every layer field, source type and option survives a round trip. */
+    @Test
+    fun layerFeaturesRoundTrip() {
+        val stops = listOf(ColorStop(0f, 0xFF0B3D2E.toInt()), ColorStop(1f, 0xFF7FD1B9.toInt()))
+        val layers = Theme.baseLayers().toMutableList()
+        layers.add(1, PaintLayer(
+            "tex", Paint.Texture("ab".repeat(32), stops), clip = ClipTarget.ICON, clipInverse = true,
+            blend = BlendMode.SOFT_LIGHT, opacity = 0.4f, mapping = Mapping(MappingMode.TILE, 2f, -30f, lockOffset = true),
+            matte = Matte(MatteMode.THRESHOLD, threshold = 0.6f, invert = true, feather = 0.01f),
+        ))
+        layers.add(PaintLayer("noise", Paint.Noise(NoiseKind.RIDGED, 6, 42, stops), blend = BlendMode.ADD, opacity = 0.25f))
+        layers.add(PaintLayer("tex2", Paint.Texture("cd".repeat(32)), clip = ClipTarget.EFFECTS, matte = Matte(black = 0.1f, white = 0.9f)))
+        val original = doc(Theme(layers = layers))
+        val parsed = migrate(original.toJson())
+        assertEquals(original, parsed)
+        assertEquals(original.toJson(), parsed.toJson())
+        assertEquals(setOf("ab".repeat(32), "cd".repeat(32)), parsed.theme.textureHashes())
+        for (bad in listOf(
+            original.toJson().replace("\"SOFT_LIGHT\"", "\"VIVID_LIGHT\""),
+            original.toJson().replace("\"id\": \"tex2\"", "\"id\": \"tex\""),
+            original.toJson().replace("\"type\": \"effects\"", "\"type\": \"effects\", \"extra\": 1"),
+            original.toJson().replace("\"octaves\": 6", "\"octaves\": 9"),
+            original.toJson().replace("ab".repeat(32), "AB".repeat(32)),
+        )) {
+            assertFailsWith<ThemeFormatException>(bad) { migrate(bad) }
         }
     }
 

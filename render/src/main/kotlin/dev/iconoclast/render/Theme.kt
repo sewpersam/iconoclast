@@ -3,13 +3,43 @@ package dev.iconoclast.render
 /**
  * The theme parameters the renderer reads, spec section 2.3. Ranges are checked on
  * construction. Data classes, so they serve directly as mask cache keys.
+ *
+ * [layers] is the stack, painted bottom to top. It holds exactly one [EffectsLayer], and
+ * layer ids are unique. The default is the base stack `background -> effects -> icon`.
  */
 data class Theme(
     val shape: ShapeParams = ShapeParams(),
     val fill: FillParams = FillParams(),
     val background: BackgroundParams = BackgroundParams(),
-    val glyph: GlyphPaint = GlyphPaint(),
-)
+    val layers: List<Layer> = baseLayers(),
+) {
+    init {
+        require(layers.count { it is EffectsLayer } == 1) { "the stack needs exactly one effects layer" }
+        require(layers.map { it.id }.toSet().size == layers.size) { "duplicate layer ids" }
+    }
+
+    /** Every texture the stack uses, by hash: what a theme export must carry. */
+    fun textureHashes(): Set<String> =
+        layers.mapNotNullTo(LinkedHashSet()) { ((it as? PaintLayer)?.source as? Paint.Texture)?.sha256 }
+
+    companion object {
+        /**
+         * The base stack, spec 2.3: the background paint clipped to the background, the
+         * effects slot, then the glyph as two layers, the fill body in [body] and the lines
+         * in [line] on top. Straight ARGB colours. Schema 1 themes migrate to exactly this.
+         */
+        fun baseLayers(
+            background: Paint = Paint.Solid(0xFF202124.toInt()),
+            body: Int = 0xFFFFFFFF.toInt(),
+            line: Int = 0xFFFFFFFF.toInt(),
+        ): List<Layer> = listOf(
+            PaintLayer(Layer.BACKGROUND_ID, background, clip = ClipTarget.BACKGROUND),
+            EffectsLayer(),
+            PaintLayer(Layer.ICON_FILL_ID, Paint.Solid(body), clip = ClipTarget.ICON_FILL),
+            PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(line), clip = ClipTarget.ICON_LINES),
+        )
+    }
+}
 
 enum class LineCap { BUTT, ROUND, SQUARE }
 
@@ -62,7 +92,10 @@ data class FillParams(
 /** A colour stop. [argb] is straight, non-premultiplied 0xAARRGGBB. */
 data class ColorStop(val offset: Float, val argb: Int)
 
-/** Paint coordinates are fractions of the canvas, 0 to 1, y down. */
+/**
+ * A layer's source. Gradient coordinates are fractions of the canvas, 0 to 1, y down;
+ * textures and noise are placed by the layer's [Mapping].
+ */
 sealed interface Paint {
     data class Solid(val argb: Int) : Paint
 
@@ -79,6 +112,38 @@ sealed interface Paint {
     ) : Paint {
         init {
             require(radius > 0f) { "radius $radius" }
+            requireStops(stops)
+        }
+    }
+
+    /**
+     * A texture from the [TextureStore][dev.iconoclast.render.texture.TextureStore] by the
+     * lowercase hex SHA-256 of its canonical PNG. With [stops], the texture's luminance is
+     * gradient-mapped through them and its alpha kept; null keeps its own colours.
+     */
+    data class Texture(val sha256: String, val stops: List<ColorStop>? = null) : Paint {
+        init {
+            require(HASH.matches(sha256)) { "texture hash $sha256" }
+            stops?.let(::requireStops)
+        }
+
+        private companion object {
+            val HASH = Regex("[0-9a-f]{64}")
+        }
+    }
+
+    /**
+     * Procedural noise, 0 to 1, gradient-mapped through [stops]. [octaves] applies to fBm
+     * and ridged; [seed] picks the field, and the mapping's per-icon offset picks the patch.
+     */
+    data class Noise(
+        val kind: NoiseKind = NoiseKind.FBM,
+        val octaves: Int = 4,
+        val seed: Int = 0,
+        val stops: List<ColorStop> = listOf(ColorStop(0f, 0xFF000000.toInt()), ColorStop(1f, 0xFFFFFFFF.toInt())),
+    ) : Paint {
+        init {
+            require(octaves in 1..8) { "octaves $octaves" }
             requireStops(stops)
         }
     }
@@ -114,23 +179,14 @@ data class Border(val width: Float, val argb: Int, val opacity: Float = 1f) {
     }
 }
 
+/** The background shape. Its paint is the stack's background layer. */
 data class BackgroundParams(
-    /** Off means a transparent background and no shape clip. */
+    /** Off means no background shape: no clip, and an empty background clip target. */
     val enabled: Boolean = true,
     val shape: BackgroundShape = BackgroundShape.Squircle(),
     /** Side of the shape as a fraction of the canvas. */
     val size: Float = 1f,
-    val paint: Paint = Paint.Solid(0xFF202124.toInt()),
     val border: Border? = null,
 ) {
     init { require(size in 0.7f..1f) { "background size $size" } }
 }
-
-/**
- * How the glyph masks are painted. This is the M2 stand-in for the base of the layer
- * stack: [body] paints the fill mask, [line] the strokes. Straight ARGB.
- */
-data class GlyphPaint(
-    val line: Int = 0xFFFFFFFF.toInt(),
-    val body: Int = 0xFFFFFFFF.toInt(),
-)

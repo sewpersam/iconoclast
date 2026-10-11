@@ -7,9 +7,12 @@ import dev.iconoclast.render.fill.FillModes
 import dev.iconoclast.render.fill.GlyphMasks
 import dev.iconoclast.render.format.Icon
 import dev.iconoclast.render.geom.Affine
+import dev.iconoclast.render.layer.StackEvaluator
+import dev.iconoclast.render.layer.StackInput
 import dev.iconoclast.render.png.PngEncoder
 import dev.iconoclast.render.raster.GlyphSpec
 import dev.iconoclast.render.raster.rasterizeGlyph
+import dev.iconoclast.render.texture.TextureStore
 
 /** Premultiplied RGBA, 8 bits per channel, row-major, [size] x [size]. */
 class RgbaImage(val size: Int, val pixels: ByteArray)
@@ -28,11 +31,15 @@ const val SAFE_ZONE = 66f / 108f
  * Pipeline:
  * 1. geometry mask: the line art under the shape parameters
  * 2. fill mode mask: body and lines from the geometry
- * 3. background: paint and border, unclipped
- * 4. layers and effects: in M2 the body and line masks in their glyph paints
+ * 3. background: the shape's coverage and border; its paint is the background layer
+ * 4. layers and effects in stack order, layer/StackEvaluator; the border is drawn at the
+ *    effects layer
  * 5. the alpha of the background shape clips everything
+ *
+ * Texture layers read [textures]; a theme's textures must be in the store before it
+ * renders. Textures never enter the mask cache.
  */
-class IconRenderer(val cache: MaskCache = MaskCache()) {
+class IconRenderer(val cache: MaskCache = MaskCache(), val textures: TextureStore = TextureStore()) {
 
     /**
      * Renders one drawable. [drawable] is its stable identity, the Arcticons drawable name:
@@ -44,8 +51,17 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
         val masks = glyphMasks(drawable, icon, theme, size)
         val buf = FloatArray(size * size * 4)
         val bg = theme.background
-        val clip = if (bg.enabled) drawBackground(buf, bg, size) else null
-        drawGlyph(buf, masks, theme.glyph)
+        val shape = if (bg.enabled) backgroundMasks(bg, size) else null
+        val border = shape?.second
+        StackEvaluator.paint(buf, theme.layers, StackInput(
+            drawable, size, masks,
+            icon = { iconMask(drawable, theme, size, masks) },
+            shape = shape?.first,
+            border = border,
+            borderColor = border?.let { FloatArray(4).also { c -> Paints.premultiply(bg.border!!.argb, c, bg.border.opacity) } },
+            textures = textures,
+        ))
+        val clip = shape?.first
         if (clip != null) for (i in 0 until clip.pixels) {
             val a = clip.values[i]
             if (a == 1f) continue
@@ -96,8 +112,10 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
      * The icon clip target: body union lines, `b + l - b * l`, the coverage both masks give
      * painted in one opaque colour. Cached under [EffectKey]. Null when both are absent.
      */
-    fun iconMask(drawable: String, icon: Icon, theme: Theme, size: Int): Mask? {
-        val masks = glyphMasks(drawable, icon, theme, size)
+    fun iconMask(drawable: String, icon: Icon, theme: Theme, size: Int): Mask? =
+        iconMask(drawable, theme, size, glyphMasks(drawable, icon, theme, size))
+
+    private fun iconMask(drawable: String, theme: Theme, size: Int, masks: GlyphMasks): Mask? {
         val b = masks.body
         val l = masks.lines
         if (b == null || l == null) return b ?: l
@@ -120,41 +138,12 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
         )
     }
 
-    /** Step 3. Returns the shape coverage for step 5. */
-    private fun drawBackground(buf: FloatArray, bg: BackgroundParams, size: Int): Mask {
-        val (shape, border) = cache.background(BackgroundKey(bg.shape, bg.size, bg.border?.width ?: 0f, size)) {
+    /** Step 3: the shape's coverage, for the background clip target and step 5, and the border's. */
+    private fun backgroundMasks(bg: BackgroundParams, size: Int): Pair<Mask, Mask?> =
+        cache.background(BackgroundKey(bg.shape, bg.size, bg.border?.width ?: 0f, size)) {
             val m = BackgroundShapes.mask(bg.shape, bg.size, size)
             Mask(m) to bg.border?.takeIf { it.width > 0f }?.let { Mask(BackgroundShapes.border(bg.shape, bg.size, it.width, size, m)) }
         }
-        Paints.fill(bg.paint, size).copyInto(buf)
-        if (border != null) {
-            val c = FloatArray(4).also { Paints.premultiply(bg.border!!.argb, it, bg.border.opacity) }
-            over(buf, border, c)
-        }
-        return shape
-    }
-
-    /** Step 4. Layers and effects take over here: they paint the same masks in stack order. */
-    private fun drawGlyph(buf: FloatArray, masks: GlyphMasks, paint: GlyphPaint) {
-        val c = FloatArray(4)
-        masks.body?.let { Paints.premultiply(paint.body, c); over(buf, it, c) }
-        masks.lines?.let { Paints.premultiply(paint.line, c); over(buf, it, c) }
-    }
-
-    /** Source-over of premultiplied colour [c] through coverage [mask]. */
-    private fun over(buf: FloatArray, mask: Mask, c: FloatArray) {
-        val v = mask.values
-        for (i in v.indices) {
-            val m = v[i]
-            if (m == 0f) continue
-            val inv = 1f - c[3] * m
-            val o = 4 * i
-            buf[o] = c[0] * m + buf[o] * inv
-            buf[o + 1] = c[1] * m + buf[o + 1] * inv
-            buf[o + 2] = c[2] * m + buf[o + 2] * inv
-            buf[o + 3] = c[3] * m + buf[o + 3] * inv
-        }
-    }
 
     companion object {
         /** Pixels per 48-grid unit: the icon box is the safe zone times the icon scale. */

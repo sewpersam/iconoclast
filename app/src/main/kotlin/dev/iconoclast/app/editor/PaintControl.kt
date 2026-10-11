@@ -20,11 +20,7 @@ private enum class PaintKind { SOLID, LINEAR, RADIAL, TEXTURE }
  */
 @Composable
 fun PaintControl(paint: Paint, default: Paint, onDrag: (Paint) -> Unit, onDone: () -> Unit, onCommit: (Paint) -> Unit) {
-    val kind = when (paint) {
-        is Paint.Solid -> PaintKind.SOLID
-        is Paint.LinearGradient -> PaintKind.LINEAR
-        is Paint.RadialGradient -> PaintKind.RADIAL
-    }
+    val kind = kindOf(paint)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ChoiceControl(
             "Paint",
@@ -50,6 +46,8 @@ fun PaintControl(paint: Paint, default: Paint, onDrag: (Paint) -> Unit, onDone: 
                     { onDrag(paint.copy(radius = it)) }, onDone, { onCommit(paint.copy(radius = DEFAULT_RADIUS)) })
                 Stops(paint.stops, { onDrag(paint.copy(stops = it)) }, onDone, { onCommit(paint.copy(stops = it)) })
             }
+            // Texture and noise controls arrive with the Layers tab.
+            is Paint.Texture, is Paint.Noise -> Unit
         }
     }
 }
@@ -68,6 +66,7 @@ private fun kindOf(p: Paint) = when (p) {
     is Paint.Solid -> PaintKind.SOLID
     is Paint.LinearGradient -> PaintKind.LINEAR
     is Paint.RadialGradient -> PaintKind.RADIAL
+    is Paint.Texture, is Paint.Noise -> PaintKind.TEXTURE
 }
 
 /** Keeps the colours across a change of kind. A solid colour becomes a gradient from it to black. */
@@ -76,6 +75,8 @@ private fun convert(p: Paint, to: PaintKind): Paint {
         is Paint.Solid -> listOf(ColorStop(0f, p.argb), ColorStop(1f, DEFAULT_END))
         is Paint.LinearGradient -> p.stops
         is Paint.RadialGradient -> p.stops
+        is Paint.Texture -> p.stops ?: listOf(ColorStop(0f, DEFAULT_COLOR), ColorStop(1f, DEFAULT_END))
+        is Paint.Noise -> p.stops
     }
     return when (to) {
         PaintKind.SOLID -> Paint.Solid(stops.first().argb)

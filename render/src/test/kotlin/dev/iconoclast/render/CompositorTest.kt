@@ -29,8 +29,8 @@ class CompositorTest {
         val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
         r.render("square", icon, theme, 96)
         val misses = r.cache.misses
-        r.render("square", icon, theme.copy(background = theme.background.copy(paint = Paint.Solid(0xFF336699.toInt()))), 96)
-        r.render("square", icon, theme.copy(glyph = GlyphPaint(line = 0xFFFF0000.toInt())), 96)
+        r.render("square", icon, theme.copy(layers = Theme.baseLayers(Paint.Solid(0xFF336699.toInt()))), 96)
+        r.render("square", icon, theme.copy(layers = Theme.baseLayers(line = 0xFFFF0000.toInt())), 96)
         assertEquals(misses, r.cache.misses, "only paint changed")
         r.render("square", icon, theme.copy(fill = theme.fill.copy(gapWidth = 2f)), 96)
         assertEquals(misses + 2, r.cache.misses, "a gap change recomputes the fill and its lone lines only")
@@ -143,8 +143,8 @@ class CompositorTest {
 
     @Test
     fun deterministic() {
-        val theme = Theme(fill = FillParams(mode = FillMode.INVERT), background = BackgroundParams(
-            paint = Paint.RadialGradient(0.3f, 0.3f, 0.9f, listOf(ColorStop(0f, 0xFF3366AA.toInt()), ColorStop(1f, 0xFF112233.toInt()))),
+        val theme = Theme(fill = FillParams(mode = FillMode.INVERT), layers = Theme.baseLayers(
+            Paint.RadialGradient(0.3f, 0.3f, 0.9f, listOf(ColorStop(0f, 0xFF3366AA.toInt()), ColorStop(1f, 0xFF112233.toInt()))),
         ))
         val a = IconRenderer().renderPng("square", icon, theme, 160)
         val b = IconRenderer().renderPng("square", icon, theme, 160)

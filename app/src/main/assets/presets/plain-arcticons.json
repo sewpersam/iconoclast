@@ -1,5 +1,5 @@
 {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "id": "preset-plain-arcticons",
     "name": "Plain Arcticons",
     "created": 0,
@@ -29,15 +29,70 @@
                 "exponent": 4.0
             },
             "size": 1.0,
-            "paint": {
-                "type": "solid",
-                "color": "#00000000"
-            },
             "border": null
         },
-        "glyph": {
-            "line": "#FFFFFFFF",
-            "body": "#FFFFFFFF"
-        }
+        "layers": [
+            {
+                "type": "paint",
+                "id": "background",
+                "source": {
+                    "type": "solid",
+                    "color": "#00000000"
+                },
+                "clip": "BACKGROUND",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "effects",
+                "id": "effects"
+            },
+            {
+                "type": "paint",
+                "id": "icon-fill",
+                "source": {
+                    "type": "solid",
+                    "color": "#FFFFFFFF"
+                },
+                "clip": "ICON_FILL",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "paint",
+                "id": "icon-lines",
+                "source": {
+                    "type": "solid",
+                    "color": "#FFFFFFFF"
+                },
+                "clip": "ICON_LINES",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            }
+        ]
     }
 }

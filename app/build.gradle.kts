@@ -76,6 +76,8 @@ tasks.withType<Test>().configureEach {
     inputs.file(builtTemplate)
     systemProperty("template.apk", builtTemplate.get().asFile.path)
     systemProperty("golden.samples", rootProject.file("render/src/test/resources/golden/samples.bin").path)
+    systemProperty("golden.dir", rootProject.file("render/src/test/resources/golden").path)
+    inputs.dir(rootProject.file("render/src/test/resources/golden"))
     systemProperty("presets.dir", file("src/main/assets/presets").path)
     inputs.dir("src/main/assets/presets")
 }
