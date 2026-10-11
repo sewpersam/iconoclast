@@ -5,7 +5,9 @@ import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.EffectKey
 import dev.iconoclast.render.Mask
+import dev.iconoclast.render.MaskCache
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.background.Paints
@@ -25,6 +27,9 @@ internal class StackInput(
     val border: Mask?,
     val borderColor: FloatArray?,
     val textures: TextureStore,
+    /** Where effects cache what they derive from the icon mask, under [iconKey] and a kind. */
+    val cache: MaskCache = MaskCache(),
+    val iconKey: EffectKey? = null,
 )
 
 /**

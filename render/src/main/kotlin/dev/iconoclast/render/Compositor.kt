@@ -48,26 +48,34 @@ class IconRenderer(val cache: MaskCache = MaskCache(), val textures: TextureStor
      * Arcticons updates and is not used.
      */
     fun render(drawable: String, icon: Icon, theme: Theme, size: Int): RgbaImage {
-        val masks = glyphMasks(drawable, icon, theme, size)
         val buf = FloatArray(size * size * 4)
-        val bg = theme.background
-        val shape = if (bg.enabled) backgroundMasks(bg, size) else null
-        val border = shape?.second
-        StackEvaluator.paint(buf, theme.layers, StackInput(
-            drawable, size, masks,
-            icon = { iconMask(drawable, theme, size, masks) },
-            shape = shape?.first,
-            border = border,
-            borderColor = border?.let { FloatArray(4).also { c -> Paints.premultiply(bg.border!!.argb, c, bg.border.opacity) } },
-            textures = textures,
-        ))
-        val clip = shape?.first
+        val input = stackInput(drawable, icon, theme, size)
+        StackEvaluator.paint(buf, theme.layers, input)
+        val clip = input.shape
         if (clip != null) for (i in 0 until clip.pixels) {
             val a = clip.values[i]
             if (a == 1f) continue
             for (k in 0..3) buf[4 * i + k] *= a
         }
         return RgbaImage(size, ByteArray(buf.size) { (buf[it] * 255f + 0.5f).toInt().coerceIn(0, 255).toByte() })
+    }
+
+    /** What step 4 reads for one icon: steps 1 to 3, cached, and the keys effects derive from. */
+    internal fun stackInput(drawable: String, icon: Icon, theme: Theme, size: Int): StackInput {
+        val masks = glyphMasks(drawable, icon, theme, size)
+        val bg = theme.background
+        val shape = if (bg.enabled) backgroundMasks(bg, size) else null
+        val border = shape?.second
+        return StackInput(
+            drawable, size, masks,
+            icon = { iconMask(drawable, theme, size, masks) },
+            shape = shape?.first,
+            border = border,
+            borderColor = border?.let { FloatArray(4).also { c -> Paints.premultiply(bg.border!!.argb, c, bg.border.opacity) } },
+            textures = textures,
+            cache = cache,
+            iconKey = iconKey(drawable, theme, size, masks),
+        )
     }
 
     /** [render], encoded as PNG. */
@@ -119,13 +127,16 @@ class IconRenderer(val cache: MaskCache = MaskCache(), val textures: TextureStor
         val b = masks.body
         val l = masks.lines
         if (b == null || l == null) return b ?: l
-        val key = EffectKey.of(FillKey.of(drawable, theme.shape, theme.fill, size), masks.fellBack, theme.fill.keepLoneLines)
-        return cache.effect(key) {
+        return cache.effect(iconKey(drawable, theme, size, masks)) {
             val bv = b.values
             val lv = l.values
             Mask(FloatArray(bv.size) { bv[it] + lv[it] - bv[it] * lv[it] })
         }
     }
+
+    /** The key of the icon mask, which every effect's derived data extends with its kind. */
+    private fun iconKey(drawable: String, theme: Theme, size: Int, masks: GlyphMasks) =
+        EffectKey.of(FillKey.of(drawable, theme.shape, theme.fill, size), masks.fellBack, theme.fill.keepLoneLines)
 
     private fun fillInput(geometry: FloatArray, shape: ShapeParams, fill: FillParams, size: Int, cut: FloatArray?): FillInput {
         val scale = unitScale(shape, size)
