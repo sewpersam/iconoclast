@@ -73,13 +73,13 @@ class ThemeRepositoryTest {
     fun importTakesANewIdAndRejectsBadFiles() = runBlocking {
         val repo = repo().apply { load() }
         val jade = repo.get("preset-jade")!!
-        val imported = repo.import(repo.exportJson(jade.id)!!)
+        val imported = repo.import(repo.get(jade.id)!!.toJson())
         assertTrue(imported.id != jade.id)
         assertEquals(jade.theme, imported.theme)
         assertEquals(3, repo.themes.value.size)
-        val padded = repo.import(repo.exportJson(jade.id)!!.replace("\"Jade\"", "\"  Jade two  \""))
+        val padded = repo.import(repo.get(jade.id)!!.toJson().replace("\"Jade\"", "\"  Jade two  \""))
         assertEquals("Jade two", padded.name)
-        val blank = repo.import(repo.exportJson(jade.id)!!.replace("\"Jade\"", "\"   \""))
+        val blank = repo.import(repo.get(jade.id)!!.toJson().replace("\"Jade\"", "\"   \""))
         assertEquals("Untitled", blank.name)
         repo.delete(padded.id)
         repo.delete(blank.id)

@@ -7,7 +7,9 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeFormatException
+import dev.iconoclast.app.theme.ThemeZipImport
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -67,15 +69,26 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setActive(id: String) = act("Not set active") { repo.setActive(id) }
 
+    /** Shares the theme as a .zip with its textures. A texture missing from the phone stops it. */
     fun export(id: String) = act("Not exported") {
         val doc = repo.get(id) ?: return@act
-        launches.trySend(withContext(Dispatchers.IO) { ThemeTransfer.shareIntent(getApplication(), doc) })
+        val missing = withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, doc.theme) }
+        if (missing.isNotEmpty()) {
+            _message.value = "Not exported. ${TexturePresence.message(missing.size)}"
+            return@act
+        }
+        launches.trySend(withContext(Dispatchers.IO) { ThemeTransfer.shareIntent(getApplication(), doc, container.textures.store) })
     }
 
+    /** Imports a theme .zip or JSON: validated, migrated, its textures stored by hash, then the theme. */
     fun import(uri: Uri) = act("Not imported") {
         _message.value = try {
-            val text = withContext(Dispatchers.IO) { ThemeTransfer.read(getApplication(), uri) }
-            "Imported ${repo.import(text).name}"
+            val textures = container.textures
+            val archive = withContext(Dispatchers.IO) {
+                ThemeZipImport.read(ThemeTransfer.read(getApplication(), uri), textures.store) { textures.load(setOf(it)).isEmpty() }
+                    .also { a -> a.textures.forEach(textures::write) }
+            }
+            "Imported ${repo.import(archive.json).name}"
         } catch (e: ThemeFormatException) {
             "Not imported. ${e.message}"
         }

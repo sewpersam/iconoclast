@@ -98,9 +98,6 @@ class ThemeRepository(
         doc.copy(id = newId(), name = doc.name.clean(), created = t, modified = t).also(::write)
     }
 
-    /** The theme's file content, for sharing. */
-    fun exportJson(id: String): String? = get(id)?.toJson()
-
     private suspend fun <T> locked(block: () -> T): T = mutex.withLock {
         withContext(io) {
             if (!loaded) {
