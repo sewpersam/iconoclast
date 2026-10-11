@@ -3,6 +3,7 @@ package dev.iconoclast.app.editor
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
@@ -41,8 +42,18 @@ object LayerStack {
     fun remove(theme: Theme, id: String): Theme =
         if (layer(theme, id) is EffectsLayer) theme else theme.copy(layers = theme.layers.filterNot { it.id == id })
 
-    /** A new layer with a fresh id over the icon, normal and opaque. */
-    fun newLayer(source: Paint): PaintLayer = PaintLayer(UUID.randomUUID().toString(), source, clip = ClipTarget.ICON)
+    /**
+     * The mapping a new texture layer starts with: scale 2, so the texture leaves room for
+     * every icon to show its own patch. At scale 1 a square texture fills the canvas exactly
+     * and every icon shows the same one.
+     */
+    val NEW_TEXTURE_MAPPING = Mapping(scale = 2f)
+
+    /** A new layer with a fresh id over the icon, normal and opaque; a texture at [NEW_TEXTURE_MAPPING]. */
+    fun newLayer(source: Paint): PaintLayer = PaintLayer(
+        UUID.randomUUID().toString(), source, clip = ClipTarget.ICON,
+        mapping = if (source is Paint.Texture) NEW_TEXTURE_MAPPING else Mapping(),
+    )
 
     fun backgroundTexture(theme: Theme): PaintLayer? = layer(theme, BACKGROUND_TEXTURE_ID) as? PaintLayer
 
@@ -56,7 +67,7 @@ object LayerStack {
             val stops = (existing.source as? Paint.Texture)?.stops
             return replace(theme, existing.copy(source = Paint.Texture(hash, stops)))
         }
-        val layer = PaintLayer(BACKGROUND_TEXTURE_ID, Paint.Texture(hash), clip = ClipTarget.BACKGROUND)
+        val layer = PaintLayer(BACKGROUND_TEXTURE_ID, Paint.Texture(hash), clip = ClipTarget.BACKGROUND, mapping = NEW_TEXTURE_MAPPING)
         val bottom = layer(theme, Layer.BACKGROUND_ID)?.id ?: return theme.copy(layers = listOf(layer) + theme.layers)
         return insertAbove(theme, layer, bottom)
     }

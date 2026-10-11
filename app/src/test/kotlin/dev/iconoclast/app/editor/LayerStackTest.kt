@@ -36,6 +36,9 @@ class LayerStackTest {
         assertEquals(listOf("background", LayerStack.BACKGROUND_TEXTURE_ID, "effects", "icon-fill", "icon-lines"), ids(t))
         val layer = LayerStack.backgroundTexture(t)!!
         assertEquals(ClipTarget.BACKGROUND, layer.clip)
+        assertEquals(2f, layer.mapping.scale, "room for a patch per icon")
+        assertEquals(2f, LayerStack.newLayer(Paint.Texture(GoldenSet.TEXTURE)).mapping.scale)
+        assertEquals(1f, LayerStack.newLayer(Paint.Solid(-1)).mapping.scale)
         val tuned = LayerStack.replace(t, layer.copy(blend = BlendMode.MULTIPLY))
         val again = LayerStack.withBackgroundTexture(tuned, "a".repeat(64))
         assertEquals(BlendMode.MULTIPLY, LayerStack.backgroundTexture(again)!!.blend)

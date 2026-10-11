@@ -62,7 +62,8 @@ fun LayerControls(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: 
         SliderControl("Opacity", layer.opacity, 0f..1f, d.opacity, percent,
             { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = d.opacity))) })
         if (layer.source is Paint.Texture || layer.source is Paint.Noise) {
-            MappingControls(layer.mapping, { drag(with(layer.copy(mapping = it))) }, done, { commit(with(layer.copy(mapping = it))) })
+            val dm = if (layer.source is Paint.Texture) LayerStack.NEW_TEXTURE_MAPPING else Mapping()
+            MappingControls(layer.mapping, dm, { drag(with(layer.copy(mapping = it))) }, done, { commit(with(layer.copy(mapping = it))) })
         }
         MatteControls(layer.matte, { drag(with(layer.copy(matte = it))) }, done, { commit(with(layer.copy(matte = it))) })
     }
@@ -93,8 +94,7 @@ private fun BlendControl(blend: BlendMode, default: BlendMode, onSelect: (BlendM
 }
 
 @Composable
-private fun MappingControls(m: Mapping, onDrag: (Mapping) -> Unit, onDone: () -> Unit, onCommit: (Mapping) -> Unit) {
-    val d = Mapping()
+private fun MappingControls(m: Mapping, d: Mapping, onDrag: (Mapping) -> Unit, onDone: () -> Unit, onCommit: (Mapping) -> Unit) {
     ChoiceControl("Mapping", listOf(MappingMode.FIT to "Fit", MappingMode.FILL to "Fill", MappingMode.TILE to "Tile"),
         m.mode, d.mode, { onCommit(m.copy(mode = it)) })
     SliderControl("Scale", m.scale, 0.25f..4f, d.scale, decimals(2, "×"), { onDrag(m.copy(scale = it)) }, onDone, { onCommit(m.copy(scale = d.scale)) })

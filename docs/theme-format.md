@@ -94,7 +94,7 @@ nothing until M6 fills it, except the background border.
 | `clipInverse` | `true` uses `1 - coverage`. |
 | `blend` | `NORMAL`, `MULTIPLY`, `SCREEN`, `OVERLAY`, `DARKEN`, `LIGHTEN`, `COLOR_DODGE`, `COLOR_BURN`, `HARD_LIGHT`, `SOFT_LIGHT`, `DIFFERENCE`, `EXCLUSION`, `HUE`, `SATURATION`, `COLOR`, `LUMINOSITY`, `ADD`. W3C Compositing and Blending Level 1. The platform names: `NORMAL` is `SRC_OVER`, `ADD` is `PLUS`, the rest are equal; all 17 exist in `android.graphics.BlendMode` at compileSdk 37. |
 | `opacity` | 0.0 to 1.0. |
-| `mapping` | Texture and noise placement; ignored by solid and gradient sources. `mode`: `FIT` (all of the texture shows), `FILL` (covers the canvas, crops), `TILE` (short side spans the canvas, repeats). `scale` 0.25 to 4.0, above 1 zooms in. `rotation` -180.0 to 180.0 degrees about the canvas centre. `lockOffset`: `false` gives each icon its own patch, seeded by its drawable name; `true` gives every icon the centred patch. |
+| `mapping` | Texture and noise placement; ignored by solid and gradient sources. `mode`: `FIT` (all of the texture shows), `FILL` (covers the canvas, crops), `TILE` (short side spans the canvas, repeats). `scale` 0.25 to 4.0, above 1 zooms in. `rotation` -180.0 to 180.0 degrees about the canvas centre. `lockOffset`: `false` gives each icon its own patch, seeded by its drawable name; `true` gives every icon the centred patch. The per-icon offset: `TILE` translates the texture plane by the offset times the texture size, wrapped; `FIT` and `FILL` move the canvas window within the room between it and the texture, `FILL` only where the texture is larger so the patch never leaves it, `FIT` either way so a smaller texture moves inside the canvas and stays whole. A square texture at scale 1 under `FILL` leaves no room, so the editor starts every new texture layer at `scale` 2.0. Noise shifts its field by the offset. |
 | `matte` | `null`, or mask adjustments that turn the source's luminance into alpha: `{ "mode", "black", "white", "threshold", "invert", "feather" }`. `mode` `LEVELS` maps `black` to 0 and `white` to 1 (both 0.0 to 1.0, black below white); `THRESHOLD` gives 1 where luminance reaches `threshold` (0.0 to 1.0). `invert` flips it. `feather` 0.0 to 0.05 of the canvas is a Gaussian blur radius. Luminance is read before any gradient map: `0.3 r + 0.59 g + 0.11 b` of the premultiplied texels for a texture (transparent reads as black), the raw noise value for noise, the colour's for solids and gradients. So a black-and-white texture with single-colour `stops` paints that colour wherever the texture is light. |
 
 Per pixel, coverage = clip x matte x opacity, and the source scaled by the
@@ -162,7 +162,9 @@ and a test, and update this file.
 - `filesDir/themes/seeded`: present once the starter presets were seeded. A
   deleted preset stays deleted.
 - `filesDir/textures/<sha256>.png`: one canonical PNG per imported texture,
-  written once, atomically. Loaded into the renderer's store on demand.
+  written once, atomically. A texture is present when its file is. The
+  renderer's store keeps at most 64 MB of decoded textures and files in memory,
+  least recently used first out, and loads evicted ones back from here.
 
 ## Export and import
 
@@ -174,8 +176,11 @@ Import takes a `.zip` or a bare theme JSON (`ThemeZipImport.kt`). A zip must
 hold `theme.json`; the theme is migrated and validated; each texture it uses
 must be in `textures/` and match its hash after `TextureStore.put`
 canonicalises it, or already be on the phone. Other entries are ignored and
-never stored. A bare JSON imports only when its textures are on the phone.
-Limits: 64 MB per file, 256 KB for `theme.json`, 24 MB per texture entry.
+never read. A bare JSON imports only when its textures are on the phone.
+Limits: 64 MB per file, 256 KB for `theme.json`, 24 MB per texture entry,
+64 MB decompressed in total. Only `textures/<sha256>.png` entries for hashes
+the theme uses are read. The whole archive is validated before any texture or
+theme is stored.
 Any failure refuses the whole import with a message.
 
 A theme whose texture is missing never reaches the renderer: previews hide
