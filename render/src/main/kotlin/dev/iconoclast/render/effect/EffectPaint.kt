@@ -21,7 +21,7 @@ internal object EffectPaint {
         is Effect.InnerShadow -> listOf(InnerShadow.paint(e, layer.blend, input))
         is Effect.OuterGlow -> listOf(Glows.outer(e, layer.blend, input))
         is Effect.InnerGlow -> listOf(Glows.inner(e, layer.blend, input))
-        is Effect.Grain -> emptyList() // lands in its own commit
+        is Effect.Grain -> listOf(Grain.paint(e, layer.blend, input))
     }
 
     /** Straight ARGB as one premultiplied colour. */

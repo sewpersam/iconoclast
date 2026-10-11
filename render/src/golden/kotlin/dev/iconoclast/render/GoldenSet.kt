@@ -216,6 +216,7 @@ object GoldenSet {
             blend = BlendMode.SCREEN, opacity = 0.8f)),
         "effect_inner_glow" to above(EffectLayer("inner-glow", Effect.InnerGlow(size = 0.02f, spread = 0.3f, color = 0xFFFFF4C0.toInt()),
             opacity = 0.8f)),
+        "effect_grain" to above(EffectLayer("grain", Effect.Grain(amount = 0.6f, size = 1.5f, seed = 2), blend = BlendMode.OVERLAY, opacity = 0.6f)),
     )
 
     /** Every golden: directory, theme and sample name. */
