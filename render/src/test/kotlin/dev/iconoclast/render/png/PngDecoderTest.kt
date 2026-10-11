@@ -19,7 +19,7 @@ class PngDecoderTest {
                 for (k in 0..2) px[i + k] = rnd.nextInt(a + 1).toByte()
                 px[i + 3] = a.toByte()
             }
-            val png = PngEncoder.encode(w, h, px)
+            val png = PngEncoder.encode(w, h, px, Deflate.Effort.FAST)
             val d = PngDecoder.decode(png)
             assertEquals(w to h, d.width to d.height)
             val back = ByteArray(px.size)
@@ -34,7 +34,7 @@ class PngDecoderTest {
 
     @Test
     fun rejectsDamageAndOversize() {
-        val png = PngEncoder.encode(8, 4, ByteArray(8 * 4 * 4) { 0xFF.toByte() })
+        val png = PngEncoder.encode(8, 4, ByteArray(8 * 4 * 4) { 0xFF.toByte() }, Deflate.Effort.FAST)
         assertFailsWith<IllegalArgumentException> { PngDecoder.decode(png.copyOf().also { it[40] = (it[40] + 1).toByte() }) }
         assertFailsWith<IllegalArgumentException> { PngDecoder.decode(png.copyOf(png.size - 5)) }
         assertFailsWith<IllegalArgumentException> { PngDecoder.decode(png, maxSide = 7) }

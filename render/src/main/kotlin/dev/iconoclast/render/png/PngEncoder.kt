@@ -16,13 +16,14 @@ import java.util.zip.CRC32
 object PngEncoder {
 
     /** An icon: [Deflate.Effort.FAST]. */
-    fun encode(image: RgbaImage): ByteArray = encode(image.size, image.size, image.pixels)
+    fun encode(image: RgbaImage): ByteArray = encode(image.size, image.size, image.pixels, Deflate.Effort.FAST)
 
     /**
      * [premultiplied] is [width] x [height] premultiplied RGBA, row-major. Texture files
-     * pass [Deflate.Effort.CANONICAL], whose bytes their hashes name.
+     * pass [Deflate.Effort.CANONICAL], whose bytes their hashes name. No default: a texture
+     * writer that forgot the effort would write bytes its hash does not name.
      */
-    fun encode(width: Int, height: Int, premultiplied: ByteArray, effort: Deflate.Effort = Deflate.Effort.FAST): ByteArray {
+    fun encode(width: Int, height: Int, premultiplied: ByteArray, effort: Deflate.Effort): ByteArray {
         require(width > 0 && height > 0 && premultiplied.size == width * height * 4) { "pixels for ${width}x$height" }
         val stride = width * 4
         val straight = unpremultiply(premultiplied)

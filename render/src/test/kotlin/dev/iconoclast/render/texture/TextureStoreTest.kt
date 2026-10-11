@@ -1,5 +1,6 @@
 package dev.iconoclast.render.texture
 
+import dev.iconoclast.render.png.Deflate
 import dev.iconoclast.render.png.PngEncoder
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -80,10 +81,10 @@ class TextureStoreTest {
 
     @Test
     fun refusesOversizeAndNonPng() {
-        val wide = PngEncoder.encode(2049, 1, ByteArray(2049 * 4))
+        val wide = PngEncoder.encode(2049, 1, ByteArray(2049 * 4), Deflate.Effort.FAST)
         assertFailsWith<IllegalArgumentException> { TextureStore().put(wide) }
         assertFailsWith<IllegalArgumentException> { TextureStore.encode(2049, 1, ByteArray(2049 * 4)) }
-        TextureStore().put(PngEncoder.encode(2048, 1, ByteArray(2048 * 4)))
+        TextureStore().put(PngEncoder.encode(2048, 1, ByteArray(2048 * 4), Deflate.Effort.FAST))
         assertFailsWith<IllegalArgumentException> { TextureStore().put(ByteArray(64)) }
     }
 
