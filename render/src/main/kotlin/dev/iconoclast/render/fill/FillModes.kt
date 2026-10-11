@@ -143,10 +143,14 @@ object FillModes {
         val sealed = BooleanArray(n)
         var outsideGrown = BooleanArray(n)
         // Each level's inside is grown as far as that level holds: every radius short of
-        // the next level, an open disk, and the last level by the closing itself. Insides
-        // only shrink from level to level, so it is enough to grow the pixels each level
-        // loses. A wider closing keeps every level and growth of a narrower one, which is
-        // what makes sealing monotone. Corners the growth misses are pockets beside an
+        // the next level, an open disk, and the last level by the closing itself. Insides do
+        // not only shrink: a region cut off from the border as a gap seals is new at its
+        // level. But every inside pixel at level k is either inside at k + 1 or lost there,
+        // inside_k within inside_k+1 union lost_k+1, and the radius grows with the level, so
+        // growing inside_k is covered by growing lost_k+1 at level k's radius and inside_k+1
+        // at its own. By induction it is enough to grow each level's lost pixels and the
+        // last inside. A wider closing keeps every level and growth of a narrower one, which
+        // is what makes sealing monotone. Corners the growth misses are pockets beside an
         // inside, so enclosed either way.
         var prevInside: BooleanArray? = null
         for (k in levels.indices) {
@@ -176,14 +180,22 @@ object FillModes {
     /**
      * The squared radii at which the dilated strokes change: 0, then every distinct squared
      * stroke distance up to [r2]. The barrier is the same between two of them, so labelling
-     * at each one sees every inside that ever forms, however small the closing step.
+     * at each one sees every inside that ever forms, however small the closing step. Exact
+     * squared distances on the pixel grid are integers, sums of two squares, so one flag
+     * per integer up to [r2] collects them.
      */
     private fun sealingLevels(strokeD2: FloatArray?, r2: Float): FloatArray {
         if (strokeD2 == null) return floatArrayOf(0f)
-        val distinct = java.util.TreeSet<Float>()
-        distinct += 0f
-        for (d in strokeD2) if (d > 0f && d <= r2) distinct += d
-        return distinct.toFloatArray()
+        val top = r2.toInt()
+        val present = BooleanArray(top + 1)
+        present[0] = true
+        for (d in strokeD2) if (d > 0f && d <= r2) present[d.toInt()] = true
+        var count = 0
+        for (p in present) if (p) count++
+        val out = FloatArray(count)
+        var k = 0
+        for (v in present.indices) if (present[v]) out[k++] = v.toFloat()
+        return out
     }
 
     /** The [pocket] pixels whose component borders reached outside and no reached inside. */
