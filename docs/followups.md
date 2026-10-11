@@ -183,17 +183,17 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Ruling: grain is not capped. The grain row states the measured cost: about 330 KB per icon at full amount.
 
 ### M7 readiness, from the M6 whole-milestone review (do these first, in order)
-1. Split icon identity in the renderer: key geometry, fill and effects by the geometry's own drawable name and pass the seed name (the slot) separately, so a swap cannot poison the shared MaskCache.
-2. One per-icon offset in StackInput replacing the four derivations (Mappings.texture, Mappings.noise, Streaks breakup, Grain), decide whether grain follows the override.
-3. Schema v4 with an `overrides` map keyed by appfilter drawable name, pure v3→v4 adding an empty map, overrides resolved to an effective Theme per icon so Theme stays override-free and cache keys invalidate naturally, "hide streaks" drops Streaks EffectLayers, overrides whose name left the pin are kept and flagged.
-4. PackBuilder takes a per-slot theme and icon, overrides per drawable, one render per drawable.
-5. Coverage screen persists the applied component set and theme id on successful install and diffs on open.
-6. Export and import add the key entry (PKCS12 plus password) behind the warning, gate is render every golden theme from the imported document and compare bytes.
-7. Output resolution setting capped or exempted from the budget with goldens at each offered size, grain cells are 1/432 so grain washes out below 432.
+1. Split icon identity in the renderer: key geometry, fill and effects by the geometry's own drawable name and pass the seed name (the slot) separately, so a swap cannot poison the shared MaskCache. DONE in M7 Task 11, fd123fa.
+2. One per-icon offset in StackInput replacing the four derivations (Mappings.texture, Mappings.noise, Streaks breakup, Grain), decide whether grain follows the override. DONE in M7 Task 11, ae7f686: grain follows it.
+3. Schema v4 with an `overrides` map keyed by appfilter drawable name, pure v3→v4 adding an empty map, overrides resolved to an effective Theme per icon so Theme stays override-free and cache keys invalidate naturally, "hide streaks" drops Streaks EffectLayers, overrides whose name left the pin are kept and flagged. DONE in M7 Task 11, 5c092dd.
+4. PackBuilder takes a per-slot theme and icon, overrides per drawable, one render per drawable. DONE in M7 Task 11, 06aafdf.
+5. Coverage screen persists the applied component set and theme id on successful install and diffs on open. Data DONE in M7 Task 11, d91431b; screen is Task 12.
+6. Export and import add the key entry (PKCS12 plus password) behind the warning, gate is render every golden theme from the imported document and compare bytes. DONE in M7 Task 11, fa4c81e, 587763f; the warning dialog is Task 12.
+7. Output resolution setting capped or exempted from the budget with goldens at each offered size, grain cells are 1/432 so grain washes out below 432. DONE in M7 Task 11, fdf67c3: 432 and 324 only, grain cells follow the size, budget stated at 432; the setting UI is Task 12.
 8. Settings/About licence list generated from `:app:dependencies --configuration releaseRuntimeClasspath`, committed, and THIRD_PARTY_LICENSES.md extended to every runtime dependency with its licence.
 
 ### M6 residual and rulings (ledger, 2026-10-11)
-- Residual: ZipRewriter.rewrite streams straight to the final output path; a failure leaves a truncated file. PackSigner uses tmp+rename. Carried into M7 Task 11 commit 1: write to .tmp and rename.
+- Residual: ZipRewriter.rewrite streams straight to the final output path; a failure leaves a truncated file. PackSigner uses tmp+rename. Carried into M7 Task 11 commit 1: write to .tmp and rename. DONE in M7 Task 11, 48a4609.
 - Ruling: M5 fix-wave residuals (corrupt-file onDisk, KDoc typo) folded into T9 commit 1 instead of a second fix wave — cost: none.
 - Ruling: streak smear uses a hold model (max-decay) instead of normalised integration — his reference is a brush streak and thin lines must streak — cost if wrong: goldens regen once more.
 - Ruling: streaks link to icon-fill; no hidden source layer — the model already reads the linked source regardless of clip/opacity — cost: none.

@@ -2,13 +2,14 @@
 
 A theme is a recipe, spec 2.4: the parameters the renderer reads, never images.
 One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
-shares a `.zip` holding that JSON as `theme.json` and the textures it uses. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
+shares a `.zip` holding that JSON as `theme.json`, the textures it uses and,
+only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
-## Schema version 3
+## Schema version 4
 
 ```json
 {
-    "schemaVersion": 3,
+    "schemaVersion": 4,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -51,6 +52,11 @@ shares a `.zip` holding that JSON as `theme.json` and the textures it uses. Code
               "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "lockOffset": false },
               "matte": null }
         ]
+    },
+    "overrides": {
+        "fdroid": { "strokeWeight": 2.5, "fillMode": null, "gapClosing": null,
+                    "textureOffset": { "x": 0.125, "y": 0.875 }, "hideStreaks": true,
+                    "swapDrawable": null }
     }
 }
 ```
@@ -61,6 +67,7 @@ shares a `.zip` holding that JSON as `theme.json` and the textures it uses. Code
 | `id` | Random UUID. Presets use fixed ids, `preset-plain-arcticons`, `preset-jade` and `preset-neon`. Import assigns a fresh one. |
 | `name` | Shown on the themes home. |
 | `created`, `modified` | Epoch milliseconds. |
+| `overrides` | Schema 4. Per-icon overrides by appfilter drawable name, sorted by name. See Overrides. |
 | `theme` | The `Theme` from `:render`, field for field. Ranges and meanings are in `render/.../Theme.kt`, `render/.../Layers.kt`, `render/.../Effects.kt` and spec 2.3. |
 
 Rules:
@@ -106,6 +113,36 @@ it). Each effect is its own `effect` layer, below.
 
 Per pixel, coverage = clip x matte x opacity, and the source scaled by the
 coverage is blended into the stack.
+
+### Overrides (schema 4)
+
+Spec 2.2 screen 3. One `IconOverride` per drawable name, stored beside the
+theme, never inside it. Every field is written; `null`, and `hideStreaks`
+false, keeps the theme's value. An empty override is never stored: "reset to
+theme" removes the entry (`withOverride(name, null)`).
+
+| Field | Overrides |
+|---|---|
+| `strokeWeight` | `theme.shape.strokeWeight`, 0.25 to 4.0. |
+| `fillMode` | `theme.fill.mode`. |
+| `gapClosing` | `theme.fill.gapClosing`, 0.0 to 2.0. |
+| `textureOffset` | The icon's one per-icon offset, `{ "x", "y" }`, each in [0, 1). Texture and noise layers, the streak breakup and grain all follow it. Locked mappings keep the centre. |
+| `hideStreaks` | `true` drops every Streaks effect layer for this icon. |
+| `swapDrawable` | Draws another drawable's geometry in this icon's slot. The slot keeps its own seed name, so its offset does not move with the swap. |
+
+Resolution (`EffectiveTheme.kt`): `effectiveTheme(name)` is the theme with
+the override applied, `effectiveGeometry(name)` is the swap target or the name
+itself. The renderer and `PackBuilder` see only that Theme and the two names,
+`IconRenderer.render(geometryName, icon, seedName, theme, size, resolution)`.
+Mask cache entries are keyed by the geometry name, so a swap reads the
+target's masks and never writes under the slot's name. A pinned offset is
+`Theme.textureOffset`, which only an effective theme sets; the serializer
+refuses to save it.
+
+Overrides whose name, or swap target, is not in the pinned icon set are kept,
+so a later pin that brings the name back finds them. `staleOverrides(known)`
+lists them for the coverage screen. `PackBuilder` draws a slot whose swap
+target is missing in its own geometry.
 
 ### Effects (schema 3)
 
@@ -282,6 +319,14 @@ schema 2 preset files (`app/src/test/resources/themes/v2-*.json`), requires
 them to equal the schema 3 presets with only the version changed, and
 compares every render with the Plain and Jade goldens.
 
+Version 3 (M6) had no overrides. `v3ToV4` (`MigrationV3ToV4.kt`) adds an
+empty `overrides` object and sets `schemaVersion` to 4; a version 3 file that
+already has `overrides` is damaged. `ThemeMigrationTest` migrates the shipped
+schema 3 starters (`app/src/test/resources/themes/v3-*.json`), requires the
+JSON to equal the input plus the empty map and new version, with no clock and
+no id, and compares every render with the Jade and Neon starter goldens. The
+preset assets stay at schema 3 and migrate on every seed.
+
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture
 and a test, and update this file.
@@ -298,6 +343,13 @@ and a test, and update this file.
   again: a deleted one stays deleted, an edited one keeps its edits. A
   document that already has a preset's id is never overwritten. A file
   holding only `1`, from before M6, means the two M4 presets.
+- `filesDir/coverage/last-apply.json`: the last successful Apply, written
+  atomically after the install succeeds: `{ "version": 1, "themeId",
+  "appliedAt", "components" }`, every launchable `package/class` seen then,
+  sorted. `CoverageReport.of` diffs the installed apps against it on open. A
+  missing or damaged file reads as never applied.
+- `noBackupFilesDir/pack-signing.p12` and `pack-signing.pass`: the pack
+  signing key, PKCS12 and its random password, spec 3.5. Never backed up.
 - `filesDir/textures/<sha256>.png`: one canonical PNG per imported texture,
   written once, atomically. A texture is present when its file is. The
   renderer's store keeps at most 64 MB of decoded textures and files in memory,
@@ -305,8 +357,22 @@ and a test, and update this file.
 
 ## Export and import
 
+### Archive layout v2 (M7)
+
+| Entry | When | Content |
+|---|---|---|
+| `theme.json` | always, first | The document, schema 4. |
+| `textures/<sha256>.png` | one per non-built-in hash in `Theme.textureHashes()` | The canonical texture file. |
+| `key/pack.p12` | only with the key | The signing key's PKCS12 store, the stored file's bytes. |
+| `key/password` | only with the key | Its password, UTF-8, the stored file's bytes. |
+
+Version 1 (M5) is the same without `key/`. There is no layout marker: a v1
+reader skips `key/` unread, and a v2 reader reads a v1 archive as having no key.
+
 Export writes `<name>.zip` with `theme.json`, then `textures/<sha256>.png` for
-each hash in `Theme.textureHashes()`, entry times fixed at 1980-01-01, shared
+each hash in `Theme.textureHashes()`, then the two `key/` entries only when
+the caller passes the key (`ThemeZipExport.write(doc, textures, key)`,
+`HomeViewModel.export(id, includeKey)`), entry times fixed at 1980-01-01, shared
 as `application/zip` through the FileProvider. Code: `ThemeZipExport.kt`.
 The archive's bytes are deterministic per platform, not across platforms:
 `java.util.zip` deflates through the platform's zlib, whose output may
@@ -319,10 +385,37 @@ must be in `textures/` and match its hash after `TextureStore.put`
 canonicalises it, or already be on the phone. Other entries are ignored and
 never read. A bare JSON imports only when its textures are on the phone.
 Limits: 64 MB per file, 256 KB for `theme.json`, 24 MB per texture entry,
-64 MB decompressed in total. Only `textures/<sha256>.png` entries for hashes
-the theme uses are read. The whole archive is validated before any texture or
+64 KB for `key/pack.p12`, 1 KB for `key/password`, 64 MB decompressed in
+total. Only `textures/<sha256>.png` entries for hashes the theme uses and the
+two `key/` entries are read. The key entries come both or neither, and the
+store must open with the password and hold an EC key under the pack alias. The whole archive is validated before any texture or
 theme is stored.
 Any failure refuses the whole import with a message.
+
+`ArchiveImport.store(archive, restoreKey, ...)` stores a checked archive. The
+key is restored only when the caller passes `restoreKey = true`, which it does
+only after the user confirmed, and only when this phone has no key
+(`PackKeyStore.restore`). The same key already here is fine. A different key
+here refuses the import before any texture or theme is stored, and the phone
+keeps its key: never a silent overwrite. Without `restoreKey` the archive's
+key is ignored. Then textures, then the theme under a new id.
+
+The gate, spec 5 M7: `ExportRoundTripGateTest` exports every golden theme
+with its textures and the key, imports each into an empty install, and renders
+every golden sample from the imported document at its pack size; every PNG
+equals its committed golden.
+
+## Output resolution
+
+`OutputResolution` in `:render`: `FULL`, 432 px, the default, and `COMPACT`,
+324 px, for users short on storage. No other size is offered. Grain cells are
+`1 / px` of the canvas at grain size 1, so a pack pixel is one grain cell at
+either size and grain looks the same; a preview passes the resolution it
+previews and box-filters those cells. Everything else is canvas-relative. The
+phone budget is stated and measured at 432 only; 324 px has 56% of the pixels.
+Goldens: `324/plain` and `324/preset_jade`, the 24 samples each. The setting
+itself is Task 12's; `PackBuilder.build(..., resolution)` and
+`IconRenderer.render(..., resolution)` take it.
 
 A theme whose texture is missing never reaches the renderer: previews hide
 that layer and say so, Apply stops with a message.
