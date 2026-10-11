@@ -1,8 +1,12 @@
 package dev.iconoclast.render.verify
 
+import dev.iconoclast.render.BackgroundParams
+import dev.iconoclast.render.BackgroundShape
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
+import dev.iconoclast.render.GlyphPaint
 import dev.iconoclast.render.IconRenderer
+import dev.iconoclast.render.Paint
 import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.IconBundle
 import dev.iconoclast.render.png.PngEncoder
@@ -23,8 +27,8 @@ fun main(args: Array<String>) {
     val apply = (0 until 300).map { it * (bundle.size / 300) }
     println("jvm ${System.getProperty("java.vm.name")} ${System.getProperty("java.version")}, " +
         "${Runtime.getRuntime().availableProcessors()} cpus")
-    for (mode in FillMode.entries) {
-        val theme = Theme(fill = FillParams(mode = mode))
+    val themes = FillMode.entries.map { it.name to Theme(fill = FillParams(mode = it)) } + ("JADE" to JADE)
+    for ((label, theme) in themes) {
         val previewMs = best { IconRenderer().let { r -> preview.forEach { r.render(it, bundle.icon(it), theme, 128) } } }
         val renderMs = best { IconRenderer().let { r -> apply.forEach { r.render(it, bundle.icon(it), theme, 432) } } }
         val pngMs = best { IconRenderer().let { r -> apply.forEach { r.renderPng(it, bundle.icon(it), theme, 432) } } }
@@ -39,15 +43,26 @@ fun main(args: Array<String>) {
         }
         val bytes = IconRenderer().let { r -> apply.sumOf { r.renderPng(it, bundle.icon(it), theme, 432).size.toLong() } }
         println("%-18s preview 24@128 %5.0f ms | apply 300@432 render %6.0f ms, render+png %6.0f ms, %d threads %6.0f ms | %d KB/icon"
-            .format(mode, previewMs, renderMs, pngMs, threads, parallelMs, bytes / 300 / 1024))
+            .format(label, previewMs, renderMs, pngMs, threads, parallelMs, bytes / 300 / 1024))
     }
     // A paint-only change: geometry and fill come from the cache.
     val r = IconRenderer()
-    val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
-    preview.forEach { r.render(it, bundle.icon(it), theme, 128) }
-    val warm = best { preview.forEach { r.render(it, bundle.icon(it), theme.copy(glyph = theme.glyph.copy(body = 0xFF336699.toInt())), 128) } }
-    println("INVERT preview 24@128, paint change with warm cache %.0f ms".format(warm))
+    preview.forEach { r.render(it, bundle.icon(it), JADE, 128) }
+    val warm = best { preview.forEach { r.render(it, bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 128) } }
+    println("JADE preview 24@128, paint change with warm cache %.1f ms".format(warm))
+    // The compositing cost alone: 300 icons at full size with geometry and fill cached.
+    val big = IconRenderer(dev.iconoclast.render.MaskCache(1L shl 31))
+    apply.forEach { big.render(it, bundle.icon(it), JADE, 432) }
+    val warmApply = best { apply.forEach { big.render(it, bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 432) } }
+    println("JADE apply 300@432 render, paint change with warm cache %.0f ms".format(warmApply))
 }
+
+/** The Jade preset, app/src/main/assets/presets/jade.json, built in code: :render has no JSON. */
+private val JADE = Theme(
+    fill = FillParams(mode = FillMode.INVERT),
+    background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f), paint = Paint.Solid(0xFF000000.toInt())),
+    glyph = GlyphPaint(line = 0xFF00A86B.toInt(), body = 0xFF00A86B.toInt()),
+)
 
 private const val RUNS = 3
 
