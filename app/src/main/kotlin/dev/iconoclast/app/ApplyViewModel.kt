@@ -11,6 +11,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.app.theme.effectiveGeometry
+import dev.iconoclast.app.theme.effectiveTheme
 import dev.iconoclast.pack.CoverageMatcher
 import dev.iconoclast.pack.InstallResult
 import dev.iconoclast.pack.LauncherGuide
@@ -19,7 +21,6 @@ import dev.iconoclast.pack.PackInstallSession
 import dev.iconoclast.pack.PackKeyStore
 import dev.iconoclast.pack.PackSigner
 import dev.iconoclast.pack.TooManyIconsException
-import dev.iconoclast.render.Theme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -60,12 +61,12 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun apply() {
-        val theme = active.value?.theme ?: return
+        val doc = active.value ?: return
         if (_state.value is ApplyState.Working) return
         _state.value = ApplyState.Working("Reading icons")
         viewModelScope.launch {
             _state.value = try {
-                run(theme)
+                run(doc)
             } catch (e: TooManyIconsException) {
                 ApplyState.Problem("${e.needed} apps have icons, but a pack holds at most ${e.available}. Nothing was installed.")
             } catch (e: CancellationException) {
@@ -77,13 +78,15 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun run(theme: Theme): ApplyState {
+    private suspend fun run(doc: ThemeDocument): ApplyState {
+        val theme = doc.theme
         val app = getApplication<Application>()
         val t0 = SystemClock.elapsedRealtime()
         val (icons, template) = withContext(Dispatchers.IO) {
             container.iconSource() to app.assets.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
         }
         // The renderer throws on a texture it does not hold: check before drawing anything.
+        // Overrides add no texture, so the document theme's textures are every slot's.
         val missing = withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, theme) }
         if (missing.isNotEmpty()) return ApplyState.Problem(
             "Nothing was installed: this theme uses a texture that is not on this phone. " +
@@ -96,7 +99,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = ApplyState.Working("Drawing icons", 0, plan.drawables.size + 1)
         val dir = withContext(Dispatchers.IO) { File(app.cacheDir, "pack").apply { mkdirs() } }
         val unsigned = dir.resolve("unsigned.apk")
-        PackBuilder(icons, container.renderer).build(template, plan, theme, dir.resolve("icons"), unsigned) { done, total ->
+        val look = { name: String -> SlotLook(doc.effectiveGeometry(name), doc.effectiveTheme(name)) }
+        PackBuilder(icons, container.renderer).build(template, plan, look, dir.resolve("icons"), unsigned) { done, total ->
             _state.value = ApplyState.Working("Drawing icons", done, total)
         }
         val t2 = SystemClock.elapsedRealtime()

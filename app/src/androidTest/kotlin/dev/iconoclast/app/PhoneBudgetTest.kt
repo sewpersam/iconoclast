@@ -127,7 +127,7 @@ class PhoneBudgetTest {
             System.gc()
             val heap = HeapPeak()
             val ms = try {
-                timed { runBlocking { PackBuilder(source, IconRenderer()).build(template, plan, theme, File(dir, "icons"), apk) { _, _ -> } } }
+                timed { runBlocking { PackBuilder(source, IconRenderer()).build(template, plan, PackBuilder.uniform(theme), File(dir, "icons"), apk) { _, _ -> } } }
             } finally {
                 heap.stop()
             }

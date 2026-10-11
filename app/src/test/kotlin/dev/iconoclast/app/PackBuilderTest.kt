@@ -1,5 +1,10 @@
 package dev.iconoclast.app
 
+import dev.iconoclast.app.theme.IconOverride
+import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.app.theme.effectiveGeometry
+import dev.iconoclast.app.theme.effectiveTheme
+import dev.iconoclast.app.theme.withOverride
 import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.CoverageMatcher
 import dev.iconoclast.render.GoldenSet
@@ -61,10 +66,10 @@ class PackBuilderTest {
     private var builds = 0
 
     /** The unsigned pack's bytes, built to a file as Apply builds it. */
-    private fun build(renderer: IconRenderer = IconRenderer()): ByteArray {
+    private fun build(renderer: IconRenderer = IconRenderer(), look: (String) -> SlotLook = PackBuilder.uniform(thick)): ByteArray {
         val out = File(dir, "unsigned-${builds++}.apk")
         val work = File(dir, "icons")
-        runBlocking { PackBuilder(source, renderer).build(template, plan, thick, work, out) { _, _ -> } }
+        runBlocking { PackBuilder(source, renderer).build(template, plan, look, work, out) { _, _ -> } }
         assertTrue(!work.exists(), "the icon files are removed after the rewrite")
         return out.readBytes()
     }
@@ -109,5 +114,36 @@ class PackBuilderTest {
 
         val drawableXml = files.getValue("assets/drawable.xml").decodeToString()
         assertEquals(plan.drawables.indices.map(PackBuilder::slotName), Regex("drawable=\"(slot_\\d+)\"").findAll(drawableXml).map { it.groupValues[1] }.toList())
+    }
+
+    /**
+     * Readiness item 4: each slot draws its own effective theme and geometry, seeded by its
+     * own name. fdroid is thicker, camera draws signal's line art, signal itself is plain,
+     * and a swap to a name the icon set lacks draws the slot's own geometry.
+     */
+    @Test
+    fun eachSlotDrawsItsOwnOverrides() {
+        val jade = GoldenSet.STARTERS.getValue("preset_jade")
+        val doc = ThemeDocument(id = "t", name = "T", created = 1, modified = 1, theme = jade)
+            .withOverride("fdroid", IconOverride(strokeWeight = 3f, hideStreaks = true))
+            .withOverride("camera", IconOverride(swapDrawable = "signal"))
+            .withOverride("firefox", IconOverride(swapDrawable = "not_in_the_pin"))
+        val look = { name: String -> SlotLook(doc.effectiveGeometry(name), doc.effectiveTheme(name)) }
+        val files = entries(build(look = look))
+        val fresh = IconRenderer()
+        fun png(geometry: String, seed: String, theme: Theme) =
+            fresh.renderPng(geometry, source.icon(geometry)!!, seed, theme, OUTPUT_SIZE)
+        val expected = mapOf(
+            "fdroid" to png("fdroid", "fdroid", doc.effectiveTheme("fdroid")),
+            "camera" to png("signal", "camera", jade),
+            "firefox" to png("firefox", "firefox", jade),
+            "signal" to png("signal", "signal", jade),
+        )
+        for ((slot, drawable) in plan.drawables.withIndex()) {
+            val name = source.names.name(drawable)
+            assertContentEquals(expected.getValue(name), files.getValue(PackBuilder.slotPath(slot)), name)
+        }
+        assertTrue(!expected.getValue("camera").contentEquals(expected.getValue("signal")), "the swapped slot keeps its own seed")
+        assertTrue(!expected.getValue("fdroid").contentEquals(png("fdroid", "fdroid", jade)), "the override shows")
     }
 }

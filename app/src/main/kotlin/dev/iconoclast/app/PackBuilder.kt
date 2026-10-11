@@ -18,8 +18,16 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Renders a coverage plan under a theme and rewrites the template into an unsigned,
- * aligned pack. The same theme and plan give the same bytes, spec 3.5.
+ * What one slot draws, resolved from the theme document's overrides before the build:
+ * [geometryName], the drawable whose line art it draws (a swap target, or the slot's own),
+ * and [theme], the effective per-icon theme. The slot's own drawable name stays its seed.
+ */
+class SlotLook(val geometryName: String, val theme: Theme)
+
+/**
+ * Renders a coverage plan and rewrites the template into an unsigned, aligned pack. The
+ * same looks and plan give the same bytes, spec 3.5. Each drawable of the plan is drawn
+ * once, under its own [SlotLook]; overrides never reach this class, only themes and names.
  *
  * Each icon's PNG goes to a file in a work directory as soon as it is drawn, and the
  * rewrite streams those files into the pack, so the heap holds only the icons being drawn,
@@ -29,9 +37,14 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
 
     /**
      * Renders on at most four threads, reports each finished icon, and writes the unsigned
-     * pack to [out]. [work] is emptied first and holds the icon files until the rewrite is done.
+     * pack to [out]. [look] gives each drawable's look by its name. A swap target missing
+     * from the icon set draws the slot's own geometry instead. [work] is emptied first and
+     * holds the icon files until the rewrite is done.
      */
-    suspend fun build(template: ByteArray, plan: CoveragePlan, theme: Theme, work: File, out: File, progress: (done: Int, total: Int) -> Unit) {
+    suspend fun build(
+        template: ByteArray, plan: CoveragePlan, look: (drawable: String) -> SlotLook,
+        work: File, out: File, progress: (done: Int, total: Int) -> Unit,
+    ) {
         val pool = Dispatchers.Default.limitedParallelism(RENDER_THREADS)
         val previewIndex = source.indexOf(PREVIEW_DRAWABLE).takeIf { it >= 0 } ?: plan.drawables.firstOrNull() ?: 0
         val jobs = plan.drawables + previewIndex
@@ -41,7 +54,7 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
             val pngs = coroutineScope {
                 jobs.mapIndexed { job, index ->
                     async(pool) {
-                        val png = renderer.renderPng(source.names.name(index), source.icon(index), theme, OUTPUT_SIZE)
+                        val png = render(index, look)
                         File(work, "$job.png").also { it.writeBytes(png) }.also { progress(done.incrementAndGet(), jobs.size) }
                     }
                 }.awaitAll()
@@ -63,8 +76,20 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
         }
     }
 
+    /** One drawable's PNG: its look's geometry and theme, seeded by its own name. */
+    fun render(index: Int, look: (drawable: String) -> SlotLook): ByteArray {
+        val name = source.names.name(index)
+        val l = look(name)
+        val swapped = source.indexOf(l.geometryName)
+        val geometry = if (swapped >= 0) swapped else index
+        return renderer.renderPng(source.names.name(geometry), source.icon(geometry), name, l.theme, OUTPUT_SIZE)
+    }
+
     companion object {
         const val RENDER_THREADS = 4
+
+        /** Every slot in its own geometry under one theme: a document with no overrides. */
+        fun uniform(theme: Theme): (String) -> SlotLook = { SlotLook(it, theme) }
         const val TEMPLATE_ASSET = "pack/template.apk"
         const val PREVIEW_DRAWABLE = "arcticons"
         private const val PACK_ICON = "res/drawable-nodpi-v4/pack_icon.png"
