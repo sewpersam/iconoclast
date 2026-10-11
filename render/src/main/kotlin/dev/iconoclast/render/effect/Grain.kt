@@ -11,7 +11,7 @@ import dev.iconoclast.render.layer.StackInput
 /**
  * Grain, readiness item 10: a thin wrapper over the grain noise source, so grain has one
  * code path. The field is layer/Mappings' box-filtered grain at mapping scale [Effect.Grain.size],
- * cells size/432 of the canvas, each icon its own patch from its one per-icon offset, so grain follows a
+ * cells size / OutputResolution.px of the canvas, one pack pixel at size 1, each icon its own patch from its one per-icon offset, so grain follows a
  * texture offset override with the layers it sits on. Grey `0.5 + (n - 0.5) amount`,
  * opaque, source-atop: it lands only on what is already painted, weighted by its alpha,
  * and keeps that alpha, so with the background off a transparent canvas stays
@@ -20,7 +20,7 @@ import dev.iconoclast.render.layer.StackInput
 internal object Grain {
 
     fun paint(e: Effect.Grain, blend: BlendMode, input: StackInput): EffectOutput {
-        val n = Mappings.noise(NoiseKind.GRAIN, 1, e.seed, Mapping(scale = e.size), input.offset, input.size)
+        val n = Mappings.noise(NoiseKind.GRAIN, 1, e.seed, Mapping(scale = e.size), input.offset, input.size, input.grainCells)
         val px = FloatArray(4 * n.size)
         for (i in n.indices) {
             val g = 0.5f + (n[i] - 0.5f) * e.amount

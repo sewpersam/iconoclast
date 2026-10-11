@@ -79,7 +79,7 @@ data class EffectKey(
  * reuses it. [offset] is the one the mapping uses, so a locked mapping shares one field
  * across icons. Only preview sizes are cached; see IconRenderer.
  */
-data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val offset: TextureOffset, val size: Int)
+data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val offset: TextureOffset, val size: Int, val grainCells: Int)
 
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 

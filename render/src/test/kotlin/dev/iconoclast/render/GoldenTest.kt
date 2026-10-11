@@ -64,6 +64,23 @@ class GoldenTest {
         if (mismatches.isNotEmpty()) fail("${mismatches.size} goldens differ: ${mismatches.take(10)}")
     }
 
+    /** The compact output resolution, [GoldenSet.CASES_324]: each rendered as a 324 px pack. */
+    @Test
+    fun goldensAt324() {
+        val renderer = IconRenderer()
+        val mismatches = mutableListOf<String>()
+        for ((dir, theme, name) in GoldenSet.CASES_324) {
+            val png = renderer.renderPng(name, bundle.icon(SAMPLES.indexOf(name)), name, theme, OutputResolution.COMPACT.px, OutputResolution.COMPACT)
+            val path = "$dir/$name.png"
+            if (update) {
+                File(System.getProperty("golden.dir"), path).apply { parentFile.mkdirs() }.writeBytes(png)
+                continue
+            }
+            if (!png.contentEquals(resource(path))) mismatches += path
+        }
+        if (mismatches.isNotEmpty()) fail("${mismatches.size} goldens differ: ${mismatches.take(10)}")
+    }
+
     /**
      * The three icons spec 1.4 names. Each probe is a point on the 48 grid and what invert
      * fill must show there: the white line paint, the teal body, or the dark background.

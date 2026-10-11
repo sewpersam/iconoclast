@@ -184,7 +184,7 @@ sealed interface Effect {
     data class Grain(
         /** 0 to 1: how far the grey swings from mid-grey. */
         val amount: Float = 0.5f,
-        /** 1 to 4: a grain cell's side in 1/432 of the canvas, a pack pixel at 432 px. */
+        /** 1 to 4: a grain cell's side in pack pixels, 1 / OutputResolution.px of the canvas each. */
         val size: Float = 1f,
         val seed: Int = 0,
     ) : Effect {

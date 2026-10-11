@@ -1,6 +1,7 @@
 package dev.iconoclast.render.layer
 
 import dev.iconoclast.render.TextureOffset
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Paint
@@ -14,7 +15,7 @@ import kotlin.test.assertEquals
 class EffectsClipTest {
     private val size = 4
     private val n = size * size
-    private val input = StackInput(TextureOffset.of("x"), size, GlyphMasks(null, null), icon = { null }, shape = null, border = null, borderColor = null,
+    private val input = StackInput(TextureOffset.of("x"), size, OutputResolution.FULL.px, GlyphMasks(null, null), icon = { null }, shape = null, border = null, borderColor = null,
         textures = TextureStore())
 
     @Test

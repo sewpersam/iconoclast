@@ -25,6 +25,8 @@ internal class StackInput(
      */
     val offset: TextureOffset,
     val size: Int,
+    /** Grain cells across the canvas at grain scale 1: the pack's pixels, OutputResolution.px. */
+    val grainCells: Int,
     val masks: GlyphMasks,
     /** Body union lines, computed on first use. */
     val icon: () -> Mask?,
@@ -204,11 +206,11 @@ internal object StackEvaluator {
                 // The cached field is the whole canvas; outside [need] nothing reads it, so the
                 // pixels are the same either way. Read-only: the gradient map writes to px.
                 val v = if (input.cacheNoise) {
-                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, Mappings.offset(layer.mapping, input.offset), input.size)) {
-                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size)
+                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, Mappings.offset(layer.mapping, input.offset), input.size, input.grainCells)) {
+                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size, input.grainCells)
                     }
                 } else {
-                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size, need)
+                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size, input.grainCells, need)
                 }
                 val px = FloatArray(v.size * 4)
                 val c = FloatArray(4)

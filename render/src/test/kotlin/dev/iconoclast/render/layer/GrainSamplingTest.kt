@@ -5,6 +5,7 @@ import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.NoiseKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Readiness item 10: grain cells are a fixed fraction of the canvas and every render is the
@@ -13,7 +14,26 @@ import kotlin.test.assertEquals
  */
 class GrainSamplingTest {
 
-    private fun field(size: Int, scale: Float = 1f) = Mappings.noise(NoiseKind.GRAIN, 1, 9, Mapping(scale = scale), TextureOffset.of("camera"), size)
+    private fun field(size: Int, scale: Float = 1f, cells: Int = 432) = Mappings.noise(NoiseKind.GRAIN, 1, 9, Mapping(scale = scale), TextureOffset.of("camera"), size, cells)
+
+    private fun variance(f: FloatArray): Double {
+        val mean = f.average()
+        return f.sumOf { (it - mean) * (it - mean) } / f.size
+    }
+
+    /**
+     * Readiness item 7: a 324 px pack gets 324 cells, one per pixel, and the same grain as a
+     * 432 px pack. With 432 cells it would wash out, each pixel averaging 1.33 cells.
+     */
+    @Test
+    fun compactPackGrainLooksTheSame() {
+        assertEquals(1.0 / 12, variance(field(324, cells = 324)), 0.002)
+        assertTrue(variance(field(324, cells = 432)) < 0.8 / 12, "432 cells wash out at 324 px")
+        val full = field(324, cells = 324)
+        val expected = downscale(full, 324, 128)
+        val got = field(128, cells = 324)
+        assertEquals(0f, got.indices.maxOf { kotlin.math.abs(got[it] - expected[it]) }, 2e-3f, "a preview is the 324 px pack box-filtered")
+    }
 
     /** Area average of [src], [n] x [n], onto [m] x [m]. */
     private fun downscale(src: FloatArray, n: Int, m: Int): FloatArray {

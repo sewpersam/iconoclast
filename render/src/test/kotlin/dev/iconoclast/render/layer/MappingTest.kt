@@ -83,9 +83,9 @@ class MappingTest {
         assertContentEquals(a, Mappings.texture(t, m, TextureOffset.of("fdroid"), 8))
         assertFalse(a.contentEquals(Mappings.texture(t, m, TextureOffset.of("camera"), 8)))
         assertContentEquals(Mappings.texture(t, m.copy(lockOffset = true), TextureOffset.of("fdroid"), 8), Mappings.texture(t, m.copy(lockOffset = true), TextureOffset.of("camera"), 8))
-        val n = Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("fdroid"), 16)
-        assertContentEquals(n, Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("fdroid"), 16))
-        assertFalse(n.contentEquals(Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("camera"), 16)))
+        val n = Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("fdroid"), 16, 432)
+        assertContentEquals(n, Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("fdroid"), 16, 432))
+        assertFalse(n.contentEquals(Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("camera"), 16, 432)))
         assertTrue(n.all { it in 0f..1f })
     }
 }

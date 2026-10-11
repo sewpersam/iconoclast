@@ -10,6 +10,7 @@ import dev.iconoclast.pack.CoverageMatcher
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OUTPUT_SIZE
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.ShapeParams
 import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.BundleFormat
@@ -66,10 +67,13 @@ class PackBuilderTest {
     private var builds = 0
 
     /** The unsigned pack's bytes, built to a file as Apply builds it. */
-    private fun build(renderer: IconRenderer = IconRenderer(), look: (String) -> SlotLook = PackBuilder.uniform(thick)): ByteArray {
+    private fun build(
+        renderer: IconRenderer = IconRenderer(), look: (String) -> SlotLook = PackBuilder.uniform(thick),
+        resolution: OutputResolution = OutputResolution.FULL,
+    ): ByteArray {
         val out = File(dir, "unsigned-${builds++}.apk")
         val work = File(dir, "icons")
-        runBlocking { PackBuilder(source, renderer).build(template, plan, look, work, out) { _, _ -> } }
+        runBlocking { PackBuilder(source, renderer).build(template, plan, look, work, out, resolution) { _, _ -> } }
         assertTrue(!work.exists(), "the icon files are removed after the rewrite")
         return out.readBytes()
     }
@@ -145,5 +149,18 @@ class PackBuilderTest {
         }
         assertTrue(!expected.getValue("camera").contentEquals(expected.getValue("signal")), "the swapped slot keeps its own seed")
         assertTrue(!expected.getValue("fdroid").contentEquals(png("fdroid", "fdroid", jade)), "the override shows")
+    }
+
+    /** Readiness item 7: a compact pack holds the 324 px goldens' bytes, Plain and Jade. */
+    @Test
+    fun compactPackHolds324pxIcons() {
+        val golden = File(System.getProperty("golden.dir"))
+        for ((dir, theme) in listOf("324/plain" to GoldenSet.PRESETS.getValue("plain"), "324/preset_jade" to GoldenSet.STARTERS.getValue("preset_jade"))) {
+            val files = entries(build(look = PackBuilder.uniform(theme), resolution = OutputResolution.COMPACT))
+            for ((slot, drawable) in plan.drawables.withIndex()) {
+                val name = source.names.name(drawable)
+                assertContentEquals(File(golden, "$dir/$name.png").readBytes(), files.getValue(PackBuilder.slotPath(slot)), "$dir $name")
+            }
+        }
     }
 }

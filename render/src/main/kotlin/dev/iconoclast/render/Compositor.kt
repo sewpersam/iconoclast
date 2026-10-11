@@ -59,10 +59,16 @@ class IconRenderer(
      * Unswapped, both are the same name. A per-icon swap draws another drawable's geometry
      * in this slot: [geometryName] is the swapped-in drawable, [seedName] stays the slot's,
      * so the swap shares the other drawable's cached masks without changing them.
+     *
+     * [resolution] is the pack size this render is, or previews: it sets the grain cells.
+     * A pack renders at `size = resolution.px`; a preview at any size.
      */
-    fun render(geometryName: String, icon: Icon, seedName: String, theme: Theme, size: Int): RgbaImage {
+    fun render(
+        geometryName: String, icon: Icon, seedName: String, theme: Theme, size: Int,
+        resolution: OutputResolution = OutputResolution.FULL,
+    ): RgbaImage {
         val buf = FloatArray(size * size * 4)
-        val input = stackInput(geometryName, icon, seedName, theme, size)
+        val input = stackInput(geometryName, icon, seedName, theme, size, resolution)
         StackEvaluator.paint(buf, theme.layers, input)
         val clip = input.shape
         if (clip != null) for (i in 0 until clip.pixels) {
@@ -77,13 +83,16 @@ class IconRenderer(
     fun render(drawable: String, icon: Icon, theme: Theme, size: Int): RgbaImage = render(drawable, icon, drawable, theme, size)
 
     /** What step 4 reads for one icon: steps 1 to 3, cached, and the keys effects derive from. */
-    internal fun stackInput(geometryName: String, icon: Icon, seedName: String, theme: Theme, size: Int): StackInput {
+    internal fun stackInput(
+        geometryName: String, icon: Icon, seedName: String, theme: Theme, size: Int,
+        resolution: OutputResolution = OutputResolution.FULL,
+    ): StackInput {
         val masks = glyphMasks(geometryName, icon, theme, size)
         val bg = theme.background
         val shape = if (bg.enabled) backgroundMasks(bg, size) else null
         val border = shape?.second
         return StackInput(
-            theme.textureOffset ?: TextureOffset.of(seedName), size, masks,
+            theme.textureOffset ?: TextureOffset.of(seedName), size, resolution.px, masks,
             icon = { iconMask(geometryName, theme, size, masks) },
             shape = shape?.first,
             border = border,
@@ -96,8 +105,10 @@ class IconRenderer(
     }
 
     /** [render], encoded as PNG. */
-    fun renderPng(geometryName: String, icon: Icon, seedName: String, theme: Theme, size: Int): ByteArray =
-        PngEncoder.encode(render(geometryName, icon, seedName, theme, size))
+    fun renderPng(
+        geometryName: String, icon: Icon, seedName: String, theme: Theme, size: Int,
+        resolution: OutputResolution = OutputResolution.FULL,
+    ): ByteArray = PngEncoder.encode(render(geometryName, icon, seedName, theme, size, resolution))
 
     /** [render] of an icon in its own slot, encoded as PNG. */
     fun renderPng(drawable: String, icon: Icon, theme: Theme, size: Int): ByteArray = renderPng(drawable, icon, drawable, theme, size)

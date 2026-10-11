@@ -27,9 +27,8 @@ import dev.iconoclast.render.texture.Texture
  */
 internal object Mappings {
 
-    /** Lattice cells across the canvas at scale 1: fBm and ridged, then grain. */
+    /** Lattice cells across the canvas at scale 1, fBm and ridged. Grain's are the pack's pixels, [noise]. */
     const val NOISE_CELLS = 8f
-    const val GRAIN_CELLS = 432f
     /**
      * How far the per-icon offset moves the noise field, in lattice cells. At the smallest
      * scale, 0.25, the canvas spans 32 cells, so no pixel lies more than 32 cells from the
@@ -114,18 +113,18 @@ internal object Mappings {
      * The noise field under every pixel, 0 to 1.
      *
      * Grain is one value per lattice cell, and its cells are a fixed fraction of the
-     * canvas, 1 / [GRAIN_CELLS] at scale 1: a pack pixel at 432 px. Point-sampled, a
-     * 128 px preview would show each pixel one random cell at full contrast, a coarser
-     * and harsher grain than the pack. So grain is box-filtered: each pixel is the area
+     * canvas, 1 / [grainCells] at scale 1: one pack pixel at the output resolution,
+     * dev.iconoclast.render.OutputResolution. Point-sampled, a 128 px preview would show
+     * each pixel one random cell at full contrast, a coarser and harsher grain than the pack. So grain is box-filtered: each pixel is the area
      * average of the cells under its footprint, [Noise.grainBox], and its per-icon offset
-     * is whole cells. Unturned, a 432 px render at scale 1 is then exactly one cell per
+     * is whole cells. Unturned, a pack-size render at scale 1 is then exactly one cell per
      * pixel, and any smaller render is exactly that render box-filtered down. With [need],
      * pixels where it is 0 are skipped and left 0.
      */
-    fun noise(kind: NoiseKind, octaves: Int, seed: Int, mapping: Mapping, offset: TextureOffset, size: Int, need: FloatArray? = null): FloatArray {
+    fun noise(kind: NoiseKind, octaves: Int, seed: Int, mapping: Mapping, offset: TextureOffset, size: Int, grainCells: Int, need: FloatArray? = null): FloatArray {
         val t = turn(mapping)
         val grain = kind == NoiseKind.GRAIN
-        val cells = (if (grain) GRAIN_CELLS else NOISE_CELLS) / mapping.scale
+        val cells = (if (grain) grainCells.toFloat() else NOISE_CELLS) / mapping.scale
         val (ox, oy) = offset(mapping, offset)
         val bx = if (grain) floor(ox * NOISE_PERIOD) else ox * NOISE_PERIOD
         val by = if (grain) floor(oy * NOISE_PERIOD) else oy * NOISE_PERIOD

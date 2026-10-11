@@ -6,7 +6,7 @@ import dev.iconoclast.pack.CoveragePlan
 import dev.iconoclast.pack.DrawableXmlWriter
 import dev.iconoclast.pack.ZipRewriter
 import dev.iconoclast.render.IconRenderer
-import dev.iconoclast.render.OUTPUT_SIZE
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -39,11 +39,12 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
      * Renders on at most four threads, reports each finished icon, and writes the unsigned
      * pack to [out]. [look] gives each drawable's look by its name. A swap target missing
      * from the icon set draws the slot's own geometry instead. [work] is emptied first and
-     * holds the icon files until the rewrite is done.
+     * holds the icon files until the rewrite is done. Icons are [resolution] pixels square.
      */
     suspend fun build(
         template: ByteArray, plan: CoveragePlan, look: (drawable: String) -> SlotLook,
-        work: File, out: File, progress: (done: Int, total: Int) -> Unit,
+        work: File, out: File, resolution: OutputResolution = OutputResolution.FULL,
+        progress: (done: Int, total: Int) -> Unit,
     ) {
         val pool = Dispatchers.Default.limitedParallelism(RENDER_THREADS)
         val previewIndex = source.indexOf(PREVIEW_DRAWABLE).takeIf { it >= 0 } ?: plan.drawables.firstOrNull() ?: 0
@@ -54,7 +55,7 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
             val pngs = coroutineScope {
                 jobs.mapIndexed { job, index ->
                     async(pool) {
-                        val png = render(index, look)
+                        val png = render(index, look, resolution)
                         File(work, "$job.png").also { it.writeBytes(png) }.also { progress(done.incrementAndGet(), jobs.size) }
                     }
                 }.awaitAll()
@@ -77,12 +78,12 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
     }
 
     /** One drawable's PNG: its look's geometry and theme, seeded by its own name. */
-    fun render(index: Int, look: (drawable: String) -> SlotLook): ByteArray {
+    fun render(index: Int, look: (drawable: String) -> SlotLook, resolution: OutputResolution = OutputResolution.FULL): ByteArray {
         val name = source.names.name(index)
         val l = look(name)
         val swapped = source.indexOf(l.geometryName)
         val geometry = if (swapped >= 0) swapped else index
-        return renderer.renderPng(source.names.name(geometry), source.icon(geometry), name, l.theme, OUTPUT_SIZE)
+        return renderer.renderPng(source.names.name(geometry), source.icon(geometry), name, l.theme, resolution.px, resolution)
     }
 
     companion object {

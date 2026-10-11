@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OUTPUT_SIZE
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.format.IconBundle
 import dev.iconoclast.render.texture.BuiltInBrushes
 import org.junit.Assert.assertEquals
@@ -37,9 +38,15 @@ class ArtByteIdentityTest {
             compared += path
             if (!png.contentEquals(asset(path))) differ += path
         }
+        for ((dir, theme, name) in GoldenSet.CASES_324) {
+            val path = "$dir/$name.png"
+            val png = renderer.renderPng(name, bundle.icon(GoldenSet.SAMPLES.indexOf(name)), name, theme, OutputResolution.COMPACT.px, OutputResolution.COMPACT)
+            compared += path
+            if (!png.contentEquals(asset(path))) differ += path
+        }
         android.util.Log.i("ArtByteIdentity", "compared ${compared.size} PNGs, ${differ.size} differ: $differ")
         assertEquals("PNGs differing from the JVM goldens", emptyList<String>(), differ)
-        assertEquals(260, compared.size)
+        assertEquals(260 + 48, compared.size)
     }
 
     /**

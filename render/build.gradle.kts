@@ -68,7 +68,7 @@ tasks.test {
         inputs.dir(iconAssets)
         systemProperty("golden.source", iconAssets.get().asFile.path)
         outputs.upToDateWhen { false }
-        filter.includeTestsMatching("*GoldenTest.goldens")
+        filter.includeTestsMatching("*GoldenTest.goldens*")
     }
 }
 

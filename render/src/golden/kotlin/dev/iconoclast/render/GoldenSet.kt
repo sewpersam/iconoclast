@@ -297,6 +297,14 @@ object GoldenSet {
         ),
     )
 
+    /**
+     * The compact output resolution, readiness item 7: Plain and the Jade starter on every
+     * sample at 324 px, rendered as a 324 px pack. Kept apart from [CASES], which are 432 px.
+     */
+    val CASES_324: List<Triple<String, Theme, String>>
+        get() = listOf("324/plain" to PRESETS.getValue("plain"), "324/preset_jade" to STARTERS.getValue("preset_jade"))
+            .flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } }
+
     /** Every golden: directory, theme and sample name. */
     val CASES: List<Triple<String, Theme, String>>
         get() = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +

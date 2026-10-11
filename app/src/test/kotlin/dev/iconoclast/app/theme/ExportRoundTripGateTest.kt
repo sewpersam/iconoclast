@@ -8,6 +8,7 @@ import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OUTPUT_SIZE
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.IconBundle
@@ -26,8 +27,8 @@ import kotlin.test.fail
  * The M7 gate, spec 5: export and import round-trip with byte-identical render output. Every
  * golden theme is exported with its textures and the signing key, read back, stored by
  * the import path into an empty install (new texture directory, new theme directory, no
- * key), and rendered at the pack size from the imported document: every golden sample
- * must match its committed golden byte for byte.
+ * key), and rendered at its pack size, 432 or 324, from the imported document: every
+ * golden sample must match its committed golden byte for byte.
  */
 class ExportRoundTripGateTest {
     private val golden = File(requireNotNull(System.getProperty("golden.dir")))
@@ -53,7 +54,7 @@ class ExportRoundTripGateTest {
     fun everyGoldenThemeRoundTripsToItsGoldenBytes() {
         val install = Install()
         val renderer = IconRenderer(textures = install.textures.store)
-        val cases = GoldenSet.CASES.groupBy({ it.first to it.second }, { it.third })
+        val cases = (GoldenSet.CASES + GoldenSet.CASES_324).groupBy({ it.first to it.second }, { it.third })
         val mismatches = mutableListOf<String>()
         var first = true
         for ((dirTheme, samples) in cases) {
@@ -65,8 +66,9 @@ class ExportRoundTripGateTest {
             val imported = result.doc
             assertEquals(theme, imported.theme, dir)
             assertEquals(emptySet(), install.textures.load(imported.theme.textureHashes()), "$dir textures stored")
+            val res = if (dir.startsWith("324/")) OutputResolution.COMPACT else OutputResolution.FULL
             for (name in samples) {
-                val png = renderer.renderPng(name, bundle.icon(GoldenSet.SAMPLES.indexOf(name)), imported.theme, OUTPUT_SIZE)
+                val png = renderer.renderPng(name, bundle.icon(GoldenSet.SAMPLES.indexOf(name)), name, imported.theme, res.px, res)
                 if (!png.contentEquals(File(golden, "$dir/$name.png").readBytes())) mismatches += "$dir/$name"
             }
         }
