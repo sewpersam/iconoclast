@@ -24,7 +24,9 @@ object TextureImport {
         val resolver = context.contentResolver
         try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: throw unreadable()
+            // With inJustDecodeBounds the decode returns null by design; the bounds are the result.
+            val stream = resolver.openInputStream(uri) ?: throw TextureImportException("The image could not be opened.")
+            stream.use { BitmapFactory.decodeStream(it, null, bounds) }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw TextureImportException("This file is not an image the phone can read.")
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, TextureStore.MAX_SIDE)
@@ -63,6 +65,4 @@ object TextureImport {
         val s = max.toDouble() / longest
         return maxOf(1, Math.round(width * s).toInt()).coerceAtMost(max) to maxOf(1, Math.round(height * s).toInt()).coerceAtMost(max)
     }
-
-    private fun unreadable() = TextureImportException("The image could not be opened.")
 }
