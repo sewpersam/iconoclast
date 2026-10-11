@@ -25,6 +25,22 @@ data class FillKey(val drawable: String, val shape: ShapeParams, val mode: FillM
 /** Invert fill's lone lines for the fill stage at [fill]. */
 data class LoneLinesKey(val fill: FillKey)
 
+/**
+ * Masks derived from the fill stage's output, such as the icon clip target and M6's
+ * effects. That output depends on the fill stage, whether invert fill fell back, and the
+ * lone-lines switch, so all three are in the key. Built by [of], which clears the two
+ * flags where they cannot change the output.
+ */
+data class EffectKey(val fill: FillKey, val fellBack: Boolean, val keepLoneLines: Boolean) {
+    companion object {
+        fun of(fill: FillKey, fellBack: Boolean, keepLoneLines: Boolean) = when {
+            fill.mode != FillMode.INVERT -> EffectKey(fill, false, false)
+            fellBack -> EffectKey(fill, true, false)
+            else -> EffectKey(fill, false, keepLoneLines)
+        }
+    }
+}
+
 /** Background shape and border coverage. */
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 
@@ -57,6 +73,9 @@ class MaskCache(private val maxBytes: Long = 64L shl 20) {
         get(key, compute) { 4L * it.pixels }
 
     fun loneLines(key: LoneLinesKey, compute: () -> Mask): Mask =
+        get(key, compute) { 4L * it.pixels }
+
+    fun effect(key: EffectKey, compute: () -> Mask): Mask =
         get(key, compute) { 4L * it.pixels }
 
     fun background(key: BackgroundKey, compute: () -> Pair<Mask, Mask?>): Pair<Mask, Mask?> =

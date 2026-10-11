@@ -92,6 +92,33 @@ class CompositorTest {
         assertEquals(misses, r.cache.misses)
     }
 
+    /**
+     * Derived masks key on the fallback outcome and the lone-lines switch, not on the
+     * threshold that produced the outcome.
+     */
+    @Test
+    fun effectKeysCarryTheFallback() {
+        val fill = FillKey.of("square", ShapeParams(), FillParams(mode = FillMode.INVERT), 96)
+        assertTrue(EffectKey.of(fill, false, true) != EffectKey.of(fill, true, true))
+        assertTrue(EffectKey.of(fill, false, true) != EffectKey.of(fill, false, false))
+        assertEquals(EffectKey.of(fill, true, true), EffectKey.of(fill, true, false), "a fallback draws no lone lines")
+        val outline = FillKey.of("square", ShapeParams(), FillParams(), 96)
+        assertEquals(EffectKey.of(outline, false, false), EffectKey.of(outline, true, true))
+
+        val r = IconRenderer()
+        val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
+        val union = r.iconMask("square", icon, theme, 96)!!
+        val m = r.glyphMasks("square", icon, theme, 96)
+        for (i in 0 until union.pixels) {
+            val b = m.body!![i]
+            val l = m.lines!![i]
+            assertEquals(b + l - b * l, union[i])
+        }
+        val misses = r.cache.misses
+        r.iconMask("square", icon, theme.copy(fill = theme.fill.copy(fallbackThreshold = 0.2f)), 96)
+        assertEquals(misses, r.cache.misses, "same outcome, same entry")
+    }
+
     @Test
     fun outputIsPremultipliedAndClippedToTheShape() {
         val theme = Theme(background = BackgroundParams(shape = BackgroundShape.Circle, size = 0.8f))

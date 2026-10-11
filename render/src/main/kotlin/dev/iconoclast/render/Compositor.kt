@@ -92,6 +92,23 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
         }
     }
 
+    /**
+     * The icon clip target: body union lines, `b + l - b * l`, the coverage both masks give
+     * painted in one opaque colour. Cached under [EffectKey]. Null when both are absent.
+     */
+    fun iconMask(drawable: String, icon: Icon, theme: Theme, size: Int): Mask? {
+        val masks = glyphMasks(drawable, icon, theme, size)
+        val b = masks.body
+        val l = masks.lines
+        if (b == null || l == null) return b ?: l
+        val key = EffectKey.of(FillKey.of(drawable, theme.shape, theme.fill, size), masks.fellBack, theme.fill.keepLoneLines)
+        return cache.effect(key) {
+            val bv = b.values
+            val lv = l.values
+            Mask(FloatArray(bv.size) { bv[it] + lv[it] - bv[it] * lv[it] })
+        }
+    }
+
     private fun fillInput(geometry: FloatArray, shape: ShapeParams, fill: FillParams, size: Int, cut: FloatArray?): FillInput {
         val scale = unitScale(shape, size)
         return FillInput(
