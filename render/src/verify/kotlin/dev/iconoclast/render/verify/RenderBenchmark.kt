@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
 
 /**
  * JVM timings for spec 3.3's two budgets: 24 icons at 128 px and 300 icons at 432 px.
- * Args: bundle, threads. Icons are spread evenly over the bundle. Each measurement runs
+ * Args: bundle, threads. `./gradlew :render:benchmarkRenderer -Prows=INVERT,JADE_LIKE` limits the theme rows. Icons are spread evenly over the bundle. Each measurement runs
  * after a warm-up pass and reports the best of [RUNS], all with a cold mask cache.
  */
 fun main(args: Array<String>) {
@@ -36,7 +36,12 @@ fun main(args: Array<String>) {
     // One shared texture store, decoded once: the timings are rendering, not texture loads.
     val textures = TextureStore()
     val textured = jadeTextured(textures.put(TextureStore.encode(TEXTURE_SIDE, TEXTURE_SIDE, texturePixels())))
-    val themes = FillMode.entries.map { it.name to Theme(fill = FillParams(mode = it)) } + ("JADE" to JADE) + ("JADE_TEXTURED" to textured)
+    // M6: each effect alone on the effects base (invert fill, compare INVERT), and the combined jade-like look.
+    val effects = dev.iconoclast.render.GoldenSet.EFFECTS.map { (dir, t) -> dir.removePrefix("effect_").uppercase() to t } +
+        ("JADE_LIKE" to dev.iconoclast.render.GoldenSet.JADE_LIKE)
+    val only = System.getProperty("rows")?.split(",")?.toSet()
+    val themes = (FillMode.entries.map { it.name to Theme(fill = FillParams(mode = it)) } + ("JADE" to JADE) + ("JADE_TEXTURED" to textured) + effects)
+        .filter { only == null || it.first in only }
     for ((label, theme) in themes) {
         val previewMs = best { IconRenderer(textures = textures).let { r -> preview.forEach { r.render("icon$it", bundle.icon(it), theme, 128) } } }
         val renderMs = best { IconRenderer(textures = textures).let { r -> apply.forEach { r.render("icon$it", bundle.icon(it), theme, 432) } } }
@@ -55,7 +60,7 @@ fun main(args: Array<String>) {
             .format(label, previewMs, renderMs, pngMs, threads, parallelMs, bytes / 300 / 1024))
     }
     // PNG encoding alone, per icon: the 300 renders are made once, then encoded.
-    for ((label, theme) in listOf("JADE" to JADE, "JADE_TEXTURED" to textured)) {
+    for ((label, theme) in listOf("JADE" to JADE, "JADE_TEXTURED" to textured, "JADE_LIKE" to dev.iconoclast.render.GoldenSet.JADE_LIKE)) {
         val r = IconRenderer(textures = textures)
         val images = apply.map { r.render("icon$it", bundle.icon(it), theme, 432) }
         val ms = best { images.forEach { PngEncoder.encode(it) } }

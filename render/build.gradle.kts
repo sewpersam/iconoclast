@@ -15,6 +15,8 @@ sourceSets.test {
 
 // JVM-only conversion check: java.awt rasterizer plus inkscape references. Not shipped.
 val verify = sourceSets.create("verify") {
+    // The benchmark times the golden set's effect looks.
+    kotlin.srcDir("src/golden/kotlin")
     compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
     runtimeClasspath += sourceSets.main.get().output + sourceSets.main.get().runtimeClasspath
 }
@@ -76,6 +78,8 @@ tasks.register<JavaExec>("benchmarkRenderer") {
     classpath = verify.runtimeClasspath
     mainClass = "dev.iconoclast.render.verify.RenderBenchmarkKt"
     maxHeapSize = "2g"
+    // -Prows=INVERT,JADE_LIKE limits the theme rows.
+    providers.gradleProperty("rows").orNull?.let { systemProperty("rows", it) }
     inputs.dir(iconAssets)
     argumentProviders += CommandLineArgumentProvider {
         listOf(iconAssets.get().file("icons.bin").asFile.path, "4")

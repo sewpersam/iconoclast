@@ -46,7 +46,16 @@ class PhoneBudgetTest {
 
     /** A 300-drawable plan in invert fill at full size, PNGs and zip rewrite included, under 20 s. */
     @Test
-    fun applyOf300IconsInInvertFill() {
+    fun applyOf300IconsInInvertFill() = apply(Theme(fill = FillParams(mode = FillMode.INVERT)), "invert")
+
+    /**
+     * M6: the same with the combined jade-like look, GoldenSet.JADE_LIKE: procedural jade,
+     * veins, textured streaks, a bevel and grain. Task 10 re-runs it with the Jade preset.
+     */
+    @Test
+    fun applyOf300IconsJadeLike() = apply(GoldenSet.JADE_LIKE, "jade-like")
+
+    private fun apply(theme: Theme, label: String) {
         val target = instrumentation.targetContext.assets
         val source = IconSource.open(target)
         val template = target.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
@@ -56,7 +65,6 @@ class PhoneBudgetTest {
             items = drawables.indices.map { "budget.app$it/budget.app$it.Main" to it },
             unmatched = emptyList(),
         )
-        val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
         val runs = (0 until RUNS).map {
             var apk = ByteArray(0)
             val ms = timed {
@@ -66,7 +74,7 @@ class PhoneBudgetTest {
             Log.i(TAG, "apply run: $ms ms, ${apk.size} bytes")
             ms
         }
-        Log.i(TAG, "apply $APPLY_ICONS@full invert, ${PackBuilder.RENDER_THREADS} threads, " +
+        Log.i(TAG, "apply $APPLY_ICONS@full $label, ${PackBuilder.RENDER_THREADS} threads, " +
             "${Runtime.getRuntime().availableProcessors()} cpus, ms per run, first is cold: $runs")
         assertTrue("apply runs $runs ms, budget $APPLY_BUDGET_MS ms", runs.drop(1).all { it < APPLY_BUDGET_MS })
     }
