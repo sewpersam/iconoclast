@@ -120,6 +120,7 @@ guarantees documented. Details: `.superpowers/sdd/plan-m5/final-fix-report.md`.
   `Deflate` (benchmark `JADE_TEXTURED`: render + PNG 7.4x solid Jade, 4
   threads 7.2x). Rendering itself is 1.66x. Owned by M6 before textured Apply
   is gated: faster match search or a lower effort level, bytes still pinned.
+  DONE in M6 Task 9, 7d0f85d: 187.1 to 17.1 ms.
 
 ### M6 readiness, from the M5 whole-milestone review (do these first, in order)
 1. Each effect its own Layer subtype EffectLayer(id, effect, enabled, blend, opacity), marker kept as border anchor and default insertion point, schema v3 with pure v2→v3. DONE in M6 Task 9, dbf900c.
@@ -133,17 +134,15 @@ guarantees documented. Details: `.superpowers/sdd/plan-m5/final-fix-report.md`.
 9. Streak smear via axis rotation plus IIR or prefix sums, decide allowed decay curves. DONE in M6 Task 9, 164d8e2.
 10. Decide whether Grain is a preset noise layer or a real effect, and fix grain cell size to canvas-relative so previews match Apply. DONE in M6 Task 9, f003f02.
 
-## M5 additions (2026-10-10)
-
 ### Deferred minors from M5
 - Task 7: minor (deferred): one-pass union-find + sampled-function EDT formulation of sealing would remove ~50 labellings at closing 2.
-- Task 7: minor (deferred): noise offset reaches 4096 cells; float ulp stair-steps the top octave; period ~256 fixes it.
+- Task 7: minor (deferred): noise offset reaches 4096 cells; float ulp stair-steps the top octave; period ~256 fixes it. DONE in the M5 fix wave: period 256.
 - Task 7: minor (deferred): sealing monotone test exempts pixels within sqrt2 px of a stroke; enclosed can still lose near-stroke pixels via pocket classification.
 - Task 7: minor (deferred): Mask read-only is type-enforced outside :render, convention inside.
 - Task 7: minor (deferred): readiness item 10 (lifecycle deps declared) has no test.
 - Task 8: minor (deferred): texture cleanup policy (mark-and-sweep at cold start when unreadable is empty); not in spec.
-- Task 8: minor (deferred): ThemeTransfer.read loads up to 64 MB before unzip; stream instead.
-- Task 8: minor (deferred): inverse clip on Whole canvas yields an empty layer; disable the switch for CANVAS.
+- Task 8: minor (deferred): ThemeTransfer.read loads up to 64 MB before unzip; stream instead. DONE in the M6 review fix wave, 7d64143.
+- Task 8: minor (deferred): inverse clip on Whole canvas yields an empty layer; disable the switch for CANVAS. DONE in the M5 fix wave: the switch is hidden for the whole canvas.
 - Task 8: minor (deferred): removing base Background or Icon lines layer is allowed; taste call on a guard.
 - Task 8: minor (deferred): ColorControl open state kept by position; two info logs remain.
 - Task 8: minor (deferred): threshold matte, grain and feather never driven on device.
@@ -156,3 +155,39 @@ guarantees documented. Details: `.superpowers/sdd/plan-m5/final-fix-report.md`.
 - Ruling: one texture offset per icon, shared by all layers — literal spec, keeps colour and matte registered — cost: none.
 - Ruling: missing texture throws in :render; Task 8 checks theme.textureHashes() against the store before preview and pack build — cost: none.
 - Ruling: per-icon offset — TILE wraps; FIT/FILL move within room; default texture scale 2.0 for new texture layers so the default has room; lock pins — spec says every icon gets a different patch — cost if wrong: one default and a golden regen.
+
+## M6 additions (2026-10-11)
+
+### Fixed from the M6 whole-milestone review
+
+Apply streams the pack: icons to cache files, the zip rewrite and the
+signer file to file; theme import streams the content URI; new theme
+id through a channel; one sample list and one bitmap conversion;
+PngEncoder effort required; ART identity covers the built-in brushes;
+preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
+`.superpowers/sdd/plan-m6/final-fix-report.md`.
+
+### Deferred minors from M6
+- Blurred masks land slightly outside [0, 1]; paintEffect clamps, the masks themselves do not.
+- No matcher test at distance 32767.
+- Cold Apply of JADE_LIKE measured 21.9 s, over 20 s; logged, not gated, as in M3 to M5. A precedent to watch.
+- A missing imported breakup texture shows a blank "Imported" swatch.
+- Grain size is labelled px.
+- EffectRow duplicates LayerRow.
+- The EFFECTS clip target has no UI cue.
+- The built-in brush set is not forward compatible: freeze it, or bump the schema when adding a brush.
+- The streak fallback colour shows when the linked layer is hidden for a missing texture.
+
+### Rulings made in M6
+- Ruling: preset-id rule (a changed look ships under a new id) applies from the first public release; before that, preset-jade keeps its id.
+- Ruling: grain is not capped. The grain row states the measured cost: about 330 KB per icon at full amount.
+
+### M7 readiness, from the M6 whole-milestone review (do these first, in order)
+1. Split icon identity in the renderer: key geometry, fill and effects by the geometry's own drawable name and pass the seed name (the slot) separately, so a swap cannot poison the shared MaskCache.
+2. One per-icon offset in StackInput replacing the four derivations (Mappings.texture, Mappings.noise, Streaks breakup, Grain), decide whether grain follows the override.
+3. Schema v4 with an `overrides` map keyed by appfilter drawable name, pure v3→v4 adding an empty map, overrides resolved to an effective Theme per icon so Theme stays override-free and cache keys invalidate naturally, "hide streaks" drops Streaks EffectLayers, overrides whose name left the pin are kept and flagged.
+4. PackBuilder takes a per-slot theme and icon, overrides per drawable, one render per drawable.
+5. Coverage screen persists the applied component set and theme id on successful install and diffs on open.
+6. Export and import add the key entry (PKCS12 plus password) behind the warning, gate is render every golden theme from the imported document and compare bytes.
+7. Output resolution setting capped or exempted from the budget with goldens at each offered size, grain cells are 1/432 so grain washes out below 432.
+8. Settings/About licence list generated from `:app:dependencies --configuration releaseRuntimeClasspath`, committed, and THIRD_PARTY_LICENSES.md extended to every runtime dependency with its licence.
