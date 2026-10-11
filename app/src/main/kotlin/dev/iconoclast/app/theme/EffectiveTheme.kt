@@ -11,8 +11,11 @@ import dev.iconoclast.render.Theme
  */
 
 /** [drawable]'s theme with its override applied; the document's theme when it has none. */
-fun ThemeDocument.effectiveTheme(drawable: String): Theme {
-    val o = overrides[drawable] ?: return theme
+fun ThemeDocument.effectiveTheme(drawable: String): Theme = overrides[drawable]?.applyTo(theme) ?: theme
+
+/** [theme] with this override applied. Previews call it with the theme they show. */
+fun IconOverride.applyTo(theme: Theme): Theme {
+    val o = this
     var t = theme
     if (o.strokeWeight != null) t = t.copy(shape = t.shape.copy(strokeWeight = o.strokeWeight))
     if (o.fillMode != null) t = t.copy(fill = t.fill.copy(mode = o.fillMode))

@@ -1,5 +1,7 @@
 package dev.iconoclast.app.editor
 
+import dev.iconoclast.app.theme.IconOverride
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.ShapeParams
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.CoroutineScope
@@ -24,7 +26,7 @@ class PreviewRendererTest {
         val gate = CountDownLatch(1)
         val started = CountDownLatch(1)
         val drawn = Collections.synchronizedList(mutableListOf<Float>())
-        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, t ->
+        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, l -> val t = l.theme;
             if (t == weight(1f)) {
                 started.countDown()
                 gate.await(5, TimeUnit.SECONDS)
@@ -48,7 +50,7 @@ class PreviewRendererTest {
     fun visibleFirstKeepsTheOtherImagesUntilAFullPass() = runBlocking {
         val scope = CoroutineScope(Dispatchers.Default)
         val calls = Collections.synchronizedList(mutableListOf<String>())
-        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, t -> "$d@${t.shape.strokeWeight}".also { calls += it } })
+        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, l -> val t = l.theme; "$d@${t.shape.strokeWeight}".also { calls += it } })
         r.request(PreviewRequest(weight(1f), listOf(0, 1, 2)))
         withTimeout(5000) { r.frame.first { it.complete } }
         r.request(PreviewRequest(weight(2f), listOf(0, 1, 2), first = setOf(1)))
@@ -72,7 +74,7 @@ class PreviewRendererTest {
     fun aFailedPassCanBeRequestedAgain() = runBlocking {
         val scope = CoroutineScope(Dispatchers.Default)
         val fail = java.util.concurrent.atomic.AtomicBoolean(true)
-        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, t ->
+        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, l -> val t = l.theme;
             if (fail.get()) error("disk gone")
             "$d@${t.shape.strokeWeight}"
         })
@@ -83,6 +85,26 @@ class PreviewRendererTest {
         r.request(req)
         val frame = withTimeout(5000) { r.frame.first { it.complete } }
         assertEquals(mapOf(0 to "0@1.0"), frame.images)
+        scope.cancel()
+    }
+
+    @Test
+    fun aChangedOverrideRedrawsOnlyItsIcon() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default)
+        val calls = Collections.synchronizedList(mutableListOf<String>())
+        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, l ->
+            "$d@${l.override?.strokeWeight ?: l.theme.shape.strokeWeight}".also { calls += it }
+        })
+        r.request(PreviewRequest(weight(1f), listOf(0, 1, 2)))
+        withTimeout(5000) { r.frame.first { it.complete } }
+        r.request(PreviewRequest(weight(1f), listOf(0, 1, 2), overrides = mapOf(1 to IconOverride(strokeWeight = 3f))))
+        val f = withTimeout(5000) { r.frame.first { it.complete && it.images[1] == "1@3.0" } }
+        assertEquals(mapOf(0 to "0@1.0", 1 to "1@3.0", 2 to "2@1.0"), f.images)
+        assertEquals(listOf("1@3.0"), calls.drop(3))
+        // A resolution change is another look: every icon redraws.
+        r.request(PreviewRequest(weight(1f), listOf(0, 1, 2), resolution = OutputResolution.COMPACT))
+        withTimeout(5000) { r.frame.first { it.complete && it.images[1] == "1@1.0" } }
+        assertEquals(7, calls.size)
         scope.cancel()
     }
 }

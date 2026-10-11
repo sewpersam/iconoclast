@@ -101,7 +101,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
 private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.compose.ui.graphics.ImageBitmap>) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize()) {
-        PreviewGrid(ui.items, images, vm::setVisible, Modifier.fillMaxWidth().height(232.dp))
+        PreviewGrid(ui.items, images, ui.overridden, vm::openOverride, vm::setVisible, Modifier.fillMaxWidth().height(232.dp))
         PreviewBar(vm, ui)
         if (ui.importingTexture) LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = "Importing texture" })
         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
@@ -139,6 +139,7 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.
         AddLayerSheet(onDismiss = { vm.showAddLayer(false) }, onAdd = vm::addLayer, onTexture = { vm.chooseTexture(TextureTarget.NewLayer) })
     }
     if (ui.addingEffect) AddEffectSheet(onDismiss = { vm.showAddEffect(false) }, onAdd = vm::addEffect)
+    ui.overriding?.let { item -> OverrideSheet(vm, ui, item, images[item.drawable]) }
     TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
 }
 

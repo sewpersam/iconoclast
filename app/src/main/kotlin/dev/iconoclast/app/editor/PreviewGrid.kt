@@ -2,6 +2,9 @@ package dev.iconoclast.app.editor
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
@@ -27,11 +30,19 @@ import androidx.compose.ui.unit.dp
 /**
  * The live preview, spec 2.2 screen 2. Icons sit on a fixed dark backdrop, like a
  * wallpaper, so white line art and dark backgrounds both read. Each cell shows its 128 px
- * image at 48 dp, close to one to one on a 420 dpi screen. Tapping is a no-op until the
- * override sheet in M7. The drawables on screen go to [onVisible], for drags.
+ * image at 48 dp, close to one to one on a 420 dpi screen. Tapping an icon opens its
+ * override sheet, [onTap]; an icon in [overridden] wears a badge, and TalkBack says so.
+ * The drawables on screen go to [onVisible], for drags.
  */
 @Composable
-fun PreviewGrid(items: List<PreviewItem>, images: Map<Int, ImageBitmap>, onVisible: (Set<Int>) -> Unit, modifier: Modifier = Modifier) {
+fun PreviewGrid(
+    items: List<PreviewItem>,
+    images: Map<Int, ImageBitmap>,
+    overridden: Set<Int>,
+    onTap: (PreviewItem) -> Unit,
+    onVisible: (Set<Int>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val state = rememberLazyGridState()
     LaunchedEffect(state, items) {
         snapshotFlow { state.layoutInfo.visibleItemsInfo.map { it.key as Int }.toSet() }.collect(onVisible)
@@ -46,12 +57,26 @@ fun PreviewGrid(items: List<PreviewItem>, images: Map<Int, ImageBitmap>, onVisib
             contentPadding = PaddingValues(8.dp),
         ) {
             items(items, key = { it.drawable }) { item ->
-                Box(Modifier.padding(4.dp).size(48.dp), contentAlignment = Alignment.Center) {
+                val badged = item.drawable in overridden
+                val label = if (badged) "${item.label}, overridden" else item.label
+                Box(
+                    Modifier.padding(4.dp).size(48.dp)
+                        .clickable(onClickLabel = "Override this icon") { onTap(item) }
+                        .semantics(mergeDescendants = true) { contentDescription = label },
+                    contentAlignment = Alignment.Center,
+                ) {
                     val image = images[item.drawable]
                     if (image != null) {
-                        Image(image, contentDescription = item.label, Modifier.size(48.dp))
+                        Image(image, contentDescription = null, Modifier.size(48.dp))
                     } else {
-                        Box(Modifier.size(40.dp).background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).semantics { contentDescription = item.label })
+                        Box(Modifier.size(40.dp).background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)))
+                    }
+                    if (badged) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).size(12.dp)
+                                .border(2.dp, BACKDROP, CircleShape)
+                                .background(MaterialTheme.colorScheme.tertiary, CircleShape),
+                        )
                     }
                 }
             }

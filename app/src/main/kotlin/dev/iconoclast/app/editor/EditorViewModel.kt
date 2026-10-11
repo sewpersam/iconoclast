@@ -18,7 +18,11 @@ import dev.iconoclast.app.toImageBitmap
 import dev.iconoclast.app.texture.TextureImport
 import dev.iconoclast.app.texture.TextureImportException
 import dev.iconoclast.app.texture.TexturePresence
+import dev.iconoclast.app.theme.IconOverride
 import dev.iconoclast.app.theme.Presets
+import dev.iconoclast.app.theme.applyTo
+import dev.iconoclast.render.TextureOffset
+import kotlinx.coroutines.CoroutineStart
 import dev.iconoclast.app.theme.migrate
 import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.CoverageMatcher
@@ -78,6 +82,11 @@ data class EditorUi(
     val choosingTexture: Boolean = false,
     val recentTextures: List<String> = emptyList(),
     val importingTexture: Boolean = false,
+    /** Drawables with an override in this theme: the preview badges them. */
+    val overridden: Set<Int> = emptySet(),
+    /** The icon whose override sheet is open, and its override as edited. */
+    val overriding: PreviewItem? = null,
+    val override: IconOverride = IconOverride.NONE,
 )
 
 /**
@@ -104,12 +113,14 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     /** History depth and theme right after the last layer removal, for its snackbar Undo. */
     private var removal: EditorHistory.Mark? = null
     private var textureTarget: TextureTarget = TextureTarget.NewLayer
+    /** The overrides as shown; each change is written through the repository at once. */
+    private var overrides: Map<String, IconOverride> = emptyMap()
 
     private val previews = PreviewRenderer(
         viewModelScope,
         Dispatchers.Default.limitedParallelism(RENDER_THREADS),
         SIZE,
-        render = { d, theme -> draw(d, theme) },
+        render = { d, look -> draw(d, look) },
         log = { Log.i(TAG, it) },
     )
 
@@ -122,6 +133,8 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     init {
         viewModelScope.launch { load() }
         viewModelScope.launch { pending.filterNotNull().debounce(SAVE_DELAY_MS).collect { save(it) } }
+        // The resolution setting sets the previews' grain cells.
+        viewModelScope.launch { container.settings.resolution.collect { refresh() } }
     }
 
     private suspend fun load() {
@@ -143,6 +156,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         installed = withContext(Dispatchers.IO) { installedItems(app, icons) }
         withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, doc.theme) }
         history = EditorHistory(doc.theme)
+        overrides = doc.overrides
         // The toggle survives process death; the first visit shows installed apps when there are any.
         val start = saved.get<String>(SOURCE_KEY)?.let(PreviewSource::valueOf)
             ?: if (installed.isEmpty()) PreviewSource.SAMPLES else PreviewSource.INSTALLED
@@ -368,13 +382,76 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         // The renderer throws on a texture it does not hold; the preview hides that layer instead.
         val theme = if (ui.comparing) plain ?: return else TexturePresence.without(h.theme, absent)
         val first = visible.takeIf { h.dragging && !ui.comparing && it.isNotEmpty() }
-        previews.request(PreviewRequest(theme, ui.items.map { it.drawable }, first))
+        val names = source?.names ?: return
+        val byDrawable = ui.items.mapNotNull { item -> overrides[names.name(item.drawable)]?.let { item.drawable to it } }.toMap()
+        if (byDrawable.keys != ui.overridden) _ui.value = _ui.value.copy(overridden = byDrawable.keys)
+        // Compare shows plain Arcticons: no override, no swap.
+        val shown = if (ui.comparing) emptyMap() else byDrawable
+        previews.request(PreviewRequest(theme, ui.items.map { it.drawable }, first, shown, container.settings.resolution.value))
     }
 
-    private fun draw(drawable: Int, theme: Theme): ImageBitmap {
+    /**
+     * One preview icon: the effective theme and geometry, as Apply draws its slot. A swap
+     * target missing from the icon set draws the icon's own geometry, as PackBuilder does.
+     */
+    private fun draw(drawable: Int, look: PreviewLook): ImageBitmap {
         val icons = requireNotNull(source)
-        return container.renderer.render(icons.names.name(drawable), icons.icon(drawable), theme, SIZE).toImageBitmap()
+        val name = icons.names.name(drawable)
+        val theme = look.override?.applyTo(look.theme) ?: look.theme
+        val geometry = look.override?.swapDrawable?.let(icons::indexOf)?.takeIf { it >= 0 } ?: drawable
+        return container.renderer.render(icons.names.name(geometry), icons.icon(geometry), name, theme, SIZE, look.resolution).toImageBitmap()
     }
+
+    /** Opens the override sheet for [item], spec 2.2 screen 3. */
+    fun openOverride(item: PreviewItem) {
+        val name = source?.names?.name(item.drawable) ?: return
+        _ui.value = _ui.value.copy(overriding = item, override = overrides[name] ?: IconOverride.NONE)
+    }
+
+    fun closeOverride() {
+        _ui.value = _ui.value.copy(overriding = null, override = IconOverride.NONE)
+    }
+
+    /** A slider in the sheet moved: the preview follows, nothing is written until [commitOverride]. */
+    fun dragOverride(o: IconOverride) = showOverride(o)
+
+    /** Shows [o] and writes it through the repository; an empty one removes the override. */
+    fun commitOverride(o: IconOverride) {
+        val name = showOverride(o) ?: return
+        // Undispatched: each write joins the repository's lock queue in the order made.
+        container.scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                if (o.isEmpty) repo.clearOverride(id, name) else repo.setOverride(id, name, o)
+            } catch (e: IOException) {
+                Log.w(TAG, "Override not saved", e)
+                say("Override not saved. Storage error: ${e.message ?: e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    /** "Reset to theme". */
+    fun resetOverride() = commitOverride(IconOverride.NONE)
+
+    private fun showOverride(o: IconOverride): String? {
+        val item = _ui.value.overriding ?: return null
+        val name = source?.names?.name(item.drawable) ?: return null
+        overrides = if (o.isEmpty) overrides - name else overrides + (name to o)
+        _ui.value = _ui.value.copy(override = o)
+        refresh()
+        return name
+    }
+
+    /** The drawable name of preview cell [drawable], for the sheet. */
+    fun drawableName(drawable: Int): String = source?.names?.name(drawable).orEmpty()
+
+    /** Drawable names matching [query], prefix matches first, for the swap search. */
+    suspend fun searchDrawables(query: String): List<String> = withContext(Dispatchers.Default) {
+        val icons = source ?: return@withContext emptyList()
+        icons.search(query, SEARCH_LIMIT).map(icons.names::name)
+    }
+
+    /** The texture offset the icon shows without an override: its own seeded one. */
+    fun ownOffset(drawable: Int): TextureOffset = TextureOffset.of(drawableName(drawable))
 
     /** Writes the theme field only, so overrides saved meanwhile by the override sheet stay. */
     private suspend fun save(theme: Theme) {
@@ -398,6 +475,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         const val SIZE = 128
         const val RENDER_THREADS = 4
         const val SAVE_DELAY_MS = 300L
+        const val SEARCH_LIMIT = 30
         private const val SOURCE_KEY = "previewSource"
 
         fun factory(id: String): ViewModelProvider.Factory = viewModelFactory {
