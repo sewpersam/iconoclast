@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,9 +25,11 @@ class ThemePreviews(private val container: AppContainer) {
 
     suspend fun icons(theme: Theme): List<PreviewIcon> = cache.get(theme) ?: withContext(Dispatchers.Default) {
         val source = container.iconSource()
+        // A texture missing from the phone hides its layer here; the editor and Apply say why.
+        val shown = TexturePresence.without(theme, TexturePresence.ensure(container.textures, theme))
         SAMPLES.mapNotNull { name ->
             val index = source.indexOf(name).takeIf { it >= 0 } ?: return@mapNotNull null
-            val image = container.renderer.render(name, source.icon(index), theme, SIZE)
+            val image = container.renderer.render(name, source.icon(index), shown, SIZE)
             val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
             // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
             bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))

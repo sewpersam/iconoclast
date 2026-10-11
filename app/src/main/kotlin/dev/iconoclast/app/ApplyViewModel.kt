@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.pack.CoverageMatcher
 import dev.iconoclast.pack.InstallResult
@@ -82,6 +83,12 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val (icons, template) = withContext(Dispatchers.IO) {
             container.iconSource() to app.assets.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
         }
+        // The renderer throws on a texture it does not hold: check before drawing anything.
+        val missing = withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, theme) }
+        if (missing.isNotEmpty()) return ApplyState.Problem(
+            "Nothing was installed: this theme uses a texture that is not on this phone. " +
+                "Import the theme's .zip again, or remove the texture layer in the editor.",
+        )
         val components = withContext(Dispatchers.IO) { InstalledApps.launchableComponents(app) }
         val plan = CoverageMatcher.match(components, PackBuilder.slotCount(template), icons::resolve)
         val t1 = SystemClock.elapsedRealtime()
