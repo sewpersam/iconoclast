@@ -30,7 +30,7 @@ class PresetsTest {
         val docs = Presets.FILES.map(::preset)
         assertEquals(listOf("preset-plain-arcticons", "preset-jade", "preset-neon"), docs.map { it.id })
         assertEquals(listOf("Plain Arcticons", "Jade", "Neon"), docs.map { it.name })
-        assertTrue(docs.all { it.schemaVersion == 3 })
+        assertTrue(docs.all { it.schemaVersion == ThemeDocument.CURRENT_SCHEMA })
         for (doc in docs) {
             val png = IconRenderer().render(GoldenSet.SAMPLES[0], bundle.icon(0), doc.theme, 64)
             assertTrue(png.pixels.any { it != 0.toByte() }, "${doc.name} renders nothing")

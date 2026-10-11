@@ -16,12 +16,17 @@ data class ThemeDocument(
     val created: Long,
     val modified: Long,
     @Serializable(ThemeSerializer::class) val theme: Theme,
+    /**
+     * Per-icon overrides by appfilter drawable name, schema 4. Never in [theme]:
+     * [effectiveTheme] and [effectiveGeometry] resolve them per icon.
+     */
+    val overrides: Map<String, IconOverride> = emptyMap(),
 ) {
-    /** Pretty-printed JSON at the current schema version. */
-    fun toJson(): String = JSON.encodeToString(serializer(), copy(schemaVersion = CURRENT_SCHEMA))
+    /** Pretty-printed JSON at the current schema version, overrides sorted by name. */
+    fun toJson(): String = JSON.encodeToString(serializer(), copy(schemaVersion = CURRENT_SCHEMA, overrides = overrides.toSortedMap()))
 
     companion object {
-        const val CURRENT_SCHEMA = 3
+        const val CURRENT_SCHEMA = 4
 
         /** Strict: unknown keys fail, every field is written. */
         val JSON = Json {

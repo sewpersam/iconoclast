@@ -19,6 +19,8 @@ import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OUTPUT_SIZE
 import dev.iconoclast.render.format.IconBundle
 import java.io.File
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.nio.ByteBuffer
 
 class ThemeMigrationTest {
@@ -28,7 +30,7 @@ class ThemeMigrationTest {
     fun version0Migrates() {
         val doc = migrate(fixture("v0.json"), now = { 1_700_000_000_000 }, newId = { "fixed-id" })
         val expected = ThemeDocument(
-            schemaVersion = 3,
+            schemaVersion = ThemeDocument.CURRENT_SCHEMA,
             id = "fixed-id",
             name = "Old teal",
             created = 1_700_000_000_000,
@@ -88,15 +90,54 @@ class ThemeMigrationTest {
             val v2 = fixture("v2-$file")
             assertTrue("\"schemaVersion\": 2" in v2)
             val migrated = migrate(v2, now = { error("no clock") }, newId = { error("no id") })
-            assertEquals(3, migrated.schemaVersion)
+            assertEquals(ThemeDocument.CURRENT_SCHEMA, migrated.schemaVersion)
             if (file == "plain-arcticons.json") assertEquals(migrate(File(presets, file).readText()), migrated, file)
-            assertEquals(v2.replace("\"schemaVersion\": 2", "\"schemaVersion\": 3").trim(), migrated.toJson().trim(), "only the version changes")
+            assertEquals(withOverrides(v2), json(migrated.toJson()), "only the version changes, and no overrides")
             val renderer = IconRenderer()
             for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
                 val png = renderer.renderPng(name, bundle.icon(i), migrated.theme, OUTPUT_SIZE)
                 assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
             }
         }
+    }
+
+    /**
+     * The schema 4 migration test: the shipped schema 3 starters, kept as fixtures, gain an
+     * empty overrides map and nothing else, need no clock and no id, and render their
+     * starter goldens byte for byte.
+     */
+    @Test
+    fun version3StartersMigrateToAnEmptyOverrideMap() {
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
+        for ((file, dir) in listOf("jade.json" to "preset_jade", "neon.json" to "preset_neon")) {
+            val v3 = fixture("v3-$file")
+            assertTrue("\"schemaVersion\": 3" in v3)
+            val migrated = migrate(v3, now = { error("no clock") }, newId = { error("no id") })
+            assertEquals(4, migrated.schemaVersion)
+            assertEquals(emptyMap(), migrated.overrides)
+            assertEquals(withOverrides(v3), json(migrated.toJson()), file)
+            assertEquals(GoldenSet.STARTERS.getValue(dir), migrated.theme)
+            val renderer = IconRenderer()
+            for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
+                val png = renderer.renderPng(name, bundle.icon(i), migrated.theme, OUTPUT_SIZE)
+                assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
+            }
+        }
+    }
+
+    @Test
+    fun version3WithOverridesIsDamaged() {
+        val v3 = fixture("v3-jade.json").trimEnd().removeSuffix("}") + ", \"overrides\": {}}"
+        assertFailsWith<ThemeFormatException> { migrate(v3) }
+    }
+
+    private fun json(text: String) = ThemeDocument.JSON.parseToJsonElement(text)
+
+    /** [old] at the current version with an empty overrides map: what migration must make of it. */
+    private fun withOverrides(old: String): JsonObject {
+        val o = json(old) as JsonObject
+        return JsonObject(o + mapOf("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA), "overrides" to JsonObject(emptyMap())))
     }
 
     @Test
@@ -122,7 +163,7 @@ class ThemeMigrationTest {
     @Test
     fun unreadableFilesAreRejected() {
         val newer = ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = Theme()).toJson()
-            .replace("\"schemaVersion\": 3", "\"schemaVersion\": 99")
+            .replace("\"schemaVersion\": ${ThemeDocument.CURRENT_SCHEMA}", "\"schemaVersion\": 99")
         for (bad in listOf(newer, "not json", "[]", "{}", "{\"schemaVersion\": \"x\"}", "{\"title\": \"no theme\"}")) {
             assertFailsWith<ThemeFormatException>(bad) { migrate(bad) }
         }

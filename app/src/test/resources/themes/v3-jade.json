@@ -1,0 +1,171 @@
+{
+    "schemaVersion": 3,
+    "id": "preset-jade",
+    "name": "Jade",
+    "created": 0,
+    "modified": 0,
+    "theme": {
+        "shape": {
+            "strokeWeight": 1.75,
+            "cap": "ROUND",
+            "join": "ROUND",
+            "miterLimit": 4.0,
+            "iconScale": 0.8,
+            "offsetX": 0.0,
+            "offsetY": 0.0,
+            "dots": "SCALE_WITH_STROKE"
+        },
+        "fill": {
+            "mode": "INVERT",
+            "gapWidth": 1.0,
+            "gapClosing": 0.5,
+            "fallbackThreshold": 0.1,
+            "keepLoneLines": true
+        },
+        "background": {
+            "enabled": true,
+            "shape": {
+                "type": "roundedSquare",
+                "cornerRadius": 0.2
+            },
+            "size": 1.0,
+            "border": null
+        },
+        "layers": [
+            {
+                "type": "paint",
+                "id": "background",
+                "source": {
+                    "type": "solid",
+                    "color": "#FF000000"
+                },
+                "clip": "BACKGROUND",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "effects",
+                "id": "effects"
+            },
+            {
+                "type": "effect",
+                "id": "streaks",
+                "enabled": true,
+                "blend": "NORMAL",
+                "opacity": 0.35,
+                "effect": {
+                    "type": "streaks",
+                    "angle": 300.0,
+                    "length": 0.35,
+                    "decay": "EXPONENTIAL",
+                    "breakup": {
+                        "texture": "529541caaef2a89958423ffa5e19474d7e8ef76a41c142e0bfcbb6834dd3bf30",
+                        "scale": 1.0,
+                        "stretch": 6.0,
+                        "density": 0.55,
+                        "contrast": 0.4,
+                        "seed": 0
+                    },
+                    "paintLayer": "icon-fill",
+                    "color": "#FFFFFFFF"
+                }
+            },
+            {
+                "type": "paint",
+                "id": "icon-fill",
+                "source": {
+                    "type": "noise",
+                    "kind": "FBM",
+                    "octaves": 5,
+                    "seed": 17,
+                    "stops": [
+                        {
+                            "offset": 0.0,
+                            "color": "#FF06402C"
+                        },
+                        {
+                            "offset": 0.55,
+                            "color": "#FF1E8C5E"
+                        },
+                        {
+                            "offset": 1.0,
+                            "color": "#FF8FE0B8"
+                        }
+                    ]
+                },
+                "clip": "ICON_FILL",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.5,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "paint",
+                "id": "veins",
+                "source": {
+                    "type": "noise",
+                    "kind": "RIDGED",
+                    "octaves": 4,
+                    "seed": 23,
+                    "stops": [
+                        {
+                            "offset": 0.0,
+                            "color": "#FFD8FFEC"
+                        }
+                    ]
+                },
+                "clip": "ICON_FILL",
+                "clipInverse": false,
+                "blend": "SCREEN",
+                "opacity": 0.5,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 0.75,
+                    "rotation": 30.0,
+                    "lockOffset": false
+                },
+                "matte": {
+                    "mode": "LEVELS",
+                    "black": 0.7,
+                    "white": 1.0,
+                    "threshold": 0.5,
+                    "invert": false,
+                    "feather": 0.0
+                }
+            },
+            {
+                "type": "paint",
+                "id": "icon-lines",
+                "source": {
+                    "type": "solid",
+                    "color": "#FF2E9E6E"
+                },
+                "clip": "ICON_LINES",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            }
+        ]
+    }
+}

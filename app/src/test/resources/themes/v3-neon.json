@@ -1,0 +1,123 @@
+{
+    "schemaVersion": 3,
+    "id": "preset-neon",
+    "name": "Neon",
+    "created": 0,
+    "modified": 0,
+    "theme": {
+        "shape": {
+            "strokeWeight": 1.25,
+            "cap": "ROUND",
+            "join": "ROUND",
+            "miterLimit": 4.0,
+            "iconScale": 0.8,
+            "offsetX": 0.0,
+            "offsetY": 0.0,
+            "dots": "SCALE_WITH_STROKE"
+        },
+        "fill": {
+            "mode": "OUTLINE",
+            "gapWidth": 1.0,
+            "gapClosing": 0.5,
+            "fallbackThreshold": 0.1,
+            "keepLoneLines": true
+        },
+        "background": {
+            "enabled": true,
+            "shape": {
+                "type": "circle"
+            },
+            "size": 1.0,
+            "border": null
+        },
+        "layers": [
+            {
+                "type": "paint",
+                "id": "background",
+                "source": {
+                    "type": "solid",
+                    "color": "#FF0D0B1E"
+                },
+                "clip": "BACKGROUND",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "effects",
+                "id": "effects"
+            },
+            {
+                "type": "effect",
+                "id": "glow",
+                "enabled": true,
+                "blend": "SCREEN",
+                "opacity": 0.9,
+                "effect": {
+                    "type": "outerGlow",
+                    "size": 0.035,
+                    "spread": 0.2,
+                    "color": "#FFB04DFF"
+                }
+            },
+            {
+                "type": "paint",
+                "id": "icon-fill",
+                "source": {
+                    "type": "solid",
+                    "color": "#FFFFFFFF"
+                },
+                "clip": "ICON_FILL",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "paint",
+                "id": "icon-lines",
+                "source": {
+                    "type": "linear",
+                    "x0": 0.0,
+                    "y0": 0.0,
+                    "x1": 1.0,
+                    "y1": 1.0,
+                    "stops": [
+                        {
+                            "offset": 0.2,
+                            "color": "#FFFF2BD6"
+                        },
+                        {
+                            "offset": 0.8,
+                            "color": "#FF2BF0FF"
+                        }
+                    ]
+                },
+                "clip": "ICON_LINES",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            }
+        ]
+    }
+}
