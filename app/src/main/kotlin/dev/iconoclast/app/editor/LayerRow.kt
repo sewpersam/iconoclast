@@ -74,7 +74,7 @@ private fun summary(layer: Layer): String = when (layer) {
         append(", ").append(Math.round(layer.opacity * 100)).append('%')
         append(", clip ")
         if (layer.clipInverse) append("outside ")
-        append(CLIP_NAMES.getValue(layer.clip))
+        append(clipName(layer.clip))
         if (layer.matte != null) append(", masked")
     }
 }

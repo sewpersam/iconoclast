@@ -35,6 +35,8 @@ class ThemeSerializationTest {
         Theme(),
         Theme(background = Theme().background.copy(shape = BackgroundShape.Square, border = Border(0.05f, 0x80FF0000.toInt()))),
         Theme(background = Theme().background.copy(shape = BackgroundShape.RoundedSquare(0.5f), enabled = false)),
+        // Effects is no longer offered as a clip target; themes that use it still load.
+        Theme(layers = Theme().layers + PaintLayer("fx", Paint.Solid(0x80FFFFFF.toInt()), clip = ClipTarget.EFFECTS)),
     )
 
     @Test

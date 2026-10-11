@@ -61,6 +61,14 @@ class LayerStackTest {
         assertEquals(BlendMode.entries.toList(), BLEND_NAMES.keys.toList())
         assertEquals("Add", BLEND_NAMES[BlendMode.ADD])
         assertEquals("Normal", BLEND_NAMES[BlendMode.NORMAL])
-        assertEquals(ClipTarget.entries.toSet(), CLIP_NAMES.keys)
+        assertEquals(ClipTarget.entries.toSet() - ClipTarget.EFFECTS, CLIP_NAMES.keys)
+        assertEquals("Effects", clipName(ClipTarget.EFFECTS))
+    }
+
+    @Test
+    fun clippingToTheWholeCanvasDropsTheInverse() {
+        val l = LayerStack.newLayer(Paint.Solid(0)).copy(clipInverse = true)
+        assertEquals(ClipTarget.CANVAS to false, LayerStack.withClip(l, ClipTarget.CANVAS).let { it.clip to it.clipInverse })
+        assertEquals(ClipTarget.BACKGROUND to true, LayerStack.withClip(l, ClipTarget.BACKGROUND).let { it.clip to it.clipInverse })
     }
 }

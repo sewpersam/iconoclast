@@ -55,6 +55,10 @@ object LayerStack {
         mapping = if (source is Paint.Texture) NEW_TEXTURE_MAPPING else Mapping(),
     )
 
+    /** [layer] clipped to [clip]. The whole canvas has no outside, so its inverse is dropped. */
+    fun withClip(layer: PaintLayer, clip: ClipTarget): PaintLayer =
+        layer.copy(clip = clip, clipInverse = layer.clipInverse && clip != ClipTarget.CANVAS)
+
     fun backgroundTexture(theme: Theme): PaintLayer? = layer(theme, BACKGROUND_TEXTURE_ID) as? PaintLayer
 
     /**

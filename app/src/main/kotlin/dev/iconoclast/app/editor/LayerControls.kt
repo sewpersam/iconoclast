@@ -41,10 +41,16 @@ val BLEND_NAMES: Map<BlendMode, String> = linkedMapOf(
     BlendMode.LUMINOSITY to "Luminosity", BlendMode.ADD to "Add",
 )
 
+/**
+ * The clip targets a user can pick. Effects is left out until M6 defines what it clips
+ * to; a theme that already uses it still loads and shows it by [clipName].
+ */
 val CLIP_NAMES: Map<ClipTarget, String> = linkedMapOf(
     ClipTarget.ICON to "Icon", ClipTarget.ICON_FILL to "Icon fill", ClipTarget.ICON_LINES to "Icon lines",
-    ClipTarget.BACKGROUND to "Background", ClipTarget.EFFECTS to "Effects", ClipTarget.CANVAS to "Whole canvas",
+    ClipTarget.BACKGROUND to "Background", ClipTarget.CANVAS to "Whole canvas",
 )
+
+fun clipName(clip: ClipTarget): String = CLIP_NAMES[clip] ?: "Effects"
 
 /**
  * Every setting of one paint layer, spec 2.3 "Layers": source, clip and its inverse,
@@ -56,8 +62,11 @@ fun LayerControls(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: 
     fun with(l: PaintLayer) = LayerStack.replace(theme, l)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         PaintControl(layer.source, d.source, { drag(with(layer.copy(source = it))) }, done, { commit(with(layer.copy(source = it))) }, textures)
-        ChoiceControl("Clip to", CLIP_NAMES.toList(), layer.clip, d.clip, { commit(with(layer.copy(clip = it))) })
-        SwitchControl("Inverse clip", layer.clipInverse, d.clipInverse) { commit(with(layer.copy(clipInverse = it))) }
+        ChoiceControl("Clip to", CLIP_NAMES.toList(), layer.clip, d.clip, { commit(with(LayerStack.withClip(layer, it))) })
+        // Outside the whole canvas is nothing; the switch only turns such an inverse off.
+        SwitchControl("Inverse clip", layer.clipInverse, d.clipInverse, enabled = layer.clip != ClipTarget.CANVAS || layer.clipInverse) {
+            commit(with(layer.copy(clipInverse = it)))
+        }
         BlendControl(layer.blend, d.blend) { commit(with(layer.copy(blend = it))) }
         SliderControl("Opacity", layer.opacity, 0f..1f, d.opacity, percent,
             { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = d.opacity))) })

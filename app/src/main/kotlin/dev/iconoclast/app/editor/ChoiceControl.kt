@@ -45,12 +45,12 @@ fun <T> ChoiceControl(
     }
 }
 
-/** An on/off switch with a reset to [default]. */
+/** An on/off switch with a reset to [default]. [enabled] false greys it out. */
 @Composable
-fun SwitchControl(label: String, checked: Boolean, default: Boolean, onChange: (Boolean) -> Unit) {
+fun SwitchControl(label: String, checked: Boolean, default: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        ResetButton(label, enabled = checked != default) { onChange(default) }
-        Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.semantics { contentDescription = label })
+        ResetButton(label, enabled = enabled && checked != default) { onChange(default) }
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled, modifier = Modifier.semantics { contentDescription = label })
     }
 }
