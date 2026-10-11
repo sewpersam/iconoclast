@@ -32,6 +32,9 @@ internal object Streaks {
         val frame = Smear.Frame(size, e.angle)
         val side = frame.side
         val smeared = Smear.smear(frame.toFrame(EffectSource.icon(input)), side, e.length * size, e.decay)
+        // The exponential tail never reaches 0. Below [FLOOR] it cannot change an 8-bit
+        // pixel; dropping it spares the breakup and the linked paint everywhere it would be.
+        for (k in smeared.indices) if (smeared[k] < FLOOR) smeared[k] = 0f
         e.breakup?.let { b ->
             val gain = 1f / (1f - 0.95f * b.contrast)
             val shift = 1f - b.density
@@ -55,7 +58,7 @@ internal object Streaks {
         }
         val cov = frame.fromFrame(smeared)
         val source = layers.firstOrNull { it.id == e.paintLayer } as? PaintLayer
-        return if (source != null) EffectOutput(cov, null, StackEvaluator.sourceColors(source, input), blend)
+        return if (source != null) EffectOutput(cov, null, StackEvaluator.sourceColors(source, input, need = cov), blend)
         else EffectOutput(cov, EffectPaint.solid(e.color), null, blend)
     }
 
@@ -82,6 +85,9 @@ internal object Streaks {
         val bottom = lum(x0, y1) + (lum(x1, y1) - lum(x0, y1)) * wx
         return top + (bottom - top) * wy
     }
+
+    /** Smear coverage below this is dropped: under half an 8-bit step. */
+    private const val FLOOR = 1f / 512
 
     /** Noise cells across the canvas at breakup scale 1. */
     private const val NOISE_CELLS = 16f

@@ -100,7 +100,9 @@ internal object StackEvaluator {
         val clip = clip(layer, input, pass)
         if (clip.empty) return
         val n = input.size * input.size
-        val src = source(layer.source, layer, input, needLuminance = layer.matte != null)
+        // A feathered matte reads its neighbours, so then the source is needed everywhere.
+        val feathered = layer.matte?.let { it.feather * input.size >= 0.5f } ?: false
+        val src = source(layer.source, layer, input, needLuminance = layer.matte != null, need = if (feathered) null else clip.need())
         val matte = layer.matte?.let { Mattes.apply(it, src.luminance!!, input.size) }
         val opacity = layer.opacity
         val solid = src.solid
@@ -129,7 +131,8 @@ internal object StackEvaluator {
      */
     private class Source(val solid: FloatArray?, val colors: FloatArray?, val luminance: FloatArray?)
 
-    private fun source(paint: Paint, layer: PaintLayer, input: StackInput, needLuminance: Boolean): Source {
+    /** [need]: when given, only pixels where it is not 0 are evaluated; the rest are left 0. */
+    private fun source(paint: Paint, layer: PaintLayer, input: StackInput, needLuminance: Boolean, need: FloatArray? = null): Source {
         val n = input.size * input.size
         return when (paint) {
             is Paint.Solid -> {
@@ -142,7 +145,7 @@ internal object StackEvaluator {
             }
             is Paint.Texture -> {
                 val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
-                val px = Mappings.texture(tex, layer.mapping, input.drawable, input.size)
+                val px = Mappings.texture(tex, layer.mapping, input.drawable, input.size, need)
                 val lum = if (needLuminance) lumOf(px, n) else null
                 paint.stops?.let { stops ->
                     val c = FloatArray(4)
@@ -156,7 +159,7 @@ internal object StackEvaluator {
                 Source(null, px, lum)
             }
             is Paint.Noise -> {
-                val v = Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size)
+                val v = Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size, need)
                 val px = FloatArray(v.size * 4)
                 val c = FloatArray(4)
                 for (i in v.indices) {
@@ -172,10 +175,11 @@ internal object StackEvaluator {
      * [layer]'s source at every pixel, premultiplied RGBA: under its mapping and the icon's
      * per-icon offset, gradient-mapped through its stops, and not clipped, matted or faded
      * by its opacity. What a layer paints on the whole canvas at full opacity. Streaks
-     * take their paint from here.
+     * take their paint from here. With [need], texture and noise skip the pixels where it
+     * is 0 and leave them 0.
      */
-    fun sourceColors(layer: PaintLayer, input: StackInput): FloatArray {
-        val src = source(layer.source, layer, input, needLuminance = false)
+    fun sourceColors(layer: PaintLayer, input: StackInput, need: FloatArray? = null): FloatArray {
+        val src = source(layer.source, layer, input, needLuminance = false, need = need)
         src.colors?.let { return it }
         val c = src.solid!!
         val n = input.size * input.size
@@ -187,6 +191,9 @@ internal object StackEvaluator {
     /** A clip target resolved to per-pixel coverage. */
     private class Clip(private val values: FloatArray?, private val full: Boolean, private val support: Boolean, private val inverse: Boolean) {
         val empty: Boolean get() = values == null && full == inverse
+
+        /** Where the clip can be non-zero, as a mask, or null for everywhere. */
+        fun need(): FloatArray? = if (inverse) null else values
 
         fun at(i: Int): Float {
             val base = when {

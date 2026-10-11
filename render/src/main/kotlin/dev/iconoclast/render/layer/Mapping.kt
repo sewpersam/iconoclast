@@ -46,8 +46,11 @@ internal object Mappings {
         return r.nextFloat() to r.nextFloat()
     }
 
-    /** The texture under every pixel, premultiplied RGBA floats, bilinear. */
-    fun texture(tex: Texture, mapping: Mapping, drawable: String, size: Int): FloatArray {
+    /**
+     * The texture under every pixel, premultiplied RGBA floats, bilinear. With [need],
+     * pixels where it is 0 are skipped and left transparent: nothing will show them.
+     */
+    fun texture(tex: Texture, mapping: Mapping, drawable: String, size: Int, need: FloatArray? = null): FloatArray {
         val w = tex.width
         val h = tex.height
         val t = turn(mapping)
@@ -81,6 +84,7 @@ internal object Mappings {
         val px = tex.premultiplied
         val out = FloatArray(size * size * 4)
         for (y in 0 until size) for (x in 0 until size) {
+            if (need != null && need[y * size + x] == 0f) continue
             val u = (x + 0.5f) / size - 0.5f
             val v = (y + 0.5f) / size - 0.5f
             val tx = cx + (t.c * u + t.s * v) * k
@@ -119,9 +123,10 @@ internal object Mappings {
      * and harsher grain than the pack. So grain is box-filtered: each pixel is the area
      * average of the cells under its footprint, [Noise.grainBox], and its per-icon offset
      * is whole cells. Unturned, a 432 px render at scale 1 is then exactly one cell per
-     * pixel, and any smaller render is exactly that render box-filtered down.
+     * pixel, and any smaller render is exactly that render box-filtered down. With [need],
+     * pixels where it is 0 are skipped and left 0.
      */
-    fun noise(kind: NoiseKind, octaves: Int, seed: Int, mapping: Mapping, drawable: String, size: Int): FloatArray {
+    fun noise(kind: NoiseKind, octaves: Int, seed: Int, mapping: Mapping, drawable: String, size: Int, need: FloatArray? = null): FloatArray {
         val t = turn(mapping)
         val grain = kind == NoiseKind.GRAIN
         val cells = (if (grain) GRAIN_CELLS else NOISE_CELLS) / mapping.scale
@@ -132,6 +137,7 @@ internal object Mappings {
         val half = cells / size / 2f
         val out = FloatArray(size * size)
         for (y in 0 until size) for (x in 0 until size) {
+            if (need != null && need[y * size + x] == 0f) continue
             val u = (x + 0.5f) / size - 0.5f
             val v = (y + 0.5f) / size - 0.5f
             val nx = bx + (t.c * u + t.s * v) * cells
