@@ -155,4 +155,35 @@ class TextureStoreTest {
         assertEquals(mapOf(true to 2), got.values.groupingBy { it }.eachCount())
         assertEquals(1, peak.get(), "loads overlapped")
     }
+    /** [contains] stats a file once per hash, again after forget or remove. */
+    @Test
+    fun presenceIsRememberedUntilInvalidated() {
+        val hash = "a".repeat(64)
+        var onDisk = false
+        var stats = 0
+        val store = TextureStore(exists = { stats++; onDisk })
+        repeat(3) { assertFalse(hash in store) }
+        assertEquals(1, stats)
+        onDisk = true
+        assertFalse(hash in store, "remembered until told")
+        store.forget(hash)
+        repeat(3) { assertTrue(hash in store) }
+        assertEquals(2, stats)
+        onDisk = false
+        store.remove(hash)
+        assertFalse(hash in store)
+        assertEquals(3, stats)
+    }
+
+    /** A load that finds no file marks the hash absent without another stat. */
+    @Test
+    fun failedLoadMarksAbsent() {
+        val hash = "b".repeat(64)
+        var stats = 0
+        val store = TextureStore(load = { null }, exists = { stats++; true })
+        assertTrue(hash in store)
+        assertNull(store[hash])
+        assertFalse(hash in store)
+        assertEquals(1, stats)
+    }
 }

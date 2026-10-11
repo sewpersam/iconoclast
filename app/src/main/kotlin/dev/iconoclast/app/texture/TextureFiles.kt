@@ -44,6 +44,7 @@ class TextureFiles(private val dir: File, maxBytes: Long = TextureStore.DEFAULT_
             it.fd.sync()
         }
         Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        store.forget(hash)
         _written.value++
     }
 

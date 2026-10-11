@@ -41,6 +41,9 @@ class TextureStore(
     private var resident = 0L
     private val loading = Semaphore(1)
 
+    /** What [exists] said, per hash, so [contains] stats a file once; [forget] drops it. */
+    private val onDisk = HashMap<String, Boolean>()
+
     /**
      * Adds a texture PNG and returns its hash. The PNG is decoded and re-encoded with the
      * project's encoder, and the hash is of those canonical bytes, so the same pixels get
@@ -50,6 +53,7 @@ class TextureStore(
         val texture = decode(png)
         val canonical = PngEncoder.encode(texture.width, texture.height, texture.premultiplied)
         val hash = sha256(canonical)
+        forget(hash)
         insert(hash, Entry(texture, canonical))
         return hash
     }
@@ -65,8 +69,24 @@ class TextureStore(
     /** The canonical PNG of a texture: what a theme export writes as `<hash>.png`. */
     fun bytes(hash: String): ByteArray? = entry(hash)?.png?.copyOf()
 
-    /** In memory, or on disk where [load] can reach it. Reads no file. */
-    operator fun contains(hash: String): Boolean = synchronized(this) { hash in textures } || exists(hash)
+    /**
+     * In memory, or on disk where [load] can reach it. Reads no file, and asks [exists] once
+     * per hash: the answer is kept until [forget], [put] or [remove], or a failed load.
+     */
+    operator fun contains(hash: String): Boolean {
+        synchronized(this) {
+            if (hash in textures) return true
+            onDisk[hash]?.let { return it }
+        }
+        val found = exists(hash)
+        synchronized(this) { onDisk[hash] = found }
+        return found
+    }
+
+    /** Drops the remembered answer of [exists] for [hash]: call after writing or deleting its file. */
+    fun forget(hash: String) {
+        synchronized(this) { onDisk.remove(hash) }
+    }
 
     /** Whether the decoded texture is in memory now. For tests and diagnostics. */
     fun isResident(hash: String): Boolean = synchronized(this) { textures.containsKey(hash) }
@@ -75,7 +95,10 @@ class TextureStore(
     val residentBytes: Long get() = synchronized(this) { resident }
 
     fun remove(hash: String) {
-        synchronized(this) { textures.remove(hash)?.let { resident -= it.bytes } }
+        synchronized(this) {
+            textures.remove(hash)?.let { resident -= it.bytes }
+            onDisk.remove(hash)
+        }
     }
 
     private fun entry(hash: String): Entry? {
@@ -85,7 +108,7 @@ class TextureStore(
         loading.acquireUninterruptibly()
         try {
             synchronized(this) { textures[hash] }?.let { return it }
-            val png = load(hash) ?: return null
+            val png = load(hash) ?: return null.also { synchronized(this) { onDisk[hash] = false } }
             if (sha256(png) != hash) return null
             val texture = try {
                 decode(png)

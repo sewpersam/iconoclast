@@ -37,6 +37,16 @@ class TextureFilesTest {
         assertEquals(setOf(GoldenSet.TEXTURE), files.load(setOf(GoldenSet.TEXTURE)))
     }
 
+    /** The store remembers a texture absent; writing its file clears that. */
+    @Test
+    fun writingATextureClearsRememberedAbsence() {
+        val files = TextureFiles(dir)
+        assertFalse(GoldenSet.TEXTURE in files.store)
+        files.add(cracks)
+        assertFalse(files.store.isResident(GoldenSet.TEXTURE))
+        assertTrue(GoldenSet.TEXTURE in files.store)
+    }
+
     @Test
     fun presenceHidesOnlyTheMissingLayers() {
         val theme = GoldenSet.LOOKS.values.first()
