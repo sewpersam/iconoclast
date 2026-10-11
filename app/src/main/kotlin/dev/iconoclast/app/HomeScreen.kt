@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.material3.Card
@@ -98,7 +97,8 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
                             if (newApps > 0) contentDescription = "Coverage, $newApps new since the last Apply"
                         },
                     ) {
-                        BadgedBox(badge = { if (newApps > 0) Badge { Text("$newApps") } }) { Text("Coverage") }
+                        Text("Coverage")
+                        if (newApps > 0) Badge(Modifier.padding(start = 6.dp)) { Text("$newApps") }
                     }
                     TextButton(onClick = onApply) { Text("Apply") }
                     Box {
