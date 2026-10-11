@@ -55,6 +55,17 @@ class PhoneBudgetTest {
     @Test
     fun applyOf300IconsJadeLike() = apply(GoldenSet.JADE_LIKE, "jade-like")
 
+    /**
+     * The spec's Jade shape: black rounded square, stroke 1.75, invert fill, procedural jade
+     * fill with veins, low-opacity streaks linked to the fill; no bevel, no grain.
+     * GoldenSet.JADE_LIKE without those two layers.
+     */
+    @Test
+    fun applyOf300IconsJadeSpecShape() = apply(
+        GoldenSet.JADE_LIKE.let { t -> t.copy(layers = t.layers.filterNot { it.id == "bevel" || it.id == "grain" }) },
+        "jade-spec",
+    )
+
     private fun apply(theme: Theme, label: String) {
         val target = instrumentation.targetContext.assets
         val source = IconSource.open(target)
