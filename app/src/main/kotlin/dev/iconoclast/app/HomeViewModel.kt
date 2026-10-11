@@ -44,6 +44,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         act("Themes could not be loaded") { repo.load() }
     }
 
+    /** Changes when a texture is added, so cards that lacked it redraw. */
+    val texturesWritten: StateFlow<Int> = container.textures.written
+
     suspend fun previews(theme: Theme): List<PreviewIcon> = container.previews.icons(theme)
 
     private var creating = false

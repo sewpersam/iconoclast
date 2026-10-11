@@ -23,10 +23,14 @@ class ThemePreviews(private val container: AppContainer) {
         override fun sizeOf(key: Theme, value: List<PreviewIcon>) = value.size * SIZE * SIZE * 4
     }
 
+    /**
+     * The card's icons. A texture missing from the phone hides its layer here, and the
+     * result is not cached, so the card redraws once the texture arrives.
+     */
     suspend fun icons(theme: Theme): List<PreviewIcon> = cache.get(theme) ?: withContext(Dispatchers.Default) {
         val source = container.iconSource()
-        // A texture missing from the phone hides its layer here; the editor and Apply say why.
-        val shown = TexturePresence.without(theme, TexturePresence.ensure(container.textures, theme))
+        val absent = TexturePresence.ensure(container.textures, theme)
+        val shown = TexturePresence.without(theme, absent)
         SAMPLES.mapNotNull { name ->
             val index = source.indexOf(name).takeIf { it >= 0 } ?: return@mapNotNull null
             val image = container.renderer.render(name, source.icon(index), shown, SIZE)
@@ -34,8 +38,8 @@ class ThemePreviews(private val container: AppContainer) {
             // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
             bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))
             PreviewIcon(name.replace('_', ' '), bitmap.asImageBitmap())
-        }
-    }.also { cache.put(theme, it) }
+        }.also { if (absent.isEmpty()) cache.put(theme, it) }
+    }
 
     companion object {
         /**

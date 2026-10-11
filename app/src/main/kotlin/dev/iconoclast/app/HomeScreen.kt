@@ -173,7 +173,8 @@ private fun ThemeCard(
 /** Three rows of three live previews, rendered off the main thread. */
 @Composable
 private fun PreviewGrid(doc: ThemeDocument, model: HomeViewModel) {
-    val icons by produceState<List<PreviewIcon>?>(null, doc.theme) { value = model.previews(doc.theme) }
+    val written by model.texturesWritten.collectAsState()
+    val icons by produceState<List<PreviewIcon>?>(null, doc.theme, written) { value = model.previews(doc.theme) }
     Column(
         Modifier.fillMaxWidth().aspectRatio(1f).padding(8.dp)
             .background(PreviewBackdrop, RoundedCornerShape(12.dp)).padding(6.dp),

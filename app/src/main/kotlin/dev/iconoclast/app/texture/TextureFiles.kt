@@ -1,6 +1,8 @@
 package dev.iconoclast.app.texture
 
 import dev.iconoclast.render.texture.TextureStore
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -13,6 +15,10 @@ import java.nio.file.StandardCopyOption
  * here on demand. Files are only added, never rewritten: a hash names one content.
  */
 class TextureFiles(private val dir: File, val store: TextureStore) {
+    private val _written = MutableStateFlow(0)
+
+    /** Counts textures written to disk, so views that showed a texture missing can redraw. */
+    val written: StateFlow<Int> = _written
 
     /**
      * Adds a texture PNG to the store and to disk, canonicalised by the store. Returns its
@@ -36,6 +42,7 @@ class TextureFiles(private val dir: File, val store: TextureStore) {
             it.fd.sync()
         }
         Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        _written.value++
     }
 
     /**
