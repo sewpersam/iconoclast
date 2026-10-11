@@ -199,6 +199,9 @@ object GoldenSet {
 
     /** One golden set per effect, M6. Built-in brush for the streaks; bevel in both styles. */
     val EFFECTS: Map<String, Theme> = mapOf(
+        "effect_bevel" to above(EffectLayer("bevel", Effect.Bevel(size = 0.012f, depth = 1.5f, softness = 0.3f))),
+        "effect_emboss" to above(EffectLayer("bevel", Effect.Bevel(BevelStyle.EMBOSS, lightAngle = 45f, size = 0.02f, depth = 1f,
+            highlight = 0x99FFFFFF.toInt(), shadow = 0x99000000.toInt()))),
         "effect_drop_shadow" to below(EffectLayer("shadow", Effect.DropShadow(angle = 120f, distance = 0.015f, blur = 0.03f,
             color = 0xFF000000.toInt()), blend = BlendMode.MULTIPLY, opacity = 0.8f)),
         "effect_inner_shadow" to above(EffectLayer("inner-shadow", Effect.InnerShadow(angle = 120f, distance = 0.008f, blur = 0.012f,
