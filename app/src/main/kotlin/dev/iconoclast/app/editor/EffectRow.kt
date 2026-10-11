@@ -57,7 +57,7 @@ fun EffectRow(
                     Text("Grain increases pack size.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Switch(layer.enabled, onEnabled, Modifier.semantics { contentDescription = "$label on" })
+            Switch(layer.enabled, onEnabled, Modifier.semantics { contentDescription = label })
             Glyph("↑", "Move $label up", canMoveUp) { onMove(true) }
             Glyph("↓", "Move $label down", canMoveDown) { onMove(false) }
             Glyph("✕", "Remove $label", true, onRemove)

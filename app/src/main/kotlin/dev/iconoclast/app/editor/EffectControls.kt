@@ -64,10 +64,16 @@ fun EffectControls(layer: EffectLayer, theme: Theme, drag: (Theme) -> Unit, done
                 ShadowControls(e.angle, e.distance, e.blur, e.color, d.angle, d.distance, d.blur, d.color,
                     { a, di, b, c -> dragE(Effect.InnerShadow(a, di, b, c)) }, done, { a, di, b, c -> commitE(Effect.InnerShadow(a, di, b, c)) })
             }
-            is Effect.OuterGlow -> GlowControls(e.size, e.spread, e.color,
-                { s, sp, c -> dragE(Effect.OuterGlow(s, sp, c)) }, done, { s, sp, c -> commitE(Effect.OuterGlow(s, sp, c)) })
-            is Effect.InnerGlow -> GlowControls(e.size, e.spread, e.color,
-                { s, sp, c -> dragE(Effect.InnerGlow(s, sp, c)) }, done, { s, sp, c -> commitE(Effect.InnerGlow(s, sp, c)) })
+            is Effect.OuterGlow -> {
+                val d = Effect.OuterGlow()
+                GlowControls(e.size, e.spread, e.color, d.size, d.spread, d.color,
+                    { s, sp, c -> dragE(Effect.OuterGlow(s, sp, c)) }, done, { s, sp, c -> commitE(Effect.OuterGlow(s, sp, c)) })
+            }
+            is Effect.InnerGlow -> {
+                val d = Effect.InnerGlow()
+                GlowControls(e.size, e.spread, e.color, d.size, d.spread, d.color,
+                    { s, sp, c -> dragE(Effect.InnerGlow(s, sp, c)) }, done, { s, sp, c -> commitE(Effect.InnerGlow(s, sp, c)) })
+            }
             is Effect.Grain -> GrainControls(e, dragE, done, commitE)
         }
     }
@@ -166,12 +172,12 @@ private fun ShadowControls(
 @Composable
 private fun GlowControls(
     size: Float, spread: Float, color: Int,
+    dSize: Float, dSpread: Float, dColor: Int,
     onDrag: (Float, Float, Int) -> Unit, onDone: () -> Unit, onCommit: (Float, Float, Int) -> Unit,
 ) {
-    val d = Effect.OuterGlow()
-    SliderControl("Size", size, 0.001f..0.1f, d.size, canvas, { onDrag(it, spread, color) }, onDone, { onCommit(d.size, spread, color) })
-    SliderControl("Spread", spread, 0f..1f, d.spread, percent, { onDrag(size, it, color) }, onDone, { onCommit(size, d.spread, color) })
-    ColorControl("Glow colour", color, d.color, { onDrag(size, spread, it) }, onDone, { onCommit(size, spread, it) })
+    SliderControl("Size", size, 0.001f..0.1f, dSize, canvas, { onDrag(it, spread, color) }, onDone, { onCommit(dSize, spread, color) })
+    SliderControl("Spread", spread, 0f..1f, dSpread, percent, { onDrag(size, it, color) }, onDone, { onCommit(size, dSpread, color) })
+    ColorControl("Glow colour", color, dColor, { onDrag(size, spread, it) }, onDone, { onCommit(size, spread, it) })
 }
 
 @Composable
