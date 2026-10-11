@@ -2,7 +2,7 @@
 
 A theme is a recipe, spec 2.4: the parameters the renderer reads, never images.
 One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
-shares the same JSON. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
+shares a `.zip` holding that JSON as `theme.json` and the textures it uses. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
 ## Schema version 2
 
@@ -161,3 +161,22 @@ and a test, and update this file.
 - `filesDir/themes/active`: the active theme's id, plain text, same atomic write.
 - `filesDir/themes/seeded`: present once the starter presets were seeded. A
   deleted preset stays deleted.
+- `filesDir/textures/<sha256>.png`: one canonical PNG per imported texture,
+  written once, atomically. Loaded into the renderer's store on demand.
+
+## Export and import
+
+Export writes `<name>.zip` with `theme.json`, then `textures/<sha256>.png` for
+each hash in `Theme.textureHashes()`, entry times fixed at 1980-01-01, shared
+as `application/zip` through the FileProvider. Code: `ThemeZipExport.kt`.
+
+Import takes a `.zip` or a bare theme JSON (`ThemeZipImport.kt`). A zip must
+hold `theme.json`; the theme is migrated and validated; each texture it uses
+must be in `textures/` and match its hash after `TextureStore.put`
+canonicalises it, or already be on the phone. Other entries are ignored and
+never stored. A bare JSON imports only when its textures are on the phone.
+Limits: 64 MB per file, 256 KB for `theme.json`, 24 MB per texture entry.
+Any failure refuses the whole import with a message.
+
+A theme whose texture is missing never reaches the renderer: previews hide
+that layer and say so, Apply stops with a message.
