@@ -157,7 +157,9 @@ is composited into the premultiplied buffer.
 canonical PNG, apart from the mask cache. `put` decodes any 8-bit RGBA PNG,
 re-encodes it with the project's `PngEncoder` and hashes those bytes, so the
 same pixels get the same hash whichever encoder wrote the file;
-`bytes(hash)` returns the canonical file for export. It decodes through `png/Inflate`, a pure-Kotlin RFC 1950/1951
+`bytes(hash)` returns the canonical file for export. An evicted texture
+loads back through the app's loader, checked by the SHA-256 of the file's
+own bytes with no re-encode, one load at a time. It decodes through `png/Inflate`, a pure-Kotlin RFC 1950/1951
 decoder after puff.c, and `png/PngDecoder`, and refuses a side over 2048 px.
 
 ## Mask cache

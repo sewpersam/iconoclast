@@ -3,6 +3,7 @@ package dev.iconoclast.render.texture
 import dev.iconoclast.render.png.PngDecoder
 import dev.iconoclast.render.png.PngEncoder
 import java.security.MessageDigest
+import java.util.concurrent.Semaphore
 
 /** A decoded texture: premultiplied RGBA, 8 bits per channel, row-major. Read-only. */
 class Texture internal constructor(val width: Int, val height: Int, internal val premultiplied: ByteArray)
@@ -20,9 +21,12 @@ class CanonicalTexture(val hash: String, val png: ByteArray)
  *
  * Memory is bounded: decoded pixels plus canonical files are kept least recently used
  * first out, up to [maxBytes]. An evicted texture comes back through [load], the canonical
- * file by hash from wherever the app keeps it, checked against its hash on the way in.
- * [exists] says whether [load] would find a file, without reading it. With neither, the
- * store holds only what was put, still bounded. Thread-safe.
+ * file by hash from wherever the app keeps it. Files are canonical by construction, so the
+ * check on the way in is the SHA-256 of the file's own bytes, with no re-encode; a damaged
+ * file fails it. Loads run one at a time, so renders missing different textures do not
+ * each hold a file, its inflated rows and its pixels at once. [exists] says whether [load]
+ * would find a file, without reading it. With neither, the store holds only what was put,
+ * still bounded. Thread-safe.
  */
 class TextureStore(
     private val maxBytes: Long = DEFAULT_MAX_BYTES,
@@ -35,6 +39,7 @@ class TextureStore(
 
     private val textures = LinkedHashMap<String, Entry>(16, 0.75f, true)
     private var resident = 0L
+    private val loading = Semaphore(1)
 
     /**
      * Adds a texture PNG and returns its hash. The PNG is decoded and re-encoded with the
@@ -75,16 +80,22 @@ class TextureStore(
 
     private fun entry(hash: String): Entry? {
         synchronized(this) { textures[hash] }?.let { return it }
-        // Decoded outside the lock, so one slow load does not stall every render.
-        val png = load(hash) ?: return null
-        val texture = try {
-            decode(png)
-        } catch (e: IllegalArgumentException) {
-            return null
+        // Loaded outside the lock, so one slow load does not stall renders of resident
+        // textures, and behind one permit, so loads do not stack their peaks.
+        loading.acquireUninterruptibly()
+        try {
+            synchronized(this) { textures[hash] }?.let { return it }
+            val png = load(hash) ?: return null
+            if (sha256(png) != hash) return null
+            val texture = try {
+                decode(png)
+            } catch (e: IllegalArgumentException) {
+                return null
+            }
+            return insert(hash, Entry(texture, png))
+        } finally {
+            loading.release()
         }
-        val canonical = PngEncoder.encode(texture.width, texture.height, texture.premultiplied)
-        if (sha256(canonical) != hash) return null
-        return insert(hash, Entry(texture, canonical))
     }
 
     /** Inserts and evicts the least recently used down to [maxBytes]; the new entry always stays. */

@@ -118,4 +118,41 @@ class TextureStoreTest {
         assertFalse(hash in TextureStore())
         assertEquals(hash, TextureStore().put(png))
     }
+    /**
+     * A reload checks the file's own hash and does not re-encode it. The file here is
+     * ImageIO's, not canonical: re-encoding would give another hash and refuse it.
+     */
+    @Test
+    fun reloadHashesTheFileWithoutReencoding() {
+        val img = java.awt.image.BufferedImage(5, 5, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        for (y in 0 until 5) for (x in 0 until 5) img.setRGB(x, y, (0xFF shl 24) or (x * 50 shl 8) or y * 50)
+        val file = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(img, "png", it) }.toByteArray()
+        val hash = TextureStore.sha256(file)
+        assertTrue(TextureStore.canonical(file).hash != hash, "the file is not canonical")
+        val store = TextureStore(load = { if (it == hash) file else null })
+        assertEquals(5, store[hash]!!.width)
+        assertContentEquals(file, store.bytes(hash), "the stored file is the loaded one, not a re-encode")
+    }
+
+    /** Two renders missing two textures load them one after the other. */
+    @Test
+    fun concurrentLoadsSerialise() {
+        val pngs = (1..2).map { TextureStore.encode(32, 32, pixels(32, 32).also { p -> p[1] = it.toByte() }) }
+        val files = pngs.associateBy { TextureStore.sha256(it) }
+        val active = java.util.concurrent.atomic.AtomicInteger()
+        val peak = java.util.concurrent.atomic.AtomicInteger()
+        val store = TextureStore(load = { h ->
+            peak.accumulateAndGet(active.incrementAndGet(), ::maxOf)
+            Thread.sleep(100)
+            active.decrementAndGet()
+            files[h]
+        })
+        val start = java.util.concurrent.CountDownLatch(1)
+        val got = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+        val threads = files.keys.map { h -> Thread { start.await(); got[h] = store[h] != null }.apply { start() } }
+        start.countDown()
+        threads.forEach { it.join() }
+        assertEquals(mapOf(true to 2), got.values.groupingBy { it }.eachCount())
+        assertEquals(1, peak.get(), "loads overlapped")
+    }
 }
