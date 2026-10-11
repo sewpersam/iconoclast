@@ -74,7 +74,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
         ui.message?.let {
             val result = snackbar.showSnackbar(it, actionLabel = if (ui.undoable) "Undo" else null, withDismissAction = ui.undoable, duration = SnackbarDuration.Long)
             vm.messageShown()
-            if (result == SnackbarResult.ActionPerformed) vm.undo()
+            if (result == SnackbarResult.ActionPerformed) vm.undoRemoval()
         }
     }
     Scaffold(

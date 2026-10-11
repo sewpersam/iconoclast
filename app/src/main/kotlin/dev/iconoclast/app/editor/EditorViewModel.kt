@@ -97,6 +97,8 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     private var samples: List<PreviewItem> = emptyList()
     private var visible: Set<Int> = emptySet()
     private var reportedAbsent: Set<String> = emptySet()
+    /** History depth and theme right after the last layer removal, for its snackbar Undo. */
+    private var removal: EditorHistory.Mark? = null
     private var textureTarget: TextureTarget = TextureTarget.NewLayer
 
     private val previews = PreviewRenderer(
@@ -245,8 +247,21 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         val h = history ?: return
         val label = LayerStack.layer(h.theme, id)?.let { LayerStack.label(h.theme, it) } ?: return
         commit(LayerStack.remove(h.theme, id))
+        removal = h.mark()
         if (_ui.value.selectedLayer == id) selectLayer(null)
         say("Removed $label", undoable = true)
+    }
+
+    /**
+     * The snackbar's Undo: reverts the removal only while the history is still where the
+     * removal left it, same depth and same theme. After any later edit it does nothing.
+     */
+    fun undoRemoval() {
+        val mark = removal ?: return
+        removal = null
+        var undone = false
+        edit { h -> h.undoIfAt(mark).also { undone = it } }
+        if (!undone) say("Not undone: the theme changed after the layer was removed.")
     }
 
     /** Opens the texture chooser for [target]. */

@@ -22,6 +22,7 @@ class EditorHistory(initial: Theme, private val limit: Int = LIMIT) {
     private var dragStart: Theme? = null
 
     val canUndo get() = undo.isNotEmpty()
+
     val canRedo get() = redo.isNotEmpty()
     val dragging get() = dragStart != null
 
@@ -48,6 +49,15 @@ class EditorHistory(initial: Theme, private val limit: Int = LIMIT) {
         record(start)
         return true
     }
+
+    /** A point in the history: its depth and the theme there, by identity. */
+    class Mark internal constructor(internal val depth: Int, internal val theme: Theme)
+
+    fun mark() = Mark(undo.size, theme)
+
+    /** Undoes one step only from exactly [mark]: a later edit, undo or redo leaves it inert. */
+    fun undoIfAt(mark: Mark): Boolean =
+        if (dragStart == null && undo.size == mark.depth && theme === mark.theme) undo() else false
 
     fun undo(): Boolean {
         endDrag()

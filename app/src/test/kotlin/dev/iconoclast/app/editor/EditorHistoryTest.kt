@@ -74,3 +74,22 @@ class EditorHistoryTest {
         assertEquals(weight(0.25f + 50 * 0.02f), h.theme)
     }
 }
+
+class EditorHistoryMarkTest {
+    private fun weight(w: Float) = Theme(shape = ShapeParams(strokeWeight = w))
+
+    /** Item 4: the removal's Undo reverts the removal, never a later edit. */
+    @Test
+    fun undoIfAtActsOnlyFromTheMark() {
+        val h = EditorHistory(weight(1f))
+        h.commit(weight(2f))
+        val mark = h.mark()
+        h.commit(weight(3f))
+        assertFalse(h.undoIfAt(mark), "a later edit makes the mark inert")
+        assertEquals(weight(3f), h.theme)
+        h.undo()
+        assertTrue(h.undoIfAt(mark), "back at the mark, it undoes the marked step")
+        assertEquals(weight(1f), h.theme)
+        assertFalse(h.undoIfAt(mark))
+    }
+}
