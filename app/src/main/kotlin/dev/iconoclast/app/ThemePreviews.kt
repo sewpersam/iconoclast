@@ -1,14 +1,11 @@
 package dev.iconoclast.app
 
-import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.nio.ByteBuffer
 
 /** One preview icon. [label] is its content description. */
 class PreviewIcon(val label: String, val image: ImageBitmap)
@@ -33,11 +30,7 @@ class ThemePreviews(private val container: AppContainer) {
         val shown = TexturePresence.render(container.textures.store, theme) { t ->
             SAMPLES.mapNotNull { name ->
                 val index = source.indexOf(name).takeIf { it >= 0 } ?: return@mapNotNull null
-                val image = container.renderer.render(name, source.icon(index), t, SIZE)
-                val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-                // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
-                bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))
-                PreviewIcon(name.replace('_', ' '), bitmap.asImageBitmap())
+                PreviewIcon(name.replace('_', ' '), container.renderer.render(name, source.icon(index), t, SIZE).toImageBitmap())
             }
         }
         shown.value.also { if (shown.complete) cache.put(theme, it) }
@@ -52,7 +45,7 @@ class ThemePreviews(private val container: AppContainer) {
         /** About 28 themes of nine 128 px icons. */
         private const val CACHE_BYTES = 16 * 1024 * 1024
 
-        /** Nine of the golden sample icons: varied shapes, dots, enclosed and open areas. */
+        /** Nine of [dev.iconoclast.render.SampleIcons]: varied shapes, dots, enclosed and open areas. */
         val SAMPLES = listOf("fdroid", "camera", "firefox", "signal", "calculator", "clock", "settings", "weather", "termux")
     }
 }

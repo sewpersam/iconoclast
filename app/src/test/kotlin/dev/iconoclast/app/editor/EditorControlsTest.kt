@@ -1,17 +1,22 @@
 package dev.iconoclast.app.editor
 
 import dev.iconoclast.render.ColorStop
+import dev.iconoclast.app.ThemePreviews
 import dev.iconoclast.render.GoldenSet
+import dev.iconoclast.render.SampleIcons
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class EditorControlsTest {
 
     @Test
     fun sampleSetIsTheGoldenSet() {
-        assertEquals(GoldenSet.SAMPLES, EditorViewModel.SAMPLES)
-        assertEquals(24, EditorViewModel.SAMPLES.size)
+        assertSame(SampleIcons.NAMES, GoldenSet.SAMPLES)
+        assertEquals(24, SampleIcons.NAMES.size)
+        assertTrue(ThemePreviews.SAMPLES.all { it in SampleIcons.NAMES })
     }
 
     @Test

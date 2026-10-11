@@ -2,11 +2,9 @@ package dev.iconoclast.app.editor
 
 import android.app.Application
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.createSavedStateHandle
@@ -16,6 +14,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.iconoclast.app.InstalledApps
 import dev.iconoclast.app.container
+import dev.iconoclast.app.toImageBitmap
 import dev.iconoclast.app.texture.TextureImport
 import dev.iconoclast.app.texture.TextureImportException
 import dev.iconoclast.app.texture.TexturePresence
@@ -27,6 +26,7 @@ import dev.iconoclast.render.Effect
 import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
+import dev.iconoclast.render.SampleIcons
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -38,7 +38,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
-import java.nio.ByteBuffer
 
 enum class PreviewSource { INSTALLED, SAMPLES }
 
@@ -140,7 +139,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         val icons = container.iconSource()
         source = icons
         plain = withContext(Dispatchers.IO) { migrate(Presets.read(app.assets).first()).theme }
-        samples = SAMPLES.mapNotNull { name -> icons.indexOf(name).takeIf { it >= 0 }?.let { PreviewItem(it, name.replace('_', ' ')) } }
+        samples = SampleIcons.NAMES.mapNotNull { name -> icons.indexOf(name).takeIf { it >= 0 }?.let { PreviewItem(it, name.replace('_', ' ')) } }
         installed = withContext(Dispatchers.IO) { installedItems(app, icons) }
         withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, doc.theme) }
         history = EditorHistory(doc.theme)
@@ -374,11 +373,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     private fun draw(drawable: Int, theme: Theme): ImageBitmap {
         val icons = requireNotNull(source)
-        val image = container.renderer.render(icons.names.name(drawable), icons.icon(drawable), theme, SIZE)
-        val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-        // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
-        bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))
-        return bitmap.asImageBitmap()
+        return container.renderer.render(icons.names.name(drawable), icons.icon(drawable), theme, SIZE).toImageBitmap()
     }
 
     private suspend fun save(theme: Theme) {
@@ -405,16 +400,6 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         const val RENDER_THREADS = 4
         const val SAVE_DELAY_MS = 300L
         private const val SOURCE_KEY = "previewSource"
-
-        /**
-         * The sample set, spec 2.2: dense, sparse, text-heavy, dotted and open-line
-         * icons. The 24 golden samples, which were chosen for that variety.
-         */
-        val SAMPLES = listOf(
-            "fdroid", "camera", "google_chrome", "firefox", "signal", "telegram", "whatsapp", "google_maps",
-            "youtube", "spotify", "calculator", "clock", "contacts", "gallery", "messages", "phone",
-            "settings", "weather", "notes", "termux", "vlc", "wikipedia", "keepassdx", "newpipe",
-        )
 
         fun factory(id: String): ViewModelProvider.Factory = viewModelFactory {
             initializer { EditorViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!, createSavedStateHandle(), id) }

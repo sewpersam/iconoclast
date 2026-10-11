@@ -5,11 +5,7 @@ package dev.iconoclast.render
  * GoldenTest and the on-device byte identity test in :app's androidTest.
  */
 object GoldenSet {
-    val SAMPLES = listOf(
-        "fdroid", "camera", "google_chrome", "firefox", "signal", "telegram", "whatsapp", "google_maps",
-        "youtube", "spotify", "calculator", "clock", "contacts", "gallery", "messages", "phone",
-        "settings", "weather", "notes", "termux", "vlc", "wikipedia", "keepassdx", "newpipe",
-    )
+    val SAMPLES = SampleIcons.NAMES
 
     private const val WHITE = 0xFFFFFFFF.toInt()
     private const val TEAL = 0xFF7FD1B9.toInt()
