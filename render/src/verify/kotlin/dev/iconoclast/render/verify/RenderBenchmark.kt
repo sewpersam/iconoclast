@@ -2,15 +2,20 @@ package dev.iconoclast.render.verify
 
 import dev.iconoclast.render.BackgroundParams
 import dev.iconoclast.render.BackgroundShape
+import dev.iconoclast.render.BlendMode
+import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.Mapping
+import dev.iconoclast.render.Matte
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.IconBundle
 import dev.iconoclast.render.png.PngEncoder
+import dev.iconoclast.render.texture.TextureStore
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.concurrent.Callable
@@ -28,21 +33,24 @@ fun main(args: Array<String>) {
     val apply = (0 until 300).map { it * (bundle.size / 300) }
     println("jvm ${System.getProperty("java.vm.name")} ${System.getProperty("java.version")}, " +
         "${Runtime.getRuntime().availableProcessors()} cpus")
-    val themes = FillMode.entries.map { it.name to Theme(fill = FillParams(mode = it)) } + ("JADE" to JADE)
+    // One shared texture store, decoded once: the timings are rendering, not texture loads.
+    val textures = TextureStore()
+    val textured = jadeTextured(textures.put(TextureStore.encode(TEXTURE_SIDE, TEXTURE_SIDE, texturePixels())))
+    val themes = FillMode.entries.map { it.name to Theme(fill = FillParams(mode = it)) } + ("JADE" to JADE) + ("JADE_TEXTURED" to textured)
     for ((label, theme) in themes) {
-        val previewMs = best { IconRenderer().let { r -> preview.forEach { r.render("icon$it", bundle.icon(it), theme, 128) } } }
-        val renderMs = best { IconRenderer().let { r -> apply.forEach { r.render("icon$it", bundle.icon(it), theme, 432) } } }
-        val pngMs = best { IconRenderer().let { r -> apply.forEach { r.renderPng("icon$it", bundle.icon(it), theme, 432) } } }
+        val previewMs = best { IconRenderer(textures = textures).let { r -> preview.forEach { r.render("icon$it", bundle.icon(it), theme, 128) } } }
+        val renderMs = best { IconRenderer(textures = textures).let { r -> apply.forEach { r.render("icon$it", bundle.icon(it), theme, 432) } } }
+        val pngMs = best { IconRenderer(textures = textures).let { r -> apply.forEach { r.renderPng("icon$it", bundle.icon(it), theme, 432) } } }
         val pool = Executors.newFixedThreadPool(threads)
         val parallelMs = try {
             best {
-                val r = IconRenderer()
+                val r = IconRenderer(textures = textures)
                 pool.invokeAll(apply.map { i -> Callable { r.renderPng("icon$i", bundle.icon(i), theme, 432) } }).forEach { it.get() }
             }
         } finally {
             pool.shutdown()
         }
-        val bytes = IconRenderer().let { r -> apply.sumOf { r.renderPng("icon$it", bundle.icon(it), theme, 432).size.toLong() } }
+        val bytes = IconRenderer(textures = textures).let { r -> apply.sumOf { r.renderPng("icon$it", bundle.icon(it), theme, 432).size.toLong() } }
         println("%-18s preview 24@128 %5.0f ms | apply 300@432 render %6.0f ms, render+png %6.0f ms, %d threads %6.0f ms | %d KB/icon"
             .format(label, previewMs, renderMs, pngMs, threads, parallelMs, bytes / 300 / 1024))
     }
@@ -65,6 +73,40 @@ private val JADE = Theme(
     background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
     layers = Theme.baseLayers(Paint.Solid(0xFF000000.toInt()), body = 0xFF00A86B.toInt(), line = 0xFF00A86B.toInt()),
 )
+
+/**
+ * Jade with texture: a background texture layer, and the fill textured, masked by levels
+ * and feathered, at the new-layer mapping (scale 2), the editor's default.
+ */
+private fun jadeTextured(hash: String) = JADE.copy(
+    layers = JADE.layers.flatMap { l ->
+        when (l.id) {
+            Layer.BACKGROUND_ID -> listOf(l, PaintLayer("bg-texture", Paint.Texture(hash), clip = ClipTarget.BACKGROUND,
+                blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 2f)))
+            Layer.ICON_FILL_ID -> listOf(l, PaintLayer("fill-texture", Paint.Texture(hash), clip = ClipTarget.ICON_FILL,
+                blend = BlendMode.MULTIPLY, mapping = Mapping(scale = 2f), matte = Matte(black = 0.2f, white = 0.8f, feather = 0.01f)))
+            else -> listOf(l)
+        }
+    },
+)
+
+private const val TEXTURE_SIDE = 1024
+
+/**
+ * An opaque grey stand-in for a photo, premultiplied RGBA: smooth waves at three scales
+ * plus +-8 levels of hashed grain, as a camera's sensor noise would give.
+ */
+private fun texturePixels(): ByteArray {
+    val px = ByteArray(TEXTURE_SIDE * TEXTURE_SIDE * 4)
+    for (y in 0 until TEXTURE_SIDE) for (x in 0 until TEXTURE_SIDE) {
+        val wave = 60 * StrictMath.sin(x / 23.0) + 40 * StrictMath.sin(y / 41.0 + x / 97.0) + 20 * StrictMath.sin((x + y) / 7.0)
+        val grain = ((x * 73856093) xor (y * 19349663)).ushr(7) % 17 - 8
+        val g = (128 + wave.toInt() + grain).coerceIn(0, 255)
+        val o = (y * TEXTURE_SIDE + x) * 4
+        px[o] = g.toByte(); px[o + 1] = g.toByte(); px[o + 2] = g.toByte(); px[o + 3] = -1
+    }
+    return px
+}
 
 /** Jade with another fill colour: a paint-only change. */
 private val Theme.recolored: Theme
