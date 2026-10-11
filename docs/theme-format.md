@@ -121,7 +121,9 @@ A texture is referenced by content hash, spec 2.4. The file is a canonical
 PNG: 8-bit RGBA written by the project's own encoder (`TextureStore.encode`)
 from premultiplied pixels, so equal pixels give equal bytes and equal hashes
 on every device. Longest side at most 2048 px; the importer downscales first.
-The file name is `<sha256>.png`. A theme export (`.zip`, Task 8) carries
+The file name is `<sha256>.png`. `TextureStore.put` re-encodes whatever PNG
+it is given and hashes the canonical bytes, and `TextureStore.bytes(hash)`
+returns them, so an exported file always matches its hash. A theme export (`.zip`, Task 8) carries
 `theme.json` and every file in `Theme.textureHashes()`. On load, each file is
 checked against its hash (`TextureStore.put(hash, bytes)`); a theme whose
 texture is missing does not render.

@@ -153,10 +153,11 @@ is composited into the premultiplied buffer.
 
 ## Textures
 
-`texture/TextureStore` keeps decoded textures by the SHA-256 of their PNG
-file, apart from the mask cache. A texture file is canonical: the project's
-`PngEncoder` output for the premultiplied pixels, so its hash is the same on
-every platform. It decodes through `png/Inflate`, a pure-Kotlin RFC 1950/1951
+`texture/TextureStore` keeps decoded textures by the SHA-256 of their
+canonical PNG, apart from the mask cache. `put` decodes any 8-bit RGBA PNG,
+re-encodes it with the project's `PngEncoder` and hashes those bytes, so the
+same pixels get the same hash whichever encoder wrote the file;
+`bytes(hash)` returns the canonical file for export. It decodes through `png/Inflate`, a pure-Kotlin RFC 1950/1951
 decoder after puff.c, and `png/PngDecoder`, and refuses a side over 2048 px.
 
 ## Mask cache
