@@ -23,6 +23,13 @@ androidComponents {
     }
 }
 
+// DrawableSearchTest ranks searches over every converted drawable name at the pin.
+tasks.withType<Test>().configureEach {
+    val convert = tasks.named<ConvertIconsTask>("convertArcticonsIcons")
+    inputs.dir(convert.flatMap { it.outputDir })
+    systemProperty("arcticons.names", convert.get().outputDir.get().asFile.resolve("arcticons/names.txt").path)
+}
+
 dependencies {
     api(project(":render"))
     testImplementation(libs.kotlin.test.junit)
