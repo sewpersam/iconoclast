@@ -19,3 +19,15 @@ class Mask internal constructor(internal val values: FloatArray) {
 
     fun contentEquals(other: FloatArray): Boolean = values.contentEquals(other)
 }
+
+/**
+ * Per-pixel values that are not coverage, such as a signed distance in pixels: any finite
+ * float. Read-only and shared through the cache, like [Mask].
+ */
+class Field internal constructor(internal val values: FloatArray) {
+    val pixels: Int get() = values.size
+
+    operator fun get(i: Int): Float = values[i]
+
+    fun toFloatArray(): FloatArray = values.copyOf()
+}

@@ -8,6 +8,7 @@ import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class CompositorTest {
@@ -90,6 +91,29 @@ class CompositorTest {
         val misses = r.cache.misses
         assertContentEquals(square.pixels, r.render("square", icon, Theme(), 96).pixels)
         assertEquals(misses, r.cache.misses)
+    }
+
+    /** Readiness item 3: kinds keep derived data apart, and each kind has one type. */
+    @Test
+    fun effectKeysHaveAKindAndATypedCache() {
+        val fill = FillKey.of("square", ShapeParams(), FillParams(mode = FillMode.INVERT), 96)
+        val icon = EffectKey.of(fill, false, true)
+        assertEquals(EffectKind.ICON, icon.kind)
+        val blur2 = icon.derived(EffectKind.BLUR, 2f)
+        val sdf = icon.derived(EffectKind.SIGNED_DISTANCE)
+        assertEquals(setOf(icon, blur2, icon.derived(EffectKind.BLUR, 3f), sdf).size, 4)
+        assertEquals(icon.derived(EffectKind.BLUR, -0f), icon.derived(EffectKind.BLUR, 0f))
+
+        val cache = MaskCache()
+        val m = cache.effect(icon) { Mask(FloatArray(4) { 1f }) }
+        val b = cache.effect(blur2) { Mask(FloatArray(4) { 0.5f }) }
+        val f = cache.field(sdf) { Field(floatArrayOf(-3f, 0f, 2.5f, 40f)) }
+        assertTrue(m !== b)
+        assertEquals(40f, f[3], "a field holds values beyond coverage")
+        assertTrue(cache.field(sdf) { error("cached") } === f)
+        assertEquals(4L * 12, cache.bytesHeld)
+        assertFailsWith<IllegalArgumentException> { cache.field(icon) { Field(FloatArray(1)) } }
+        assertFailsWith<IllegalArgumentException> { cache.effect(sdf) { Mask(FloatArray(1)) } }
     }
 
     /**

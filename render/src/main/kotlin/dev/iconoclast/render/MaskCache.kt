@@ -26,13 +26,40 @@ data class FillKey(val drawable: String, val shape: ShapeParams, val mode: FillM
 data class LoneLinesKey(val fill: FillKey)
 
 /**
- * Masks derived from the fill stage's output, such as the icon clip target and M6's
- * effects. That output depends on the fill stage, whether invert fill fell back, and the
- * lone-lines switch, so all three are in the key. Built by [of], which clears the two
- * flags where they cannot change the output.
+ * What an [EffectKey] names. A coverage kind caches a [Mask], 0 to 1; a field kind caches
+ * a [Field], any finite value. [MaskCache.effect] and [MaskCache.field] check it, so a key
+ * can never come back as the other type.
  */
-data class EffectKey(val fill: FillKey, val fellBack: Boolean, val keepLoneLines: Boolean) {
+enum class EffectKind(val coverage: Boolean) {
+    /** The icon clip target, fill body union lines. */
+    ICON(true),
+
+    /** The icon mask, Gaussian blurred; [EffectKey.param] is sigma in pixels. */
+    BLUR(true),
+
+    /** Signed sub-pixel distance to the icon mask's edge in pixels, positive inside: mask/SignedDistance. */
+    SIGNED_DISTANCE(false),
+}
+
+/**
+ * Masks and fields derived from the fill stage's output: the icon clip target and what
+ * the effects build from it. That output depends on the fill stage, whether invert fill
+ * fell back, and the lone-lines switch, so all three are in the key, then the [kind] of
+ * derived data and its one parameter, [param], 0 where the kind has none. Built by [of],
+ * which clears the two flags where they cannot change the output, then [derived].
+ */
+data class EffectKey(
+    val fill: FillKey,
+    val fellBack: Boolean,
+    val keepLoneLines: Boolean,
+    val kind: EffectKind = EffectKind.ICON,
+    val param: Float = 0f,
+) {
+    /** The same source, another kind of derived data. -0f is stored as 0f so the keys match. */
+    fun derived(kind: EffectKind, param: Float = 0f) = copy(kind = kind, param = param + 0f)
+
     companion object {
+        /** The key of the icon mask. */
         fun of(fill: FillKey, fellBack: Boolean, keepLoneLines: Boolean) = when {
             fill.mode != FillMode.INVERT -> EffectKey(fill, false, false)
             fellBack -> EffectKey(fill, true, false)
@@ -75,8 +102,17 @@ class MaskCache(private val maxBytes: Long = 64L shl 20) {
     fun loneLines(key: LoneLinesKey, compute: () -> Mask): Mask =
         get(key, compute) { 4L * it.pixels }
 
-    fun effect(key: EffectKey, compute: () -> Mask): Mask =
-        get(key, compute) { 4L * it.pixels }
+    /** A coverage mask derived from the fill output. [key]'s kind must be a coverage kind. */
+    fun effect(key: EffectKey, compute: () -> Mask): Mask {
+        require(key.kind.coverage) { "${key.kind} is a field" }
+        return get(key, compute) { 4L * it.pixels }
+    }
+
+    /** A field derived from the fill output. [key]'s kind must be a field kind. */
+    fun field(key: EffectKey, compute: () -> Field): Field {
+        require(!key.kind.coverage) { "${key.kind} is coverage" }
+        return get(key, compute) { 4L * it.pixels }
+    }
 
     fun background(key: BackgroundKey, compute: () -> Pair<Mask, Mask?>): Pair<Mask, Mask?> =
         get(key, compute) { 4L * (it.first.pixels + (it.second?.pixels ?: 0)) }
