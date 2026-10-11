@@ -67,7 +67,7 @@ fun BreakupPicker(selected: String?, actions: BreakupActions, layerId: String, o
             for (hash in imported) {
                 Choice("Imported", selected == hash, { onSelect(hash) }) { TextureThumbnail(actions.file(hash), "Imported texture ${hash.take(8)}", THUMB) }
             }
-            OutlinedButton(onClick = { actions.import(layerId) }, Modifier.width(THUMB + 24.dp)) { Text("Import", textAlign = TextAlign.Center) }
+            OutlinedButton(onClick = { actions.import(layerId) }) { Text("Import", maxLines = 1) }
         }
     }
 }
