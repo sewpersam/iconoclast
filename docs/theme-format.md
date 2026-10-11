@@ -124,9 +124,17 @@ on every device. Longest side at most 2048 px; the importer downscales first.
 The file name is `<sha256>.png`. `TextureStore.put` re-encodes whatever PNG
 it is given and hashes the canonical bytes, and `TextureStore.bytes(hash)`
 returns them, so an exported file always matches its hash. A theme export (`.zip`, Task 8) carries
-`theme.json` and every file in `Theme.textureHashes()`. On load, each file is
-checked against its hash (`TextureStore.put(hash, bytes)`); a theme whose
+`theme.json` and every file in `Theme.textureHashes()`. An imported file is
+canonicalised and checked against its hash (`TextureStore.put(hash, bytes)`).
+A file the phone already stores is canonical by construction, so reloading
+it checks the SHA-256 of its own bytes, without a re-encode. A theme whose
 texture is missing does not render.
+
+What the hash guarantees: the stored file, and so the theme that names it,
+is stable. It does not promise that the same source photo imported on two
+phones gets one hash. Import scales the photo down and may convert its
+colour profile through the platform's decoder, and those pixels can differ
+between devices; different pixels give a different canonical file.
 
 ## Migration
 
@@ -171,6 +179,10 @@ and a test, and update this file.
 Export writes `<name>.zip` with `theme.json`, then `textures/<sha256>.png` for
 each hash in `Theme.textureHashes()`, entry times fixed at 1980-01-01, shared
 as `application/zip` through the FileProvider. Code: `ThemeZipExport.kt`.
+The archive's bytes are deterministic per platform, not across platforms:
+`java.util.zip` deflates through the platform's zlib, whose output may
+differ. The entries inside are byte-identical everywhere: `theme.json` and
+the canonical texture files.
 
 Import takes a `.zip` or a bare theme JSON (`ThemeZipImport.kt`). A zip must
 hold `theme.json`; the theme is migrated and validated; each texture it uses

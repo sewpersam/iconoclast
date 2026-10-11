@@ -89,6 +89,9 @@ Extracted from the execution ledger on 2026-10-10. Triage from the whole-branch 
 - MaskCache counters now increment under the lock; only test reads are unsynchronised.
 
 ### M5 readiness, from the M4 whole-milestone review (do these first, in order)
+
+All ten done in M5; confirmed by the M5 whole-milestone review.
+
 1. Masks become read-only at the cache boundary; cache the fill core without the geometry reference and re-attach on read (also fixes the loose 64 MB bound). DONE in M5 Task 7, 0a01bd5.
 2. The renderer gets a stable icon identity: render takes the drawable name or a name-derived seed; offset-dependent layer keys use it. DONE in M5 Task 7, db079f1.
 3. Effect keys include the fallback: (FillKey, fellBack, keepLoneLines), following the LoneLinesKey pattern. DONE in M5 Task 7, 0e1eeba.
@@ -99,3 +102,33 @@ Extracted from the execution ledger on 2026-10-10. Triage from the whole-branch 
 8. StrictMath or plain arithmetic on every per-pixel path; seeded PRNG for noise. DONE in M5 Task 7, 52731e4.
 9. Sealing is not strictly monotone below one step: step over the distinct strokeD2 values <= r² instead of ceil(r) samples. DONE in M5 Task 7, 2ef0b37.
 10. Declare lifecycle-viewmodel-compose and lifecycle-runtime-compose in the version catalog. DONE in M5 Task 7, 01acd7b.
+
+## M5 additions (2026-10-10)
+
+### Fixed from the M5 whole-milestone review
+
+Texture reload hashes the file without a re-encode, one load at a time;
+home preview survives a texture lost mid-render; Effects clip target and
+inverse clip on the whole canvas hidden; noise offset period 256; a
+layer switched to a texture starts at scale 2; texture presence cached;
+golden set covers all 17 blend modes; textured benchmark row; zip and hash
+guarantees documented. Details: `.superpowers/sdd/plan-m5/final-fix-report.md`.
+
+### Deferred from M5
+
+- PNG encode of a textured 432 px icon takes about 190 ms in the pure-Kotlin
+  `Deflate` (benchmark `JADE_TEXTURED`: render + PNG 7.4x solid Jade, 4
+  threads 7.2x). Rendering itself is 1.66x. Owned by M6 before textured Apply
+  is gated: faster match search or a lower effort level, bytes still pinned.
+
+### M6 readiness, from the M5 whole-milestone review (do these first, in order)
+1. Each effect its own Layer subtype EffectLayer(id, effect, enabled, blend, opacity), marker kept as border anchor and default insertion point, schema v3 with pure v2→v3.
+2. Define EFFECTS as a clip target before re-enabling it.
+3. EffectKey gains a kind, typed MaskCache method, allow a non-coverage float Field.
+4. Streaks and bevel read the icon mask (body union lines), not masks.body.
+5. textureHashes() covers effect textures and linked layers, built-in brushes bundled by hash and always present.
+6. Expose layer source evaluation under mapping and per-icon offset, unclipped, for streak paint.
+7. Signed sub-pixel EDT for bevel, validated on the binary build first.
+8. Shared separable Gaussian, box passes or EDT falloff for large radii.
+9. Streak smear via axis rotation plus IIR or prefix sums, decide allowed decay curves.
+10. Decide whether Grain is a preset noise layer or a real effect, and fix grain cell size to canvas-relative so previews match Apply.
