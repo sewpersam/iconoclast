@@ -175,9 +175,12 @@ cached under the icon's `EffectKey` with an `EffectKind`: `BLUR` by sigma, a
 
 - **Streaks** (`Streaks`, `Smear`). The mask is turned into a frame whose
   rows run along the streak, each row smeared causally, and turned back,
-  bilinear. Linear decay by two prefix sums, exponential by a one-tap
-  recursion: O(1) per pixel at any length. No other curves: an arbitrary
-  one costs a tap per pixel of length. Breakup multiplies the smear in the
+  bilinear. The smear holds the strongest paint dragged onto each pixel,
+  `y = max(x, decayed y)`, so thin lines streak as strongly as bodies, a
+  brush streak rather than a motion blur. Linear decay subtracts 1/L per
+  pixel, exponential multiplies by `exp(-3 / L)`: one recursion, O(1) per
+  pixel at any length. No other curves: an arbitrary one costs a tap per
+  pixel of length. Breakup multiplies the smear in the
   same frame: a texture tiled and stretched along the streak, or fBm, each
   icon its own patch, through density and contrast. The paint is the linked
   paint layer's source, unclipped (`StackEvaluator.sourceColors`), or a

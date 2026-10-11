@@ -5,48 +5,52 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Readiness item 9: the smear's two decay curves and the frame turn. */
+/** Readiness item 9 and the review's hold ruling: the smear's two decays and the frame turn. */
 class SmearTest {
 
-    /** Prefix sums and the recursion against the plain weighted sums they replace. */
+    /** The recursions against the plain maxima they replace: y[i] = max over t of x[i - t] decayed by t. */
     @Test
-    fun fastFormsEqualDirectSums() {
+    fun recursionsEqualDirectMaxima() {
         val side = 64
         val rnd = dev.iconoclast.render.math.SplitMix64(5)
         val frame = FloatArray(side * side) { if (rnd.nextFloat() < 0.3f) rnd.nextFloat() else 0f }
         for (length in listOf(1f, 2.5f, 7f, 40f, 100f)) {
             val lin = Smear.smear(frame, side, length, Decay.LINEAR)
             val exp = Smear.smear(frame, side, length, Decay.EXPONENTIAL)
-            val l = kotlin.math.ceil(length).toInt()
             val r = StrictMath.exp(-3.0 / length)
             for (row in listOf(0, 17, 63)) for (i in 0 until side) {
-                var s = 0.0
+                var l = 0.0
                 var e = 0.0
                 for (t in 0..i) {
                     val x = frame[row * side + i - t].toDouble()
-                    if (t < l) s += (l - t) * x
-                    e += (1 - r) * StrictMath.pow(r, t.toDouble()) * x
+                    l = maxOf(l, x - t / length.toDouble())
+                    e = maxOf(e, x * StrictMath.pow(r, t.toDouble()))
                 }
-                assertEquals(s / (l * (l + 1) / 2.0), lin[row * side + i].toDouble(), 1e-5, "linear $length at $row,$i")
-                assertEquals(e, exp[row * side + i].toDouble(), 1e-5, "exponential $length at $row,$i")
+                assertEquals(l, lin[row * side + i].toDouble(), 1e-4, "linear $length at $row,$i")
+                assertEquals(e, exp[row * side + i].toDouble(), 1e-4, "exponential $length at $row,$i")
             }
         }
     }
 
-    /** One bright pixel trails toward the streak: a straight fade or a long tail. */
+    /** One bright pixel holds and fades toward the streak: a straight fade, or 5% left at the length. */
     @Test
     fun curvesHaveTheirShape() {
         val side = 32
         val frame = FloatArray(side * side).also { it[5 * side + 4] = 1f }
         val lin = Smear.smear(frame, side, 10f, Decay.LINEAR)
-        for (t in 0 until 10) assertEquals((10 - t) / 55f, lin[5 * side + 4 + t], 1e-6f)
-        assertEquals(0f, lin[5 * side + 14], "ends at the length")
+        for (t in 0..10) assertEquals(maxOf(0f, 1f - t / 10f), lin[5 * side + 4 + t], 1e-5f)
         assertEquals(0f, lin[5 * side + 3], "nothing behind")
+        // The fractional length is honoured: 2.5 px reaches 0.2 after two steps.
+        val short = Smear.smear(frame, side, 2.5f, Decay.LINEAR)
+        assertEquals(0.2f, short[5 * side + 6], 1e-5f)
+        assertEquals(0f, short[5 * side + 7])
         val exp = Smear.smear(frame, side, 10f, Decay.EXPONENTIAL)
         assertEquals(0.05f, exp[5 * side + 14] / exp[5 * side + 4], 0.001f, "5% left at the length")
-        // A solid run stays solid inside.
-        val solid = FloatArray(side * side) { 1f }
-        assertTrue(Smear.smear(solid, side, 10f, Decay.LINEAR).drop(side * 3 + 12).take(10).all { kotlin.math.abs(it - 1f) < 1e-6f })
+        assertEquals(1f, exp[5 * side + 4], "the source pixel keeps its paint")
+        // A one-pixel line streaks as strongly as a solid body: the hold, not a blur.
+        val line = FloatArray(side * side).also { for (r in 0 until side) it[r * side + 4] = 1f }
+        val held = Smear.smear(line, side, 10f, Decay.LINEAR)
+        assertEquals(0.5f, held[8 * side + 9], 1e-5f)
     }
 
     /** Angle 0 trails right, 90 up, 180 left, 270 down; the frame turn is exact at those angles. */

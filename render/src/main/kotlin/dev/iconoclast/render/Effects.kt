@@ -29,12 +29,15 @@ data class EffectLayer(
     }
 }
 
-/** How a streak fades along its length, effect/Smear. */
+/**
+ * How a streak fades along its length, effect/Smear. The streak holds the strongest paint
+ * dragged onto each pixel, so thin lines streak as strongly as solid bodies.
+ */
 enum class Decay {
-    /** Weight 1 - t / length: a straight fade to nothing at the full length. */
+    /** Held paint loses 1 / length per pixel: a straight fade to nothing at the full length. */
     LINEAR,
 
-    /** Weight exp(-3 t / length): 5% left at the full length, a long faint tail beyond. */
+    /** Held paint times exp(-3 / length) per pixel: 5% left at the full length, a faint tail beyond. */
     EXPONENTIAL,
 }
 

@@ -8,19 +8,22 @@ import dev.iconoclast.render.math.floor
  * The streak smear, readiness item 9. The mask is turned into a frame whose rows run
  * along the streak ([Frame.toFrame], bilinear, zero outside), each row is smeared
  * causally toward the streak's direction, and the result is turned back
- * ([Frame.fromFrame]). In the frame the smear is one dimensional, so it costs O(1) per
- * pixel at any length:
+ * ([Frame.fromFrame]).
  *
- * - [Decay.LINEAR], weights `L - t` for t = 0 until L: two prefix sums per row, of x and
- *   of k x, give any window's weighted sum in O(1).
- * - [Decay.EXPONENTIAL], weights `r^t` with `r = exp(-3 / L)`: the one-tap recursion
- *   `y[i] = (1 - r) x[i] + r y[i - 1]`.
+ * The smear is a hold, not a blur: each pixel keeps the strongest paint dragged onto it,
+ * `y[i] = max(x[i], decayed y[i - 1])`, so a thin line streaks as strongly as a solid
+ * body, as a brush drags paint off any edge it crosses. A normalised motion blur, the
+ * first model, left thin lines a faint trail of their width over the length. The
+ * reference is a brush streak; the hold is the ruling (Task 9 review). Two decays, each
+ * one recursion, O(1) per pixel at any length L:
  *
- * Both are normalised to sum 1, so the inside of a solid region stays at full coverage
- * and the trail fades from it. Only these two curves are allowed: an arbitrary curve has
- * no recursion or prefix form and would cost L taps per pixel, about 260 at the longest
- * streak on a 432 px icon, which breaks the phone budget; the two cover a fade that ends
- * and one that tails off.
+ * - [Decay.LINEAR]: `y[i] = max(x[i], y[i - 1] - 1 / L)`, a straight fade that ends at L.
+ * - [Decay.EXPONENTIAL]: `y[i] = max(x[i], r y[i - 1])` with `r = exp(-3 / L)`, 5% left
+ *   at L, a faint tail beyond.
+ *
+ * L is fractional in both. Only these two curves: an arbitrary curve has no recursion
+ * and would cost L taps per pixel, about 260 at the longest streak on a 432 px icon,
+ * which breaks the phone budget; the two cover a fade that ends and one that tails off.
  */
 internal object Smear {
 
@@ -31,39 +34,16 @@ internal object Smear {
             frame.copyInto(out)
             return out
         }
-        when (decay) {
-            Decay.LINEAR -> {
-                val l = ceil(length).toInt()
-                val p = DoubleArray(side + 1)
-                val q = DoubleArray(side + 1)
-                // Sum of (L - t) for t in 0 until L: the weight of a full window.
-                val norm = l * (l + 1) / 2.0
-                for (row in 0 until side) {
-                    val base = row * side
-                    for (k in 0 until side) {
-                        val v = frame[base + k].toDouble()
-                        p[k + 1] = p[k] + v
-                        q[k + 1] = q[k] + k * v
-                    }
-                    for (i in 0 until side) {
-                        // Sum over k in [i - L + 1, i] of (L - i + k) x[k].
-                        val lo = maxOf(0, i - l + 1)
-                        val s = (l - i) * (p[i + 1] - p[lo]) + (q[i + 1] - q[lo])
-                        out[base + i] = (s / norm).toFloat()
-                    }
-                }
-            }
-            Decay.EXPONENTIAL -> {
-                val r = StrictMath.exp(-3.0 / length)
-                val gain = 1.0 - r
-                for (row in 0 until side) {
-                    val base = row * side
-                    var y = 0.0
-                    for (i in 0 until side) {
-                        y = gain * frame[base + i] + r * y
-                        out[base + i] = y.toFloat()
-                    }
-                }
+        val step = 1f / length
+        val r = StrictMath.exp(-3.0 / length).toFloat()
+        for (row in 0 until side) {
+            val base = row * side
+            var y = 0f
+            for (i in 0 until side) {
+                val held = if (decay == Decay.LINEAR) y - step else r * y
+                val x = frame[base + i]
+                y = if (x > held) x else if (held > 0f) held else 0f
+                out[base + i] = y
             }
         }
         return out
