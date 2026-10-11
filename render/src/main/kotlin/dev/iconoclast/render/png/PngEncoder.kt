@@ -15,14 +15,17 @@ import java.util.zip.CRC32
  */
 object PngEncoder {
 
-    fun encode(image: RgbaImage): ByteArray {
-        val size = image.size
-        val stride = size * 4
-        val straight = unpremultiply(image.pixels)
-        val raw = ByteArray((stride + 1) * size)
+    fun encode(image: RgbaImage): ByteArray = encode(image.size, image.size, image.pixels)
+
+    /** [premultiplied] is [width] x [height] premultiplied RGBA, row-major. Textures use this. */
+    fun encode(width: Int, height: Int, premultiplied: ByteArray): ByteArray {
+        require(width > 0 && height > 0 && premultiplied.size == width * height * 4) { "pixels for ${width}x$height" }
+        val stride = width * 4
+        val straight = unpremultiply(premultiplied)
+        val raw = ByteArray((stride + 1) * height)
         val prevRow = ByteArray(stride)
         val candidate = Array(5) { ByteArray(stride) }
-        for (y in 0 until size) {
+        for (y in 0 until height) {
             val row = straight.copyOfRange(y * stride, (y + 1) * stride)
             val prior = if (y == 0) prevRow else straight.copyOfRange((y - 1) * stride, y * stride)
             var best = 0
@@ -39,8 +42,8 @@ object PngEncoder {
         val out = ByteArrayOutputStream()
         out.write(SIGNATURE)
         val ihdr = ByteArray(13)
-        putInt(ihdr, 0, size)
-        putInt(ihdr, 4, size)
+        putInt(ihdr, 0, width)
+        putInt(ihdr, 4, height)
         ihdr[8] = 8 // bit depth
         ihdr[9] = 6 // RGBA
         chunk(out, "IHDR", ihdr)
