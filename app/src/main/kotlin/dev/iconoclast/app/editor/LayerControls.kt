@@ -79,10 +79,10 @@ fun LayerControls(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: 
 }
 
 /** The base stack's own settings for its layers; a new layer's for the rest. */
-private fun defaultsOf(layer: PaintLayer): PaintLayer =
+internal fun defaultsOf(layer: PaintLayer): PaintLayer =
     Theme().layers.firstOrNull { it.id == layer.id } as? PaintLayer
         ?: if (layer.id == LayerStack.BACKGROUND_TEXTURE_ID) layer.copy(clip = ClipTarget.BACKGROUND, clipInverse = false,
-            blend = BlendMode.NORMAL, opacity = 1f, mapping = Mapping(), matte = null)
+            blend = BlendMode.NORMAL, opacity = 1f, mapping = LayerStack.NEW_TEXTURE_MAPPING, matte = null)
         else LayerStack.newLayer(Paint.Solid(0xFFFFFFFF.toInt())).copy(id = layer.id)
 
 @Composable

@@ -4,6 +4,8 @@ import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.Mapping
+import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
@@ -63,6 +65,19 @@ class LayerStackTest {
         assertEquals("Normal", BLEND_NAMES[BlendMode.NORMAL])
         assertEquals(ClipTarget.entries.toSet() - ClipTarget.EFFECTS, CLIP_NAMES.keys)
         assertEquals("Effects", clipName(ClipTarget.EFFECTS))
+    }
+
+    @Test
+    fun switchingToATextureStartsAtTheNewTextureMapping() {
+        val a = "a".repeat(64)
+        val b = "b".repeat(64)
+        val solid = LayerStack.newLayer(Paint.Solid(0))
+        assertEquals(LayerStack.NEW_TEXTURE_MAPPING, LayerStack.withTexture(solid, a).mapping)
+        val tex = LayerStack.withTexture(solid, a).copy(mapping = Mapping(MappingMode.TILE, scale = 3f))
+        val swapped = LayerStack.withTexture(tex, b)
+        assertEquals(Paint.Texture(b) to tex.mapping, swapped.source to swapped.mapping)
+        val bg = LayerStack.backgroundTexture(LayerStack.withBackgroundTexture(Theme(), a))!!
+        assertEquals(bg.mapping, defaultsOf(bg).mapping, "the reset target is where it started")
     }
 
     @Test

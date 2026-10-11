@@ -55,6 +55,15 @@ object LayerStack {
         mapping = if (source is Paint.Texture) NEW_TEXTURE_MAPPING else Mapping(),
     )
 
+    /**
+     * [layer] painting texture [hash]. A texture layer keeps its stops and mapping; a layer
+     * that painted something else starts at [NEW_TEXTURE_MAPPING], as a new one would.
+     */
+    fun withTexture(layer: PaintLayer, hash: String): PaintLayer {
+        val old = layer.source as? Paint.Texture
+        return layer.copy(source = Paint.Texture(hash, old?.stops), mapping = if (old != null) layer.mapping else NEW_TEXTURE_MAPPING)
+    }
+
     /** [layer] clipped to [clip]. The whole canvas has no outside, so its inverse is dropped. */
     fun withClip(layer: PaintLayer, clip: ClipTarget): PaintLayer =
         layer.copy(clip = clip, clipInverse = layer.clipInverse && clip != ClipTarget.CANVAS)

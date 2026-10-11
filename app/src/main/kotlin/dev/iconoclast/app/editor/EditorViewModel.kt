@@ -315,8 +315,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
                 TextureTarget.NewLayer -> addLayer(Paint.Texture(hash))
                 TextureTarget.Background -> commit(LayerStack.withBackgroundTexture(h.theme, hash))
                 is TextureTarget.Source -> (LayerStack.layer(h.theme, t.layerId) as? PaintLayer)?.let { l ->
-                    val stops = (l.source as? Paint.Texture)?.stops
-                    commit(LayerStack.replace(h.theme, l.copy(source = Paint.Texture(hash, stops))))
+                    commit(LayerStack.replace(h.theme, LayerStack.withTexture(l, hash)))
                 }
             }
         }
