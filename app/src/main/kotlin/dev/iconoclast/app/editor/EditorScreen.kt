@@ -32,6 +32,7 @@ import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Tab
@@ -71,7 +72,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.flush() }
     LaunchedEffect(ui.message) {
         ui.message?.let {
-            val result = snackbar.showSnackbar(it, actionLabel = if (ui.undoable) "Undo" else null, withDismissAction = ui.undoable)
+            val result = snackbar.showSnackbar(it, actionLabel = if (ui.undoable) "Undo" else null, withDismissAction = ui.undoable, duration = SnackbarDuration.Long)
             vm.messageShown()
             if (result == SnackbarResult.ActionPerformed) vm.undo()
         }

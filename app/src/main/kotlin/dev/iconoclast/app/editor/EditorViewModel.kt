@@ -267,14 +267,17 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     /** Imports a picked image as a texture, then uses it. */
     fun importTexture(uri: Uri) {
+        Log.i(TAG, "texture picked: $uri")
         _ui.value = _ui.value.copy(choosingTexture = false, importingTexture = true)
         viewModelScope.launch {
             try {
                 val hash = withContext(Dispatchers.IO) { TextureImport.import(getApplication(), uri, container.textures) }
                 useTexture(hash)
             } catch (e: TextureImportException) {
+                Log.w(TAG, "Texture not imported", e)
                 say("Texture not imported. ${e.message}")
             } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Texture not imported", e)
                 say("Texture not imported. This image could not be read.")
             } catch (e: IOException) {
                 say("Texture not imported. Storage error: ${e.message ?: e.javaClass.simpleName}")
@@ -286,6 +289,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     /** Uses an imported texture for the target the chooser was opened with. */
     fun useTexture(hash: String) {
+        Log.i(TAG, "texture chosen: $hash for $textureTarget")
         _ui.value = _ui.value.copy(choosingTexture = false)
         viewModelScope.launch {
             // An imported texture from an earlier session may not be in memory yet.
