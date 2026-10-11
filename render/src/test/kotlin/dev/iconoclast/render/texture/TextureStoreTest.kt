@@ -186,4 +186,27 @@ class TextureStoreTest {
         assertFalse(hash in store)
         assertEquals(1, stats)
     }
+
+    /** A file that is there but damaged or undecodable also marks the hash absent. */
+    @Test
+    fun corruptOrUndecodableFileMarksAbsent() {
+        val png = TextureStore.encode(4, 4, pixels(4, 4))
+        val hash = TextureStore.sha256(png)
+        // Hash mismatch: the file was overwritten.
+        var stats = 0
+        val damaged = TextureStore(load = { png.copyOf().also { it[it.size - 20] = (it[it.size - 20] + 1).toByte() } }, exists = { stats++; true })
+        assertTrue(hash in damaged)
+        assertNull(damaged[hash])
+        assertFalse(hash in damaged, "a damaged file reads as absent")
+        assertEquals(1, stats)
+        // Matches its hash but does not decode: not a PNG at all.
+        val junk = byteArrayOf(1, 2, 3, 4)
+        val junkHash = TextureStore.sha256(junk)
+        val undecodable = TextureStore(load = { junk }, exists = { true })
+        assertTrue(junkHash in undecodable)
+        assertNull(undecodable[junkHash])
+        assertFalse(junkHash in undecodable, "an undecodable file reads as absent")
+        undecodable.forget(junkHash)
+        assertTrue(junkHash in undecodable, "forget asks again")
+    }
 }

@@ -32,9 +32,10 @@ internal object Mappings {
     const val NOISE_CELLS = 8f
     const val GRAIN_CELLS = 432f
     /**
-     * How far the per-icon offset moves the noise field, in lattice cells. The top fBm
-     * octave (8, frequency 128) at the smallest scale (0.25, 32 cells) reaches
-     * (256 + 16) * 128 < 2^16, where floats are spaced 1/256 cell: smooth. At 4096 the
+     * How far the per-icon offset moves the noise field, in lattice cells. At the smallest
+     * scale, 0.25, the canvas spans 32 cells, so no pixel lies more than 32 cells from the
+     * offset, turned or not. The top fBm octave (8, frequency 128) then reaches at most
+     * (256 + 32) * 128 < 2^16, where floats are spaced 1/256 cell: smooth. At 4096 the
      * spacing was 1/16 cell, and the top octaves stair-stepped.
      */
     const val NOISE_PERIOD = 256f

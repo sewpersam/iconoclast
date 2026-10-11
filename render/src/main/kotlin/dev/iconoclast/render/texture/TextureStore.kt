@@ -71,7 +71,8 @@ class TextureStore(
 
     /**
      * In memory, or on disk where [load] can reach it. Reads no file, and asks [exists] once
-     * per hash: the answer is kept until [forget], [put] or [remove], or a failed load.
+     * per hash: the answer is kept until [forget], [put] or [remove], or a failed load: a
+     * missing, damaged or undecodable file.
      */
     operator fun contains(hash: String): Boolean {
         synchronized(this) {
@@ -108,12 +109,15 @@ class TextureStore(
         loading.acquireUninterruptibly()
         try {
             synchronized(this) { textures[hash] }?.let { return it }
-            val png = load(hash) ?: return null.also { synchronized(this) { onDisk[hash] = false } }
-            if (sha256(png) != hash) return null
+            // A file that is gone, damaged or undecodable cannot render: [contains] says so
+            // from now on, until [forget], [put] or [remove].
+            fun absent(): Entry? = null.also { synchronized(this) { onDisk[hash] = false } }
+            val png = load(hash) ?: return absent()
+            if (sha256(png) != hash) return absent()
             val texture = try {
                 decode(png)
             } catch (e: IllegalArgumentException) {
-                return null
+                return absent()
             }
             return insert(hash, Entry(texture, png))
         } finally {
