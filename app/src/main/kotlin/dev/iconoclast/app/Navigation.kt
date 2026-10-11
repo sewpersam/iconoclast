@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -30,6 +31,8 @@ object Routes {
 @Composable
 fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
     val nav = rememberNavController()
+    // A new theme opens in the editor. Collected here, by the current NavController.
+    LaunchedEffect(nav) { home.created.collect { nav.navigate(Routes.editor(it)) { launchSingleTop = true } } }
     NavHost(nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
             HomeScreen(home, onOpen = { nav.navigate(Routes.editor(it)) { launchSingleTop = true } }, onApply = { nav.navigate(Routes.APPLY) { launchSingleTop = true } })

@@ -88,7 +88,7 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { model.create(onOpen) }) { Text("New theme") }
+            ExtendedFloatingActionButton(onClick = { model.create() }) { Text("New theme") }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->

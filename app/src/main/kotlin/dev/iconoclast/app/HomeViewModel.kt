@@ -36,6 +36,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** Intents the activity must start: the export share sheet. */
     val intents = launches.receiveAsFlow()
 
+    private val opens = Channel<String>(Channel.UNLIMITED)
+    /**
+     * Ids of new themes the editor must open. A channel, not a callback: the activity may be
+     * recreated while the theme is saved, and the next collector still receives the id.
+     */
+    val created = opens.receiveAsFlow()
+
     /** Theme files that could not be read on load. They stay on disk. */
     val unreadable: StateFlow<List<String>> = repo.unreadable
 
@@ -51,13 +58,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private var creating = false
 
-    /** Creates a theme with the renderer defaults and passes its id on, for the editor. Ignores repeat taps. */
-    fun create(onCreated: (String) -> Unit) {
+    /** Creates a theme with the renderer defaults and sends its id to [created], for the editor. Ignores repeat taps. */
+    fun create() {
         if (creating) return
         creating = true
         act("New theme not saved") {
             try {
-                onCreated(repo.create("New theme", Theme()).id)
+                opens.trySend(repo.create("New theme", Theme()).id)
             } finally {
                 creating = false
             }
