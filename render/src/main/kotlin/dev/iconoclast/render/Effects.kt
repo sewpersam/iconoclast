@@ -144,13 +144,13 @@ sealed interface Effect {
     }
 
     /**
-     * A glow around the icon: the mask blurred by [size], its ramp steepened by [spread],
+     * A glow around the icon: the mask blurred by [size], made more solid by [spread],
      * outside the icon only.
      */
     data class OuterGlow(
         /** 0.001 to 0.1 of the canvas: Gaussian radius, sigma half of it. */
         val size: Float = 0.02f,
-        /** 0 to 1: 0 is the plain blur, 1 a hard edge at the blur's half level. */
+        /** 0 to 1: the blur divided by `1 - 0.99 spread`, clamped; 0 is the plain blur, 1 solid out to where it fades. */
         val spread: Float = 0f,
         /** Straight ARGB. */
         val color: Int = 0xFFFFFFFF.toInt(),

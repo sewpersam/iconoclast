@@ -11,6 +11,7 @@ import dev.iconoclast.render.MaskCache
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.background.Paints
+import dev.iconoclast.render.effect.EffectPaint
 import dev.iconoclast.render.fill.GlyphMasks
 import dev.iconoclast.render.texture.TextureStore
 
@@ -36,7 +37,9 @@ internal class StackInput(
  * Step 4 of spec 3.3: paints the layers bottom to top into a premultiplied RGBA buffer.
  * Per pixel a layer's coverage is its clip target (or the inverse) times its matte times
  * its opacity; the source scaled by that coverage is composited with the layer's blend
- * mode, layer/BlendModes. Masks are only read.
+ * mode, layer/BlendModes. An enabled effect layer paints its outputs (effect/EffectPaint)
+ * the same way at its opacity, and adds them to the EFFECTS clip target. Masks are only
+ * read; effects copy before they write.
  */
 internal object StackEvaluator {
 
@@ -44,7 +47,9 @@ internal object StackEvaluator {
         for (layer in layers) when (layer) {
             is EffectsLayer -> input.border?.let { over(buf, it, input.borderColor!!) }
             is PaintLayer -> paint(buf, layer, input, pass)
-            is EffectLayer -> Unit
+            is EffectLayer -> if (layer.enabled && layer.opacity > 0f) {
+                for (out in EffectPaint.outputs(layer, layers, input)) paintEffect(buf, out, layer.opacity, pass)
+            }
         }
     }
 
@@ -58,7 +63,7 @@ internal object StackEvaluator {
     }
 
     /**
-     * What an effect paints: per-pixel [coverage], 0 to 1, and a premultiplied colour,
+     * What an effect paints: per-pixel [coverage], 0 to 1 (clamped there), and a premultiplied colour,
      * one ([solid]) or one per pixel ([colors]), composited with [blend].
      */
     class EffectOutput(val coverage: FloatArray, val solid: FloatArray?, val colors: FloatArray?, val blend: BlendMode)
@@ -72,9 +77,11 @@ internal object StackEvaluator {
         val scratch = FloatArray(3)
         val cv = out.coverage
         for (i in 0 until pass.pixels) {
+            // Blurs by running sums can leave a rounding error either side of [0, 1].
             var cov = cv[i]
+            if (cov <= 0f) continue
+            if (cov > 1f) cov = 1f
             if (opacity != 1f) cov *= opacity
-            if (cov == 0f) continue
             val e = acc[i]
             acc[i] = e + cov - e * cov
             val o = 4 * i

@@ -181,11 +181,40 @@ object GoldenSet {
         ),
     )
 
+    /** Four icons for the effects: antennas and dots, a filled body, a ring, fine teeth. */
+    val EFFECT_SAMPLES = listOf("fdroid", "camera", "spotify", "settings")
+
+    /** The ground every single-effect golden sits on: invert fill, a dark tile, teal and white. */
+    private val EFFECT_BASE = Theme(
+        fill = FillParams(mode = FillMode.INVERT),
+        background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+        layers = Theme.baseLayers(Paint.Solid(0xFF26323C.toInt()), body = TEAL, line = WHITE),
+    )
+
+    /** Below the icon, at the effects marker. */
+    private fun below(effect: EffectLayer) = EFFECT_BASE.withEffect(effect)
+
+    /** On top of the whole stack, where effects on the icon show. */
+    private fun above(effect: EffectLayer) = EFFECT_BASE.copy(layers = EFFECT_BASE.layers + effect)
+
+    /** One golden set per effect, M6. Built-in brush for the streaks; bevel in both styles. */
+    val EFFECTS: Map<String, Theme> = mapOf(
+        "effect_drop_shadow" to below(EffectLayer("shadow", Effect.DropShadow(angle = 120f, distance = 0.015f, blur = 0.03f,
+            color = 0xFF000000.toInt()), blend = BlendMode.MULTIPLY, opacity = 0.8f)),
+        "effect_inner_shadow" to above(EffectLayer("inner-shadow", Effect.InnerShadow(angle = 120f, distance = 0.008f, blur = 0.012f,
+            color = 0xFF0A1A20.toInt()), opacity = 0.7f)),
+        "effect_outer_glow" to below(EffectLayer("glow", Effect.OuterGlow(size = 0.05f, spread = 0.2f, color = 0xFF7FFFD4.toInt()),
+            blend = BlendMode.SCREEN, opacity = 0.8f)),
+        "effect_inner_glow" to above(EffectLayer("inner-glow", Effect.InnerGlow(size = 0.02f, spread = 0.3f, color = 0xFFFFF4C0.toInt()),
+            opacity = 0.8f)),
+    )
+
     /** Every golden: directory, theme and sample name. */
     val CASES: List<Triple<String, Theme, String>>
         get() = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
             POCKET_SAMPLES.map { Triple("pockets", POCKET_THEME, it) } +
             PRESETS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } } +
             LOOKS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
-            BLENDS.flatMap { (dir, theme) -> BLEND_SAMPLES.map { Triple(dir, theme, it) } }
+            BLENDS.flatMap { (dir, theme) -> BLEND_SAMPLES.map { Triple(dir, theme, it) } } +
+            EFFECTS.flatMap { (dir, theme) -> EFFECT_SAMPLES.map { Triple(dir, theme, it) } }
 }
