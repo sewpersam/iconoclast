@@ -23,7 +23,8 @@ import dev.iconoclast.render.math.sqrt
  * steps: Felzenszwalb's exact EDT with the argmin carried along picks the nearest edge
  * pixel, then the edge points of every edge pixel within two pixels of it are tried as
  * well: along a curve, the pixel whose centre is nearest is often a faint one whose edge
- * point lies deeper, and a neighbour along the edge holds the nearer point. Plain float arithmetic and StrictMath sqrt.
+ * point lies deeper, and a neighbour along the edge holds the nearer point. A caller
+ * that reads only a band along the edge, as the bevel does, limits that search to it. Plain float arithmetic and StrictMath sqrt.
  */
 object SignedDistance {
 
@@ -44,8 +45,14 @@ object SignedDistance {
         }
     }
 
-    /** The anti-aliased signed distance of [cov], [w] x [h], positive inside. */
-    fun of(cov: FloatArray, w: Int, h: Int): FloatArray {
+    /**
+     * The anti-aliased signed distance of [cov], [w] x [h], positive inside, within [band]
+     * pixels of the edge, measured from the nearest edge pixel's centre. Beyond it each
+     * pixel holds plus or minus [band]: the sign, and a bound the true distance passes by
+     * under a pixel. On the phone a square root is a native call, so the band saves one per
+     * pixel as well as the search.
+     */
+    fun of(cov: FloatArray, w: Int, h: Int, band: Float = Float.MAX_VALUE): FloatArray {
         val n = w * h
         // Edge points: offsets (ex, ey) from each edge pixel's centre to where the edge crosses it.
         val edge = BooleanArray(n)
@@ -74,11 +81,19 @@ object SignedDistance {
 
         val nearest = nearestFeature(edge, w, h)
         val out = FloatArray(n)
+        val band2 = if (band >= 46340f) Float.MAX_VALUE else band * band
+        // Past the band: the band itself, a bound the true distance passes by under a pixel.
+        val beyond = band
         for (y in 0 until h) for (x in 0 until w) {
             var best = Float.MAX_VALUE
             val p = nearest[y * w + x]
             val px0 = p % w
             val py0 = p / w
+            // Beyond the band only the sign is kept: no search, no square root.
+            if ((px0 - x) * (px0 - x) + (py0 - y) * (py0 - y) > band2) {
+                out[y * w + x] = if (cov[y * w + x] >= 0.5f) beyond else -beyond
+                continue
+            }
             for (qy in maxOf(0, py0 - REACH)..minOf(h - 1, py0 + REACH)) for (qx in maxOf(0, px0 - REACH)..minOf(w - 1, px0 + REACH)) {
                 val q = qy * w + qx
                 if (!edge[q]) continue
@@ -204,4 +219,5 @@ object SignedDistance {
 
     /** Edge pixels within this many pixels of the nearest one are tried for a nearer edge point. */
     private const val REACH = 2
+
 }

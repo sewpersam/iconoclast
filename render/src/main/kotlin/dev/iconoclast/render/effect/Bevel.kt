@@ -5,6 +5,7 @@ import dev.iconoclast.render.Effect
 import dev.iconoclast.render.layer.StackEvaluator.EffectOutput
 import dev.iconoclast.render.layer.StackInput
 import dev.iconoclast.render.mask.Blur
+import dev.iconoclast.render.math.ceil
 import dev.iconoclast.render.math.sqrt
 
 /**
@@ -22,8 +23,10 @@ internal object Bevel {
 
     fun paint(e: Effect.Bevel, input: StackInput): List<EffectOutput> {
         val n = input.size
-        val sd = EffectSource.signedDistance(input)
         val w = e.size * n
+        // The surface changes only within w of the edge (inner) or w / 2 (emboss); the
+        // central differences and softness reach a little farther.
+        val sd = EffectSource.signedDistance(input, band = ceil(w * (1f + e.softness) + 3f))
         val rise = e.depth * w
         val inner = e.style == BevelStyle.INNER
         var h = FloatArray(n * n) {

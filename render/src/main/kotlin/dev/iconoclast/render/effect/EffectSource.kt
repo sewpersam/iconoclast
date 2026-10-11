@@ -18,11 +18,14 @@ internal object EffectSource {
     /** The icon mask, or all zeros when the icon has neither body nor lines. */
     fun icon(input: StackInput): FloatArray = input.icon()?.values ?: FloatArray(input.size * input.size)
 
-    /** Signed sub-pixel distance to the icon mask's edge in pixels, positive inside, cached. */
-    fun signedDistance(input: StackInput): FloatArray {
-        val compute = { Field(SignedDistance.of(icon(input), input.size, input.size)) }
+    /**
+     * Signed sub-pixel distance to the icon mask's edge in pixels, positive inside, cached
+     * by [band]: within [band] px of the edge; beyond, plus or minus [band].
+     */
+    fun signedDistance(input: StackInput, band: Float = Float.MAX_VALUE): FloatArray {
+        val compute = { Field(SignedDistance.of(icon(input), input.size, input.size, band)) }
         val key = input.iconKey ?: return compute().values
-        return input.cache.field(key.derived(EffectKind.SIGNED_DISTANCE), compute).values
+        return input.cache.field(key.derived(EffectKind.SIGNED_DISTANCE, band), compute).values
     }
 
     /**

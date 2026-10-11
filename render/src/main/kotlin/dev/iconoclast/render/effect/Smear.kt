@@ -96,19 +96,68 @@ internal object Smear {
         private fun canvasX(u: Float, v: Float) = centre + u * dx - v * dy
         private fun canvasY(u: Float, v: Float) = centre + u * dy + v * dx
 
-        /** [m], [size] x [size], sampled into the frame. */
+        /**
+         * [m], [size] x [size], sampled into the frame. Only frame pixels whose sample can
+         * reach the non-zero part of [m] are sampled; the rest are 0, as sampling would give.
+         */
         fun toFrame(m: FloatArray): FloatArray {
             val out = FloatArray(side * side)
-            for (j in 0 until side) for (i in 0 until side) {
-                val u = i + 0.5f - half
+            var x0 = size
+            var x1 = -1
+            var y0 = size
+            var y1 = -1
+            for (y in 0 until size) for (x in 0 until size) if (m[y * size + x] != 0f) {
+                if (x < x0) x0 = x
+                if (x > x1) x1 = x
+                if (y < y0) y0 = y
+                if (y > y1) y1 = y
+            }
+            if (x1 < 0) return out
+            // A bilinear sample at s reads floor(s) and floor(s) + 1: non-zero only for s in (x0 - 1, x1 + 1).
+            val lox = x0 - 1f
+            val hix = x1 + 1f
+            val loy = y0 - 1f
+            val hiy = y1 + 1f
+            for (j in 0 until side) {
                 val v = j + 0.5f - half
-                out[j * side + i] = bilinear(m, size, canvasX(u, v) - 0.5f, canvasY(u, v) - 0.5f)
+                // Sample position along the row: sx = ax + u dx, sy = ay + u dy.
+                val ax = centre - v * dy - 0.5f
+                val ay = centre + v * dx - 0.5f
+                var ulo = -half
+                var uhi = half
+                fun clip(a: Float, d: Float, lo: Float, hi: Float) {
+                    if (kotlin.math.abs(d) < 1e-6f) {
+                        if (a <= lo - 1f || a >= hi + 1f) { ulo = 1f; uhi = 0f }
+                        return
+                    }
+                    val t0 = (lo - a) / d
+                    val t1 = (hi - a) / d
+                    ulo = maxOf(ulo, minOf(t0, t1) - 1f)
+                    uhi = minOf(uhi, maxOf(t0, t1) + 1f)
+                }
+                clip(ax, dx, lox, hix)
+                clip(ay, dy, loy, hiy)
+                if (ulo > uhi) continue
+                val i0 = maxOf(0, (ulo + half - 0.5f).toInt() - 1)
+                val i1 = minOf(side - 1, (uhi + half - 0.5f).toInt() + 1)
+                for (i in i0..i1) {
+                    val u = i + 0.5f - half
+                    out[j * side + i] = bilinear(m, size, canvasX(u, v) - 0.5f, canvasY(u, v) - 0.5f)
+                }
             }
             return out
         }
 
-        /** [f], [side] x [side], sampled back onto the canvas. */
+        /** [f], [side] x [side], sampled back onto the canvas, skipping samples that read only zeros. */
         fun fromFrame(f: FloatArray): FloatArray {
+            // Each frame row's first and last non-zero column; lo > hi when it is all zero.
+            val lo = IntArray(side) { side }
+            val hi = IntArray(side) { -1 }
+            for (j in 0 until side) {
+                val row = j * side
+                for (i in 0 until side) if (f[row + i] != 0f) { lo[j] = i; break }
+                for (i in side - 1 downTo 0) if (f[row + i] != 0f) { hi[j] = i; break }
+            }
             val out = FloatArray(size * size)
             for (y in 0 until size) for (x in 0 until size) {
                 val px = x + 0.5f - centre
@@ -116,10 +165,19 @@ internal object Smear {
                 // Inverse of the turn: u along (dx, dy), v along (-dy, dx).
                 val u = px * dx + py * dy
                 val v = -px * dy + py * dx
-                out[y * size + x] = bilinear(f, side, u + half - 0.5f, v + half - 0.5f)
+                val sx = u + half - 0.5f
+                val sy = v + half - 0.5f
+                val i0 = floor(sx).toInt()
+                val j0 = floor(sy).toInt()
+                if (!reaches(lo, hi, j0, i0) && !reaches(lo, hi, j0 + 1, i0)) continue
+                out[y * size + x] = bilinear(f, side, sx, sy)
             }
             return out
         }
+
+        /** Whether frame row [j] has a non-zero value at column [i] or [i] + 1. */
+        private fun reaches(lo: IntArray, hi: IntArray, j: Int, i: Int): Boolean =
+            j in 0 until side && i + 1 >= lo[j] && i <= hi[j]
 
         /** Frame coordinates (u, v) of frame pixel centres, for sampling along the streak. */
         fun u(i: Int): Float = i + 0.5f - half

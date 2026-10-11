@@ -37,7 +37,10 @@ enum class EffectKind(val coverage: Boolean) {
     /** The icon mask, Gaussian blurred; [EffectKey.param] is sigma in pixels. */
     BLUR(true),
 
-    /** Signed sub-pixel distance to the icon mask's edge in pixels, positive inside: mask/SignedDistance. */
+    /**
+     * Signed sub-pixel distance to the icon mask's edge in pixels, positive inside:
+     * mask/SignedDistance. [EffectKey.param] is the band in pixels it is exact within.
+     */
     SIGNED_DISTANCE(false),
 }
 

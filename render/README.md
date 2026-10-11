@@ -58,7 +58,11 @@ library in the pixel path, and every random choice seeded (`math/SplitMix64`,
 `IconSeed`). `DeterminismRulesTest` scans the main sources for platform
 `Math`, unseeded randomness and android imports. `png/Deflate` is our own compressor,
 because `java.util.zip.Deflater` gives bytes that depend on the zlib build
-behind it: zlib-ng on Fedora, Chromium's zlib on Android.
+behind it: zlib-ng on Fedora, Chromium's zlib on Android. It has two pinned
+efforts. Icons use `FAST`: hash chains of 32 links (`png/Lz77`), no lazy
+matching, and per block the cheaper of the fixed and dynamic Huffman codes.
+Texture files use `CANONICAL`, the M5 encoder unchanged (512 links, lazy,
+dynamic only), because a texture's hash names those bytes.
 
 `raster/ScanlineRasterizer` is the production `IconRasterizer`. The M1
 conversion gate runs it; see `docs/verification/m2.md`. `AwtRasterizer` stays
@@ -107,8 +111,9 @@ in the `verify` source set as a second reference and never ships.
 
 `Theme.layers` is spec 2.3's stack, `Layers.kt`. A `PaintLayer` has a source,
 a clip target or its inverse, a blend mode, an opacity, a texture mapping and
-an optional matte. One `EffectsLayer` marks where M6's effects go; today it
-paints only the border. The JSON form and every range are in
+an optional matte. Each effect is an `EffectLayer`, below. One `EffectsLayer`
+marker paints the border and is where a new effect goes by default,
+`Theme.withEffect`. The JSON form and every range are in
 `docs/theme-format.md`.
 
 Per pixel, coverage = clip x matte x opacity; the source times the coverage
@@ -118,7 +123,8 @@ is composited into the premultiplied buffer.
   cached under `EffectKey`. `ICON_FILL` and `ICON_LINES` are the two masks
   alone. `BACKGROUND` is every pixel the shape touches, since step 5 applies
   its anti-aliased edge once; empty with the background off. `EFFECTS` is
-  empty until M6. `CANVAS` is everything.
+  the union, `e + c - e c`, of the coverage times opacity of every enabled
+  effect layer below. `CANVAS` is everything.
 - **Base stack.** `Theme.baseLayers(background, body, line)`: the background
   paint on `BACKGROUND`, effects, a solid layer on `ICON_FILL`, one on
   `ICON_LINES`. M4's glyph paint was exactly this, so all M4 goldens,
@@ -141,7 +147,9 @@ is composited into the premultiplied buffer.
   the texture leaves, so the patch stays inside it; TILE shifts by the
   offset times the texture; lock centres it. Noise uses the same turn and
   scale, 8 lattice cells across the canvas (432 for grain), offset by up to
-  256 cells. The period keeps lattice coordinates below 2^16 at 8 octaves
+  256 cells. Grain is box-filtered, each pixel the area average of the cells
+  under it, with whole-cell offsets, so a 128 px preview is the 432 px grain
+  box-filtered down. The period keeps lattice coordinates below 2^16 at 8 octaves
   and scale 0.25, so floats are spaced at most 1/256 cell; 4096 left the top
   octaves stair-stepped at 1/16 cell. The lattice hash is seeded, not wrapped:
   the same seed gives the same field everywhere.
@@ -153,6 +161,51 @@ is composited into the premultiplied buffer.
   value, or the colour's. Then levels or threshold, invert, and a separable
   Gaussian feather. A black-and-white texture with stops `(C, C)` becomes a
   layer of colour C wherever the texture is light.
+
+## Effects
+
+Spec 2.3 "Effects", `Effects.kt` and `effect/`. Each effect is an
+`EffectLayer(id, effect, enabled, blend, opacity)` at its own place in the
+stack. `effect/EffectPaint` turns it into one output or two (the bevel's
+highlight and shadow): coverage per pixel and a colour, composited like a
+paint layer and added to `EFFECTS`. Every effect reads the icon mask, body
+union lines, through `effect/EffectSource`, and what it derives from it is
+cached under the icon's `EffectKey` with an `EffectKind`: `BLUR` by sigma, a
+`Mask`; `SIGNED_DISTANCE`, a `Field`. Masks are only read.
+
+- **Streaks** (`Streaks`, `Smear`). The mask is turned into a frame whose
+  rows run along the streak, each row smeared causally, and turned back,
+  bilinear. Linear decay by two prefix sums, exponential by a one-tap
+  recursion: O(1) per pixel at any length. No other curves: an arbitrary
+  one costs a tap per pixel of length. Breakup multiplies the smear in the
+  same frame: a texture tiled and stretched along the streak, or fBm, each
+  icon its own patch, through density and contrast. The paint is the linked
+  paint layer's source, unclipped (`StackEvaluator.sourceColors`), or a
+  colour.
+- **Bevel and emboss** (`Bevel`, `mask/SignedDistance`). Height from the
+  signed sub-pixel distance to the mask's edge, Gustavson and Strand's
+  anti-aliased EDT: each edge pixel's edge point from its coverage and
+  gradient, the nearest by Felzenszwalb's transform with the argmin, then
+  the edge points within two pixels. A binary EDT is off by up to 0.495 px
+  and bands a lit bevel; this one is within 0.098 px, gradient within 2.8
+  degrees (`SignedDistanceTest`; side by side in
+  `docs/verification/m6/t9_sdf_binary_vs_antialiased.png`). Light at 30
+  degrees altitude.
+- **Drop shadow, inner shadow, outer and inner glow** (`DropShadow`,
+  `InnerShadow`, `Glows`). The mask's blur, moved away from the light or
+  levelled by the spread, outside or inside the icon.
+- **Grain** (`Grain`). A wrapper over the `GRAIN` noise source: one code
+  path, cells a fixed fraction of the canvas.
+
+`mask/Blur` is the one separable Gaussian: the matte feather, unchanged, and
+the effects' blur, zero outside the canvas, sampled taps up to sigma 3 px,
+above that three extended box passes per axis by running sums, whose
+fractional end weight makes the variance exactly sigma squared at a cost
+independent of the radius.
+
+Built-in brushes (`texture/BuiltInBrushes`): bristle, dry brush and chalk,
+generated from seeded noise, named by the hash of their canonical PNG, always
+in the store, never exported.
 
 ## Textures
 
@@ -193,7 +246,9 @@ icons in each of the four fill modes, the two pocket cases, the Plain and
 Jade presets (made by the M4 renderer, reproduced by the layer stack), and
 three layer looks on six samples over the original test texture
 `textures/cracks.png`, and `layers_blends` on two samples for the nine
-blend modes the looks leave out. 166 PNGs; `GoldenSet.CASES` lists them, and
+blend modes the looks leave out; since M6, one set per effect on four
+samples (`effect_*`, streaks and bevel in two variants each) and the
+combined jade-like look on six (`effects_jade`). 208 PNGs; `GoldenSet.CASES` lists them, and
 `ArtByteIdentityTest` renders the same set on ART. The
 sample icons are copied into `samples.bin` so the test does not need the
 converter. After an intended change to the output:
@@ -206,5 +261,7 @@ rewrites the goldens and the sample bundle. Look at the new PNGs before
 committing them.
 
 `./gradlew :render:benchmarkRenderer` times the spec 3.3 budgets on the JVM,
-per fill mode and for the layered Jade preset, cold and with a warm cache.
-M5 numbers are in `docs/verification/m5.md`.
+per fill mode, for the layered Jade preset, each effect alone and the
+combined jade-like look, cold and with a warm cache, and the PNG encode
+alone per icon. `-Prows=INVERT,JADE_LIKE` limits the rows. M5 numbers are in
+`docs/verification/m5.md`, M6 in `docs/verification/m6.md`.
