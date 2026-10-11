@@ -248,7 +248,11 @@ object ThemeSerializer : KSerializer<Theme> {
     private val surrogate = ThemeJson.serializer()
     override val descriptor = surrogate.descriptor
 
-    override fun serialize(encoder: Encoder, value: Theme) = encoder.encodeSerializableValue(surrogate, value.toJson())
+    /** A pinned texture offset belongs to an effective per-icon theme, never to a saved one. */
+    override fun serialize(encoder: Encoder, value: Theme) {
+        require(value.textureOffset == null) { "an effective per-icon theme cannot be saved" }
+        encoder.encodeSerializableValue(surrogate, value.toJson())
+    }
 
     override fun deserialize(decoder: Decoder): Theme {
         val json = decoder.decodeSerializableValue(surrogate)

@@ -7,12 +7,17 @@ package dev.iconoclast.render
  * [layers] is the stack, painted bottom to top: [PaintLayer]s, [EffectLayer]s, and exactly
  * one [EffectsLayer] marker. Layer ids are unique. The default is the base stack
  * `background -> effects -> icon`.
+ *
+ * [textureOffset] pins the per-icon offset. Only an effective per-icon theme sets it, from
+ * a texture offset override in the stored document; a saved theme never carries it, and
+ * null derives the offset from the slot's seed name, [TextureOffset.of].
  */
 data class Theme(
     val shape: ShapeParams = ShapeParams(),
     val fill: FillParams = FillParams(),
     val background: BackgroundParams = BackgroundParams(),
     val layers: List<Layer> = baseLayers(),
+    val textureOffset: TextureOffset? = null,
 ) {
     init {
         require(layers.count { it is EffectsLayer } == 1) { "the stack needs exactly one effects layer" }

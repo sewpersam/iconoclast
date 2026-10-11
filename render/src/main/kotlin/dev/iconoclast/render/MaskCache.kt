@@ -76,9 +76,10 @@ data class EffectKey(
 /**
  * A noise paint's value field over the whole canvas for one icon: what Mappings.noise
  * gives without a need mask. It depends on no geometry, so a drag that changes the shape
- * reuses it. Only preview sizes are cached; see IconRenderer.
+ * reuses it. [offset] is the one the mapping uses, so a locked mapping shares one field
+ * across icons. Only preview sizes are cached; see IconRenderer.
  */
-data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val seedName: String, val size: Int)
+data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val offset: TextureOffset, val size: Int)
 
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 

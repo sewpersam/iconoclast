@@ -40,4 +40,28 @@ class IconIdentityTest {
         assertFalse(own.pixels.contentEquals(swapped.pixels), "the seed name moves the texture")
         assertContentEquals(IconRenderer().render("camera", icon("camera"), "fdroid", jade, 128).pixels, swapped.pixels, "warm equals cold")
     }
+
+    /**
+     * Readiness item 2: the seed name reaches the pixels only through the one per-icon
+     * offset. Texture, noise layers, streak breakup and grain all read it: pinning slot A's
+     * offset on slot B gives slot A's bytes exactly, so nothing derives an offset of its own.
+     */
+    @Test
+    fun theSeedActsOnlyThroughTheOneOffset() {
+        for (theme in listOf(jade, grainy)) for (size in listOf(128, OUTPUT_SIZE)) {
+            val r = IconRenderer()
+            val a = r.render("signal", icon("signal"), "fdroid", theme, size)
+            val pinned = r.render("signal", icon("signal"), "camera", theme.copy(textureOffset = TextureOffset.of("fdroid")), size)
+            assertContentEquals(a.pixels, pinned.pixels, "$size")
+        }
+    }
+
+    @Test
+    fun grainFollowsTheOffset() {
+        val grain = Theme(layers = Theme.baseLayers() + EffectLayer("grain", Effect.Grain(amount = 1f), blend = BlendMode.OVERLAY))
+        val r = IconRenderer()
+        val own = r.render("signal", icon("signal"), grain, 128).pixels
+        val moved = r.render("signal", icon("signal"), grain.copy(textureOffset = TextureOffset(0.1f, 0.2f)), 128).pixels
+        assertFalse(own.contentEquals(moved))
+    }
 }

@@ -11,6 +11,7 @@ import dev.iconoclast.render.MaskCache
 import dev.iconoclast.render.NoiseKey
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
+import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.background.Paints
 import dev.iconoclast.render.effect.EffectPaint
 import dev.iconoclast.render.fill.GlyphMasks
@@ -18,8 +19,11 @@ import dev.iconoclast.render.texture.TextureStore
 
 /** What the stack reads for one icon at one size. Masks come from the cache, read-only. */
 internal class StackInput(
-    /** The slot's drawable name, which seeds every per-icon choice. Never a cache key for geometry. */
-    val seedName: String,
+    /**
+     * The icon's one per-icon offset: texture and noise layers, the streak breakup and grain
+     * all read it, nothing derives its own. From the slot's seed name unless overridden.
+     */
+    val offset: TextureOffset,
     val size: Int,
     val masks: GlyphMasks,
     /** Body union lines, computed on first use. */
@@ -183,7 +187,7 @@ internal object StackEvaluator {
             }
             is Paint.Texture -> {
                 val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
-                val px = Mappings.texture(tex, layer.mapping, input.seedName, input.size, need)
+                val px = Mappings.texture(tex, layer.mapping, input.offset, input.size, need)
                 val lum = if (needLuminance) lumOf(px, n) else null
                 paint.stops?.let { stops ->
                     val c = FloatArray(4)
@@ -200,11 +204,11 @@ internal object StackEvaluator {
                 // The cached field is the whole canvas; outside [need] nothing reads it, so the
                 // pixels are the same either way. Read-only: the gradient map writes to px.
                 val v = if (input.cacheNoise) {
-                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, input.seedName, input.size)) {
-                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.seedName, input.size)
+                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, Mappings.offset(layer.mapping, input.offset), input.size)) {
+                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size)
                     }
                 } else {
-                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.seedName, input.size, need)
+                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size, need)
                 }
                 val px = FloatArray(v.size * 4)
                 val c = FloatArray(4)

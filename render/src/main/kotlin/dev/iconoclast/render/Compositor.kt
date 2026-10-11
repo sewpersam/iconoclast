@@ -53,7 +53,8 @@ class IconRenderer(
      *   masks and everything derived from them in [cache], so one name always means one
      *   geometry, whatever slot draws it.
      * - [seedName] names the slot the icon is drawn for. Through [IconSeed] it seeds every
-     *   per-icon choice, the texture and noise offset among them.
+     *   per-icon choice: the one [TextureOffset] every texture, noise, streak breakup
+     *   and grain reads, unless [Theme.textureOffset] pins it.
      *
      * Unswapped, both are the same name. A per-icon swap draws another drawable's geometry
      * in this slot: [geometryName] is the swapped-in drawable, [seedName] stays the slot's,
@@ -82,7 +83,7 @@ class IconRenderer(
         val shape = if (bg.enabled) backgroundMasks(bg, size) else null
         val border = shape?.second
         return StackInput(
-            seedName, size, masks,
+            theme.textureOffset ?: TextureOffset.of(seedName), size, masks,
             icon = { iconMask(geometryName, theme, size, masks) },
             shape = shape?.first,
             border = border,

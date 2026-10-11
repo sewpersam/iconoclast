@@ -1,6 +1,7 @@
 package dev.iconoclast.render.layer
 
 import dev.iconoclast.render.Mapping
+import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.NoiseKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,7 +13,7 @@ import kotlin.test.assertEquals
  */
 class GrainSamplingTest {
 
-    private fun field(size: Int, scale: Float = 1f) = Mappings.noise(NoiseKind.GRAIN, 1, 9, Mapping(scale = scale), "camera", size)
+    private fun field(size: Int, scale: Float = 1f) = Mappings.noise(NoiseKind.GRAIN, 1, 9, Mapping(scale = scale), TextureOffset.of("camera"), size)
 
     /** Area average of [src], [n] x [n], onto [m] x [m]. */
     private fun downscale(src: FloatArray, n: Int, m: Int): FloatArray {

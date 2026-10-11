@@ -1,10 +1,9 @@
 package dev.iconoclast.render.layer
 
-import dev.iconoclast.render.IconSeed
 import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.NoiseKind
-import dev.iconoclast.render.math.SplitMix64
+import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.math.floor
 import dev.iconoclast.render.texture.Texture
 
@@ -17,8 +16,8 @@ import dev.iconoclast.render.texture.Texture
  * - FILL: the turned canvas fits inside the texture, k = min(W, H) / (|cos| + |sin|) / scale.
  * - TILE: the texture's short side spans the canvas, k = min(W, H) / scale, repeating.
  *
- * The per-icon offset is two uniform numbers (ox, oy) in [0, 1): the first two outputs of
- * SplitMix64 seeded with [IconSeed.of] the drawable name. Locked, both are 0.5, the centred
+ * The per-icon offset (ox, oy) is the icon's one [TextureOffset], StackInput.offset, in
+ * [0, 1): by default derived from the slot's seed name. Locked, both are 0.5, the centred
  * patch. FIT and FILL move the canvas window by (o - 0.5) times the room between the window
  * and the texture on each axis: FILL only where the texture is larger, so the patch never
  * leaves the texture; FIT either way, so a texture smaller than the canvas moves inside it
@@ -40,17 +39,14 @@ internal object Mappings {
      */
     const val NOISE_PERIOD = 256f
 
-    fun offset(mapping: Mapping, drawable: String): Pair<Float, Float> {
-        if (mapping.lockOffset) return 0.5f to 0.5f
-        val r = SplitMix64(IconSeed.of(drawable))
-        return r.nextFloat() to r.nextFloat()
-    }
+    /** The offset [mapping] uses: the icon's [offset], or the centre when the mapping is locked. */
+    fun offset(mapping: Mapping, offset: TextureOffset): TextureOffset = if (mapping.lockOffset) TextureOffset.CENTRE else offset
 
     /**
      * The texture under every pixel, premultiplied RGBA floats, bilinear. With [need],
      * pixels where it is 0 are skipped and left transparent: nothing will show them.
      */
-    fun texture(tex: Texture, mapping: Mapping, drawable: String, size: Int, need: FloatArray? = null): FloatArray {
+    fun texture(tex: Texture, mapping: Mapping, offset: TextureOffset, size: Int, need: FloatArray? = null): FloatArray {
         val w = tex.width
         val h = tex.height
         val t = turn(mapping)
@@ -61,7 +57,7 @@ internal object Mappings {
             MappingMode.FILL -> minOf(w, h) / (ac + asn) / mapping.scale
             MappingMode.TILE -> minOf(w, h) / mapping.scale
         }
-        val (ox, oy) = offset(mapping, drawable)
+        val (ox, oy) = offset(mapping, offset)
         var cx = w / 2f
         var cy = h / 2f
         when (mapping.mode) {
@@ -126,11 +122,11 @@ internal object Mappings {
      * pixel, and any smaller render is exactly that render box-filtered down. With [need],
      * pixels where it is 0 are skipped and left 0.
      */
-    fun noise(kind: NoiseKind, octaves: Int, seed: Int, mapping: Mapping, drawable: String, size: Int, need: FloatArray? = null): FloatArray {
+    fun noise(kind: NoiseKind, octaves: Int, seed: Int, mapping: Mapping, offset: TextureOffset, size: Int, need: FloatArray? = null): FloatArray {
         val t = turn(mapping)
         val grain = kind == NoiseKind.GRAIN
         val cells = (if (grain) GRAIN_CELLS else NOISE_CELLS) / mapping.scale
-        val (ox, oy) = offset(mapping, drawable)
+        val (ox, oy) = offset(mapping, offset)
         val bx = if (grain) floor(ox * NOISE_PERIOD) else ox * NOISE_PERIOD
         val by = if (grain) floor(oy * NOISE_PERIOD) else oy * NOISE_PERIOD
         // Half a pixel's footprint, in cells.

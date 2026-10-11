@@ -3,7 +3,6 @@ package dev.iconoclast.render.effect
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.Effect
 import dev.iconoclast.render.Layer
-import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.layer.BlendModes
 import dev.iconoclast.render.layer.Mappings
@@ -22,7 +21,7 @@ import dev.iconoclast.render.math.floor
  * Breakup: a texture is tiled with its short side spanning the canvas / scale across the
  * streak and stretched [dev.iconoclast.render.Breakup.stretch] times along it; without a
  * texture, fBm noise of 4 octaves at 16 / scale cells across, stretched the same. Each
- * icon gets its own patch from its drawable name, as texture layers do. Its luminance t
+ * icon gets its own patch from its one per-icon offset, as texture layers do. Its luminance t
  * becomes `clamp((t - (1 - density)) gain + 1/2)`, gain `1 / (1 - 0.95 contrast)`.
  */
 internal object Streaks {
@@ -38,7 +37,7 @@ internal object Streaks {
         e.breakup?.let { b ->
             val gain = 1f / (1f - 0.95f * b.contrast)
             val shift = 1f - b.density
-            val (ox, oy) = Mappings.offset(Mapping(), input.seedName)
+            val (ox, oy) = input.offset
             val tex = b.texture?.let { checkNotNull(input.textures[it]) { "texture $it is not in the store" } }
             for (j in 0 until side) for (i in 0 until side) {
                 val k = j * side + i
