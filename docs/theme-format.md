@@ -418,8 +418,9 @@ either size and grain looks the same; a preview passes the resolution it
 previews and box-filters those cells. Everything else is canvas-relative. The
 phone budget is stated and measured at 432 only; 324 px has 56% of the pixels.
 Goldens: `324/plain` and `324/preset_jade`, the 24 samples each. The setting
-itself is Task 12's; `PackBuilder.build(..., resolution)` and
-`IconRenderer.render(..., resolution)` take it.
+lives in `AppSettings` (preferences, Settings and About); Apply passes it to
+`PackBuilder.build(..., resolution)`, and every preview, editor and home card,
+passes it to `IconRenderer.render(..., resolution)`.
 
 A theme whose texture is missing never reaches the renderer: previews hide
 that layer and say so, Apply stops with a message.
