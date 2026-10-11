@@ -1,5 +1,7 @@
 package dev.iconoclast.app.theme
 
+import dev.iconoclast.pack.InvalidKeyBackupException
+import dev.iconoclast.pack.KeyBackup
 import dev.iconoclast.render.texture.BuiltInBrushes
 import dev.iconoclast.render.texture.TextureStore
 import java.io.ByteArrayInputStream
@@ -8,17 +10,18 @@ import java.io.InputStream
 import java.util.zip.ZipInputStream
 
 /**
- * A theme file checked for import: its JSON, and the canonical files of the textures it
- * brought, by hash. Nothing is stored yet; the caller stores these once the whole file passed.
+ * A theme file checked for import: its JSON, the canonical files of the textures it
+ * brought, by hash, and the signing key when the export included it, already opened once
+ * to prove it is whole. Nothing is stored yet; [ArchiveImport] stores these.
  */
-class ThemeArchive(val json: String, val textures: Map<String, ByteArray>)
+class ThemeArchive(val json: String, val textures: Map<String, ByteArray>, val key: KeyBackup? = null)
 
 /**
  * Theme import, spec 2.4. Takes an exported `.zip` or a bare theme JSON. The theme is
  * migrated and validated; every texture it uses must be in the archive, where its pixels
  * must match its hash after canonicalisation, or already be on the phone. Only
- * `theme.json` and `textures/<sha256>.png` for hashes the theme uses are read, and their
- * total is capped, so a crafted archive cannot exhaust memory. Anything else is refused
+ * `theme.json`, `textures/<sha256>.png` for hashes the theme uses, and the two `key/`
+ * entries, both or neither, are read, each bounded and their total capped, so a crafted archive cannot exhaust memory. Anything else is refused
  * with a [ThemeFormatException] for the user. Validation touches no store and no file.
  */
 object ThemeZipImport {
@@ -30,6 +33,12 @@ object ThemeZipImport {
 
     /** Everything read from one archive, decompressed. */
     const val MAX_TOTAL = 64 * 1024 * 1024
+
+    /** A PKCS12 store with one EC key and its certificate is about 1 KB. */
+    const val MAX_KEY_STORE = 64 * 1024
+
+    /** The password is 44 Base64 characters. */
+    const val MAX_KEY_PASSWORD = 1024
 
     private val TEXTURE_ENTRY = Regex("textures/([0-9a-f]{64})\\.png")
 
@@ -76,7 +85,29 @@ object ThemeZipImport {
             if (c.hash != hash) throw ThemeFormatException("A texture in the archive is damaged, ${hash.take(12)}.")
             brought[hash] = c.png
         }
-        return ThemeArchive(json, brought)
+        return ThemeArchive(json, brought, key(open, budget))
+    }
+
+    /** The signing key entries: both or neither, and the store must open with the password. */
+    private fun key(open: () -> InputStream, budget: Budget): KeyBackup? {
+        val found = entries(open, budget) {
+            when (it) {
+                ThemeZipExport.KEY_STORE_ENTRY -> MAX_KEY_STORE
+                ThemeZipExport.KEY_PASSWORD_ENTRY -> MAX_KEY_PASSWORD
+                else -> null
+            }
+        }
+        if (found.isEmpty()) return null
+        val p12 = found[ThemeZipExport.KEY_STORE_ENTRY]
+        val password = found[ThemeZipExport.KEY_PASSWORD_ENTRY]
+        if (p12 == null || password == null) throw ThemeFormatException("The signing key in this archive is incomplete.")
+        val key = KeyBackup(p12, password)
+        try {
+            key.open()
+        } catch (e: InvalidKeyBackupException) {
+            throw ThemeFormatException("The signing key in this archive is damaged.", e)
+        }
+        return key
     }
 
     fun isZip(bytes: ByteArray) =

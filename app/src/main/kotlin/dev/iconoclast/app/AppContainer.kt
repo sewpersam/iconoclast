@@ -7,6 +7,7 @@ import dev.iconoclast.app.texture.TextureFiles
 import dev.iconoclast.app.theme.Presets
 import dev.iconoclast.app.theme.ThemeRepository
 import dev.iconoclast.iconsource.IconSource
+import dev.iconoclast.pack.PackKeyStore
 import dev.iconoclast.render.IconRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -39,6 +40,9 @@ class AppContainer(private val app: Application) {
 
     /** What the last successful Apply installed, for the coverage diff on open. */
     val coverage = CoverageStore(File(app.filesDir, "coverage"))
+
+    /** The pack signing key, spec 3.5: one instance, so Apply, export and import never race on its files. */
+    val packKey = PackKeyStore(app.noBackupFilesDir, "${app.getString(R.string.app_name)} Pack")
 
     private companion object {
         const val TAG = "Iconoclast"

@@ -9,6 +9,7 @@ import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.app.theme.ThemeFormatException
 import dev.iconoclast.app.theme.ThemeZipExport
 import dev.iconoclast.app.theme.ThemeZipImport
+import dev.iconoclast.pack.KeyBackup
 import dev.iconoclast.render.texture.TextureStore
 import java.io.File
 import java.io.IOException
@@ -22,10 +23,13 @@ object ThemeTransfer {
     /** Picker filter. Many file managers label .json and .zip as octet-stream or plain text. */
     val IMPORT_TYPES = arrayOf(ThemeZipExport.MIME, "application/x-zip-compressed", "application/json", "text/plain", "application/octet-stream")
 
-    /** Every texture of [doc] must be in [textures]. */
-    fun shareIntent(context: Context, doc: ThemeDocument, textures: TextureStore): Intent {
+    /**
+     * Every texture of [doc] must be in [textures]. [key] goes into the archive only when
+     * given, after the user tapped through the key export warning, spec 6.5.
+     */
+    fun shareIntent(context: Context, doc: ThemeDocument, textures: TextureStore, key: KeyBackup? = null): Intent {
         val dir = File(context.cacheDir, "export").apply { deleteRecursively(); mkdirs() }
-        val file = File(dir, fileName(doc.name)).apply { writeBytes(ThemeZipExport.write(doc, textures)) }
+        val file = File(dir, fileName(doc.name)).apply { writeBytes(ThemeZipExport.write(doc, textures, key)) }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
         val send = Intent(Intent.ACTION_SEND)
             .setType(ThemeZipExport.MIME)

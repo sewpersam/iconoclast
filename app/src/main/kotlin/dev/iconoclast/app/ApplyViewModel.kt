@@ -19,7 +19,6 @@ import dev.iconoclast.pack.InstallResult
 import dev.iconoclast.pack.LauncherGuide
 import dev.iconoclast.pack.LauncherTable
 import dev.iconoclast.pack.PackInstallSession
-import dev.iconoclast.pack.PackKeyStore
 import dev.iconoclast.pack.PackSigner
 import dev.iconoclast.pack.TooManyIconsException
 import kotlinx.coroutines.CancellationException
@@ -108,7 +107,7 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val t2 = SystemClock.elapsedRealtime()
 
         _state.value = ApplyState.Working("Signing the pack")
-        val key = withContext(Dispatchers.IO) { PackKeyStore(app.noBackupFilesDir, "$appName Pack").loadOrCreate() }
+        val key = withContext(Dispatchers.IO) { container.packKey.loadOrCreate() }
         // Spec 6.5: a pack from an earlier install of the designer has another key. Say so
         // before the system offers an update that can only fail.
         if (installedPackSigner()?.let { !it.contentEquals(key.certificate.encoded) } == true) return mismatch()

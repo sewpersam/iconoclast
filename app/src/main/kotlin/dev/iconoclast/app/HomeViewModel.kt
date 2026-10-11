@@ -6,7 +6,10 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.iconoclast.app.theme.ArchiveImport
 import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.pack.RestoreResult
+import dev.iconoclast.pack.backup
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeFormatException
 import dev.iconoclast.render.Theme
@@ -78,27 +81,38 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setActive(id: String) = act("Not set active") { repo.setActive(id) }
 
-    /** Shares the theme as a .zip with its textures. A texture missing from the phone stops it. */
-    fun export(id: String) = act("Not exported") {
+    /**
+     * Shares the theme as a .zip with its textures. A texture missing from the phone stops
+     * it. [includeKey] adds the signing key; pass it only after the warning was tapped.
+     */
+    fun export(id: String, includeKey: Boolean = false) = act("Not exported") {
         val doc = repo.get(id) ?: return@act
         val missing = withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, doc.theme) }
         if (missing.isNotEmpty()) {
             _message.value = "Not exported. ${TexturePresence.message(missing.size)}"
             return@act
         }
-        launches.trySend(withContext(Dispatchers.IO) { ThemeTransfer.shareIntent(getApplication(), doc, container.textures.store) })
+        val key = if (!includeKey) null else withContext(Dispatchers.IO) { container.packKey.backup() } ?: run {
+            _message.value = "Not exported. There is no signing key yet: it is made on the first Apply."
+            return@act
+        }
+        launches.trySend(withContext(Dispatchers.IO) { ThemeTransfer.shareIntent(getApplication(), doc, container.textures.store, key) })
     }
 
-    /** Imports a theme .zip or JSON: validated, migrated, its textures stored by hash, then the theme. */
-    fun import(uri: Uri) = act("Not imported") {
+    /**
+     * Imports a theme .zip or JSON: validated, migrated, its textures stored by hash, then the
+     * theme. [restoreKey] restores a signing key the archive carries, only after the user
+     * confirmed and only when this phone has none, ArchiveImport.
+     */
+    fun import(uri: Uri, restoreKey: Boolean = false) = act("Not imported") {
         _message.value = try {
             val textures = container.textures
-            val archive = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 // The whole file is validated before anything is stored.
-                ThemeTransfer.read(getApplication(), uri) { textures.load(setOf(it)).isEmpty() }
-                    .also { a -> a.textures.forEach { (hash, png) -> textures.write(hash, png) } }
+                val archive = ThemeTransfer.read(getApplication(), uri) { textures.load(setOf(it)).isEmpty() }
+                ArchiveImport.store(archive, restoreKey, container.packKey, textures, repo)
             }
-            "Imported ${repo.import(archive.json).name}"
+            "Imported ${result.doc.name}" + if (result.key == RestoreResult.RESTORED) " and its signing key" else ""
         } catch (e: ThemeFormatException) {
             "Not imported. ${e.message}"
         } catch (e: OutOfMemoryError) {

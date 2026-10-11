@@ -1,5 +1,6 @@
 package dev.iconoclast.app.theme
 
+import dev.iconoclast.pack.backup
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.Paint
@@ -191,6 +192,57 @@ class ThemeZipTest {
         assertTrue("too large" in e.message!!, e.message)
         val one = zip("theme.json" to json, "textures/${hashes[0]}.png" to ByteArray(ThemeZipImport.MAX_TEXTURE + 1))
         assertTrue("too large" in assertFailsWith<ThemeFormatException> { ThemeZipImport.read(one) { false } }.message!!)
+    }
+
+    private val key by lazy {
+        dev.iconoclast.pack.PackKeyStore(java.nio.file.Files.createTempDirectory("zipkey").toFile(), "Zip Pack").let { it.loadOrCreate(); it.backup()!! }
+    }
+
+    /** Export v2: the key entries only when a key is passed, after the textures, read back whole. */
+    @Test
+    fun keyEntriesOnlyWhenAsked() {
+        val d = doc(GoldenSet.LOOKS.keys.first())
+        val plain = entries(ThemeZipExport.write(d, sourceStore()))
+        assertTrue(plain.keys.none { it.startsWith("key/") })
+        assertEquals(null, ThemeZipImport.read(ThemeZipExport.write(d, sourceStore())) { false }.key)
+        val withKey = ThemeZipExport.write(d, sourceStore(), key)
+        assertEquals(plain.keys.toList() + listOf("key/pack.p12", "key/password"), entries(withKey).keys.toList())
+        assertContentEquals(withKey, ThemeZipExport.write(d, sourceStore(), key), "deterministic")
+        val read = ThemeZipImport.read(withKey) { false }.key!!
+        assertContentEquals(key.p12, read.p12)
+        assertContentEquals(key.password, read.password)
+    }
+
+    @Test
+    fun aHalfOrDamagedOrOversizedKeyIsRefused() {
+        val json = doc(GoldenSet.LOOKS.keys.first()).copy(theme = Theme()).toJson().toByteArray()
+        val bad = listOf(
+            zip("theme.json" to json, "key/pack.p12" to key.p12),
+            zip("theme.json" to json, "key/password" to key.password),
+            zip("theme.json" to json, "key/pack.p12" to key.p12, "key/password" to "wrong".toByteArray()),
+            zip("theme.json" to json, "key/pack.p12" to ByteArray(ThemeZipImport.MAX_KEY_STORE + 1), "key/password" to key.password),
+        )
+        for (z in bad) assertFailsWith<ThemeFormatException> { ThemeZipImport.read(z) { false } }
+    }
+
+    /** A different key on the phone: an error before anything is stored, and the phone keeps its key. */
+    @Test
+    fun aDifferentLocalKeyStopsTheImport() = kotlinx.coroutines.runBlocking {
+        fun tmp() = java.nio.file.Files.createTempDirectory("imp").toFile()
+        val keys = dev.iconoclast.pack.PackKeyStore(tmp(), "Mine").apply { loadOrCreate() }
+        val mine = keys.backup()!!
+        val textures = dev.iconoclast.app.texture.TextureFiles(tmp())
+        val themes = ThemeRepository(tmp())
+        val archive = ThemeZipImport.read(ThemeZipExport.write(doc(GoldenSet.LOOKS.entries.first { GoldenSet.TEXTURE in it.value.textureHashes() }.key), sourceStore(), key)) { false }
+        assertFailsWith<ThemeFormatException> { ArchiveImport.store(archive, restoreKey = true, keys, textures, themes) }
+        assertEquals(emptyList(), themes.themes.value)
+        assertEquals(emptyList(), textures.recent())
+        assertContentEquals(mine.p12, keys.backup()!!.p12)
+        // Without the restore the theme comes in and the key is left alone.
+        val result = ArchiveImport.store(archive, restoreKey = false, keys, textures, themes)
+        assertEquals(null, result.key)
+        assertEquals(1, themes.themes.value.size)
+        assertContentEquals(mine.p12, keys.backup()!!.p12)
     }
 
     private fun zip(vararg files: Pair<String, ByteArray>): ByteArray {
