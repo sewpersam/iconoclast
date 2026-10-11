@@ -110,13 +110,26 @@ internal object Mappings {
         return out
     }
 
-    /** The noise field under every pixel, 0 to 1. */
+    /**
+     * The noise field under every pixel, 0 to 1.
+     *
+     * Grain is one value per lattice cell, and its cells are a fixed fraction of the
+     * canvas, 1 / [GRAIN_CELLS] at scale 1: a pack pixel at 432 px. Point-sampled, a
+     * 128 px preview would show each pixel one random cell at full contrast, a coarser
+     * and harsher grain than the pack. So grain is box-filtered: each pixel is the area
+     * average of the cells under its footprint, [Noise.grainBox], and its per-icon offset
+     * is whole cells. Unturned, a 432 px render at scale 1 is then exactly one cell per
+     * pixel, and any smaller render is exactly that render box-filtered down.
+     */
     fun noise(kind: NoiseKind, octaves: Int, seed: Int, mapping: Mapping, drawable: String, size: Int): FloatArray {
         val t = turn(mapping)
-        val cells = (if (kind == NoiseKind.GRAIN) GRAIN_CELLS else NOISE_CELLS) / mapping.scale
+        val grain = kind == NoiseKind.GRAIN
+        val cells = (if (grain) GRAIN_CELLS else NOISE_CELLS) / mapping.scale
         val (ox, oy) = offset(mapping, drawable)
-        val bx = ox * NOISE_PERIOD
-        val by = oy * NOISE_PERIOD
+        val bx = if (grain) floor(ox * NOISE_PERIOD) else ox * NOISE_PERIOD
+        val by = if (grain) floor(oy * NOISE_PERIOD) else oy * NOISE_PERIOD
+        // Half a pixel's footprint, in cells.
+        val half = cells / size / 2f
         val out = FloatArray(size * size)
         for (y in 0 until size) for (x in 0 until size) {
             val u = (x + 0.5f) / size - 0.5f
@@ -126,7 +139,7 @@ internal object Mappings {
             out[y * size + x] = when (kind) {
                 NoiseKind.FBM -> Noise.fbm(nx, ny, octaves, seed)
                 NoiseKind.RIDGED -> Noise.ridged(nx, ny, octaves, seed)
-                NoiseKind.GRAIN -> Noise.grain(nx, ny, seed)
+                NoiseKind.GRAIN -> Noise.grainBox(nx - half, nx + half, ny - half, ny + half, seed)
             }
         }
         return out

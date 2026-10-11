@@ -16,7 +16,8 @@ import dev.iconoclast.render.math.floor
  * - [ridged]: the same sum over ridges, (1 - |2n - 1|)^2 per octave, a simplified
  *   ridged multifractal without Musgrave's weight feedback. Veins where the noise
  *   crosses its middle.
- * - [grain]: one hashed value per lattice cell, no blending: film grain at cell size.
+ * - [grain]: one hashed value per lattice cell, no blending: film grain at cell size;
+ *   [grainBox] its area average over a pixel's footprint, how it is sampled.
  */
 internal object Noise {
 
@@ -67,6 +68,34 @@ internal object Noise {
     }
 
     fun grain(x: Float, y: Float, seed: Int): Float = lattice(floor(x).toInt(), floor(y).toInt(), seed)
+
+    /**
+     * The area average of [grain] over the box [x0, x1] x [y0, y1]: each cell's value
+     * weighted by the fraction of the box it covers. Separable, so the weights are per
+     * column and per row. A box inside one cell gives that cell's value exactly.
+     */
+    fun grainBox(x0: Float, x1: Float, y0: Float, y1: Float, seed: Int): Float {
+        val i0 = floor(x0).toInt()
+        val i1 = floor(x1).toInt()
+        val j0 = floor(y0).toInt()
+        val j1 = floor(y1).toInt()
+        if (i0 == i1 && j0 == j1) return lattice(i0, j0, seed)
+        val w = x1 - x0
+        val h = y1 - y0
+        var sum = 0f
+        for (j in j0..j1) {
+            val wy = (minOf(y1, (j + 1).toFloat()) - maxOf(y0, j.toFloat())) / h
+            if (wy <= 0f) continue
+            var row = 0f
+            for (i in i0..i1) {
+                val wx = (minOf(x1, (i + 1).toFloat()) - maxOf(x0, i.toFloat())) / w
+                if (wx <= 0f) continue
+                row += wx * lattice(i, j, seed)
+            }
+            sum += wy * row
+        }
+        return sum
+    }
 
     /** A lattice point's value, 24 bits in [0, 1). */
     fun lattice(ix: Int, iy: Int, seed: Int): Float =
