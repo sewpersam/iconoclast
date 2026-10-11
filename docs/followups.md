@@ -132,3 +132,27 @@ guarantees documented. Details: `.superpowers/sdd/plan-m5/final-fix-report.md`.
 8. Shared separable Gaussian, box passes or EDT falloff for large radii.
 9. Streak smear via axis rotation plus IIR or prefix sums, decide allowed decay curves.
 10. Decide whether Grain is a preset noise layer or a real effect, and fix grain cell size to canvas-relative so previews match Apply.
+
+## M5 additions (2026-10-10)
+
+### Deferred minors from M5
+- Task 7: minor (deferred): one-pass union-find + sampled-function EDT formulation of sealing would remove ~50 labellings at closing 2.
+- Task 7: minor (deferred): noise offset reaches 4096 cells; float ulp stair-steps the top octave; period ~256 fixes it.
+- Task 7: minor (deferred): sealing monotone test exempts pixels within sqrt2 px of a stroke; enclosed can still lose near-stroke pixels via pocket classification.
+- Task 7: minor (deferred): Mask read-only is type-enforced outside :render, convention inside.
+- Task 7: minor (deferred): readiness item 10 (lifecycle deps declared) has no test.
+- Task 8: minor (deferred): texture cleanup policy (mark-and-sweep at cold start when unreadable is empty); not in spec.
+- Task 8: minor (deferred): ThemeTransfer.read loads up to 64 MB before unzip; stream instead.
+- Task 8: minor (deferred): inverse clip on Whole canvas yields an empty layer; disable the switch for CANVAS.
+- Task 8: minor (deferred): removing base Background or Icon lines layer is allowed; taste call on a guard.
+- Task 8: minor (deferred): ColorControl open state kept by position; two info logs remain.
+- Task 8: minor (deferred): threshold matte, grain and feather never driven on device.
+- Residual from the M5 fix wave: TextureStore.entry() clears onDisk only when the file is missing, not when it is corrupt or undecodable; and the Mapping.kt noise KDoc says 16 cells where 32 is used. Both carried into M6 Task 9 commit 1.
+- Textured Apply: PNG encode is about 190 ms per icon in the own Deflate on the JVM, 7.4x the solid case; breaks the 20 s phone budget. M6 Task 9 fixes the encoder.
+
+### Rulings made in M5
+- Ruling: M5 split engine (T7) then UI+import+zip (T8) — cost: none.
+- Ruling: effects position is a marker layer rendering nothing until M6 — cost: none.
+- Ruling: one texture offset per icon, shared by all layers — literal spec, keeps colour and matte registered — cost: none.
+- Ruling: missing texture throws in :render; Task 8 checks theme.textureHashes() against the store before preview and pack build — cost: none.
+- Ruling: per-icon offset — TILE wraps; FIT/FILL move within room; default texture scale 2.0 for new texture layers so the default has room; lock pins — spec says every icon gets a different patch — cost if wrong: one default and a golden regen.
