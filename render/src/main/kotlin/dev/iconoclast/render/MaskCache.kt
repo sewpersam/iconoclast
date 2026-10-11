@@ -1,7 +1,5 @@
 package dev.iconoclast.render
 
-import dev.iconoclast.render.fill.GlyphMasks
-
 /** Geometry depends on the drawable, the shape parameters and the size, nothing else. */
 data class GeometryKey(val drawable: Int, val shape: ShapeParams, val size: Int)
 
@@ -28,7 +26,8 @@ data class LoneLinesKey(val fill: FillKey)
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 
 /**
- * Least-recently-used cache of intermediate masks, bounded by bytes. Paint and background
+ * Least-recently-used cache of intermediate [Mask]s, bounded by bytes. Masks are read-only,
+ * so one cached instance serves every render. Paint and background
  * changes reuse the cached geometry and fill masks, so moving a colour or texture slider
  * never recomputes geometry. Thread-safe. Two threads missing the same key may both
  * compute it; the results are identical, so either may stay.
@@ -43,21 +42,25 @@ class MaskCache(private val maxBytes: Long = 64L shl 20) {
     var hits = 0L; private set
     var misses = 0L; private set
 
-    fun geometry(key: GeometryKey, compute: () -> FloatArray): FloatArray =
-        get(key, compute) { 4L * it.size }
+    fun geometry(key: GeometryKey, compute: () -> Mask): Mask =
+        get(key, compute) { 4L * it.pixels }
 
     /**
-     * The fill stage before invert fill's fallback test. Its [GlyphMasks.lines] is always
-     * the geometry mask, already counted under its own key, so only the body is counted.
+     * The fill stage's body before invert fill's fallback test. Only the body is held; the
+     * renderer re-attaches the geometry from its own entry on every read, so an evicted
+     * geometry is really gone and the byte count is the memory held.
      */
-    fun fill(key: FillKey, compute: () -> GlyphMasks): GlyphMasks =
-        get(key, compute) { 4L * (it.body?.size ?: 0) }
+    fun fill(key: FillKey, compute: () -> Mask): Mask =
+        get(key, compute) { 4L * it.pixels }
 
-    fun loneLines(key: LoneLinesKey, compute: () -> FloatArray): FloatArray =
-        get(key, compute) { 4L * it.size }
+    fun loneLines(key: LoneLinesKey, compute: () -> Mask): Mask =
+        get(key, compute) { 4L * it.pixels }
 
-    fun background(key: BackgroundKey, compute: () -> Pair<FloatArray, FloatArray?>): Pair<FloatArray, FloatArray?> =
-        get(key, compute) { 4L * (it.first.size + (it.second?.size ?: 0)) }
+    fun background(key: BackgroundKey, compute: () -> Pair<Mask, Mask?>): Pair<Mask, Mask?> =
+        get(key, compute) { 4L * (it.first.pixels + (it.second?.pixels ?: 0)) }
+
+    /** Bytes held now, never more than the bound passed in. */
+    val bytesHeld: Long get() = synchronized(this) { bytes }
 
     fun clear() = synchronized(this) {
         map.clear()

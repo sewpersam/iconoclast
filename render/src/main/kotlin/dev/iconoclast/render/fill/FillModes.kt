@@ -1,6 +1,7 @@
 package dev.iconoclast.render.fill
 
 import dev.iconoclast.render.FillMode
+import dev.iconoclast.render.Mask
 import dev.iconoclast.render.mask.Morphology
 import dev.iconoclast.render.mask.label4
 import dev.iconoclast.render.mask.squaredEdt
@@ -13,7 +14,7 @@ import kotlin.math.sqrt
  * [lines] on top. Either may be absent. [fellBack] is true when invert fill gave way to
  * Outline under the fallback threshold.
  */
-class GlyphMasks(val body: FloatArray?, val lines: FloatArray?, val fellBack: Boolean = false)
+class GlyphMasks(val body: Mask?, val lines: Mask?, val fellBack: Boolean = false)
 
 /** Fill-stage inputs in pixels. [cut] is the line art drawn [gapPx] wider on every side. */
 class FillInput(
@@ -34,9 +35,9 @@ object FillModes {
 
     fun apply(mode: FillMode, input: FillInput, fallbackThreshold: Float, keepLoneLines: Boolean): GlyphMasks =
         when (mode) {
-            FillMode.OUTLINE -> GlyphMasks(null, input.geometry)
-            FillMode.SILHOUETTE -> GlyphMasks(silhouette(input), null)
-            FillMode.OUTLINE_SILHOUETTE -> GlyphMasks(silhouette(input), input.geometry)
+            FillMode.OUTLINE -> GlyphMasks(null, Mask(input.geometry))
+            FillMode.SILHOUETTE -> GlyphMasks(Mask(silhouette(input)), null)
+            FillMode.OUTLINE_SILHOUETTE -> GlyphMasks(Mask(silhouette(input)), Mask(input.geometry))
             FillMode.INVERT -> invert(input, fallbackThreshold, keepLoneLines)
         }
 
@@ -61,7 +62,9 @@ object FillModes {
      */
     fun invert(input: FillInput, fallbackThreshold: Float, keepLoneLines: Boolean): GlyphMasks {
         val body = invertBody(input)
-        return invertMasks(input.geometry, body, fallbackThreshold) { if (keepLoneLines) loneLines(input.geometry, body, input) else null }
+        return invertMasks(Mask(input.geometry), Mask(body), fallbackThreshold) {
+            if (keepLoneLines) Mask(loneLines(input.geometry, body, input)) else null
+        }
     }
 
     /**
@@ -81,7 +84,7 @@ object FillModes {
     }
 
     /** Applies the fallback threshold to [body]. [lines] supplies the lone lines when the fill stands. */
-    fun invertMasks(geometry: FloatArray, body: FloatArray, fallbackThreshold: Float, lines: () -> FloatArray?): GlyphMasks {
+    fun invertMasks(geometry: Mask, body: Mask, fallbackThreshold: Float, lines: () -> Mask?): GlyphMasks {
         if (body.sum() < fallbackThreshold * geometry.sum()) return GlyphMasks(null, geometry, fellBack = true)
         return GlyphMasks(body, lines())
     }

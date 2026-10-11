@@ -59,6 +59,27 @@ class CompositorTest {
         assertEquals(m2, r.cache.misses, "outline does not read gap or closing")
     }
 
+    /**
+     * The fill entry holds the body alone: geometry, body and background shape are each
+     * counted once, so the byte bound is the memory held. Writing a copy of a mask reaches
+     * nothing cached.
+     */
+    @Test
+    fun cachedMasksAreHeldOnceAndReadOnly() {
+        val mask = 4L * 96 * 96
+        val r = IconRenderer()
+        val theme = Theme(fill = FillParams(mode = FillMode.OUTLINE_SILHOUETTE))
+        val first = r.render(1, icon, theme, 96)
+        assertEquals(3 * mask, r.cache.bytesHeld)
+        r.glyphMasks(1, icon, theme, 96).lines!!.toFloatArray().fill(1f)
+        assertContentEquals(first.pixels, r.render(1, icon, theme, 96).pixels)
+        // Bounded below what one render needs, the cache still gives the same pixels.
+        val small = IconRenderer(MaskCache(maxBytes = 2 * mask))
+        assertContentEquals(first.pixels, small.render(1, icon, theme, 96).pixels)
+        assertTrue(small.cache.bytesHeld <= 2 * mask)
+        assertContentEquals(first.pixels, small.render(1, icon, theme, 96).pixels)
+    }
+
     @Test
     fun outputIsPremultipliedAndClippedToTheShape() {
         val theme = Theme(background = BackgroundParams(shape = BackgroundShape.Circle, size = 0.8f))

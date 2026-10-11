@@ -3,6 +3,7 @@ package dev.iconoclast.render.fill
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.LineCap
 import dev.iconoclast.render.LineJoin
+import dev.iconoclast.render.Mask
 import dev.iconoclast.render.format.Icon
 import dev.iconoclast.render.format.Primitive
 import dev.iconoclast.render.format.Verb
@@ -43,6 +44,7 @@ class FillModesTest {
     }
 
     private fun at(m: FloatArray, x: Int, y: Int) = m[y * size + x]
+    private fun at(m: Mask, x: Int, y: Int) = m[y * size + x]
 
     @Test
     fun invertFillsTheEnclosedRegionLessTheGap() {
@@ -84,7 +86,7 @@ class FillModesTest {
         val m = FillModes.invert(i, 0.1f, keepLoneLines = true)
         assertTrue(m.fellBack)
         assertNull(m.body)
-        assertTrue(m.lines.contentEquals(i.geometry))
+        assertTrue(m.lines!!.contentEquals(i.geometry))
         // A threshold of 0 never falls back.
         assertFalse(FillModes.invert(i, 0f, keepLoneLines = true).fellBack)
     }
@@ -158,8 +160,8 @@ class FillModesTest {
         assertEquals(1f, at(sil, 17, 32))
         assertEquals(1f, at(sil, 32, 32))
         val both = FillModes.apply(FillMode.OUTLINE_SILHOUETTE, i, 0.1f, true)
-        assertTrue(both.body.contentEquals(sil))
-        assertTrue(both.lines.contentEquals(i.geometry))
+        assertTrue(both.body!!.contentEquals(sil))
+        assertTrue(both.lines!!.contentEquals(i.geometry))
         val outline = FillModes.apply(FillMode.OUTLINE, i, 0.1f, true)
         assertNull(outline.body)
     }

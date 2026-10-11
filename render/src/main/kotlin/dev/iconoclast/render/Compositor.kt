@@ -44,8 +44,8 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
         val bg = theme.background
         val clip = if (bg.enabled) drawBackground(buf, bg, size) else null
         drawGlyph(buf, masks, theme.glyph)
-        if (clip != null) for (i in clip.indices) {
-            val a = clip[i]
+        if (clip != null) for (i in 0 until clip.pixels) {
+            val a = clip.values[i]
             if (a == 1f) continue
             for (k in 0..3) buf[4 * i + k] *= a
         }
@@ -64,29 +64,29 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
         val shape = theme.shape
         val fill = theme.fill
         val key = FillKey.of(drawable, shape, fill, size)
-        val geometry = { cache.geometry(GeometryKey(drawable, shape, size)) { rasterizeGlyph(icon, glyphSpec(shape, size), size) } }
-        val input = { cut: FloatArray? -> fillInput(geometry(), shape, fill, size, cut) }
-        val core = cache.fill(key) {
-            when (fill.mode) {
-                FillMode.OUTLINE -> GlyphMasks(null, geometry())
-                FillMode.SILHOUETTE -> GlyphMasks(FillModes.silhouette(input(null)), null)
-                FillMode.OUTLINE_SILHOUETTE -> GlyphMasks(FillModes.silhouette(input(null)), geometry())
-                FillMode.INVERT -> {
+        val geometry = { cache.geometry(GeometryKey(drawable, shape, size)) { Mask(rasterizeGlyph(icon, glyphSpec(shape, size), size)) } }
+        val input = { cut: FloatArray? -> fillInput(geometry().values, shape, fill, size, cut) }
+        return when (fill.mode) {
+            FillMode.OUTLINE -> GlyphMasks(null, geometry())
+            FillMode.SILHOUETTE -> GlyphMasks(cache.fill(key) { Mask(FillModes.silhouette(input(null))) }, null)
+            FillMode.OUTLINE_SILHOUETTE -> GlyphMasks(cache.fill(key) { Mask(FillModes.silhouette(input(null))) }, geometry())
+            FillMode.INVERT -> {
+                val body = cache.fill(key) {
                     val cut = rasterizeGlyph(
                         icon,
                         glyphSpec(shape, size, extraWidth = 2 * fill.gapWidth, cap = LineCap.ROUND, join = LineJoin.ROUND),
                         size,
                     )
-                    GlyphMasks(FillModes.invertBody(input(cut)), null)
+                    Mask(FillModes.invertBody(input(cut)))
+                }
+                val g = geometry()
+                FillModes.invertMasks(g, body, fill.fallbackThreshold) {
+                    if (!fill.keepLoneLines) null
+                    else cache.loneLines(LoneLinesKey(key)) {
+                        Mask(FillModes.loneLines(g.values, body.values, fillInput(g.values, shape, fill, size, null)))
+                    }
                 }
             }
-        }
-        if (fill.mode != FillMode.INVERT) return core
-        val body = requireNotNull(core.body)
-        val g = geometry()
-        return FillModes.invertMasks(g, body, fill.fallbackThreshold) {
-            if (!fill.keepLoneLines) null
-            else cache.loneLines(LoneLinesKey(key)) { FillModes.loneLines(g, body, fillInput(g, shape, fill, size, null)) }
         }
     }
 
@@ -102,10 +102,10 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
     }
 
     /** Step 3. Returns the shape coverage for step 5. */
-    private fun drawBackground(buf: FloatArray, bg: BackgroundParams, size: Int): FloatArray {
+    private fun drawBackground(buf: FloatArray, bg: BackgroundParams, size: Int): Mask {
         val (shape, border) = cache.background(BackgroundKey(bg.shape, bg.size, bg.border?.width ?: 0f, size)) {
             val m = BackgroundShapes.mask(bg.shape, bg.size, size)
-            m to bg.border?.takeIf { it.width > 0f }?.let { BackgroundShapes.border(bg.shape, bg.size, it.width, size, m) }
+            Mask(m) to bg.border?.takeIf { it.width > 0f }?.let { Mask(BackgroundShapes.border(bg.shape, bg.size, it.width, size, m)) }
         }
         Paints.fill(bg.paint, size).copyInto(buf)
         if (border != null) {
@@ -123,9 +123,10 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
     }
 
     /** Source-over of premultiplied colour [c] through coverage [mask]. */
-    private fun over(buf: FloatArray, mask: FloatArray, c: FloatArray) {
-        for (i in mask.indices) {
-            val m = mask[i]
+    private fun over(buf: FloatArray, mask: Mask, c: FloatArray) {
+        val v = mask.values
+        for (i in v.indices) {
+            val m = v[i]
             if (m == 0f) continue
             val inv = 1f - c[3] * m
             val o = 4 * i
