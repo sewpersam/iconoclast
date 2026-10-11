@@ -77,9 +77,76 @@ object GoldenSet {
         ),
     )
 
+    /**
+     * The bundled black-and-white test texture, original work (golden/textures/NOTICE.txt),
+     * and its hash. Every case renders with it in the renderer's texture store.
+     */
+    const val TEXTURE_FILE = "textures/cracks.png"
+    const val TEXTURE = "c6d24d8999ff28eae18eca0d2869b0d900a6ea577f9727ecbea421a78ffbb395"
+
+    val LOOK_SAMPLES = listOf("fdroid", "camera", "google_chrome", "signal", "spotify", "weather")
+
+    private fun stops(from: Int, to: Int) = listOf(ColorStop(0f, from), ColorStop(1f, to))
+
+    /**
+     * Three layer looks over the texture and noise: every source type, mapping mode, clip
+     * target class, a matte of each kind, and separable, non-separable and additive blends.
+     */
+    val LOOKS: Map<String, Theme> = mapOf(
+        "layers_stone" to Theme(
+            fill = FillParams(mode = FillMode.INVERT),
+            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+            layers = listOf(
+                PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF0A0F0D.toInt()), clip = ClipTarget.BACKGROUND),
+                PaintLayer("bg-cracks", Paint.Texture(TEXTURE, stops(0xFF0A0F0D.toInt(), 0xFF1E3B30.toInt())), clip = ClipTarget.BACKGROUND,
+                    blend = BlendMode.SCREEN, opacity = 0.6f, mapping = Mapping(MappingMode.TILE, scale = 1.5f, rotation = 20f)),
+                EffectsLayer(),
+                PaintLayer(Layer.ICON_FILL_ID, Paint.Noise(NoiseKind.FBM, 5, 7, stops(0xFF0B4F3A.toInt(), 0xFF5FD3A0.toInt())), clip = ClipTarget.ICON_FILL),
+                PaintLayer("fill-veins", Paint.Texture(TEXTURE, stops(0xFFE8FFF4.toInt(), 0xFFE8FFF4.toInt())), clip = ClipTarget.ICON_FILL,
+                    blend = BlendMode.OVERLAY, opacity = 0.7f, matte = Matte(black = 0.2f, white = 0.8f, feather = 0.004f)),
+                PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF7FE0B5.toInt()), clip = ClipTarget.ICON_LINES),
+            ),
+        ),
+        "layers_etched" to Theme(
+            fill = FillParams(mode = FillMode.OUTLINE_SILHOUETTE),
+            background = BackgroundParams(shape = BackgroundShape.Circle),
+            layers = listOf(
+                PaintLayer(Layer.BACKGROUND_ID, Paint.LinearGradient(0f, 0f, 1f, 1f, stops(0xFF3A4766.toInt(), 0xFF101522.toInt())), clip = ClipTarget.BACKGROUND),
+                EffectsLayer(),
+                PaintLayer(Layer.ICON_FILL_ID, Paint.Texture(TEXTURE, stops(0xFF26324A.toInt(), 0xFFB8C8F0.toInt())), clip = ClipTarget.ICON_FILL,
+                    mapping = Mapping(MappingMode.FILL, rotation = -35f)),
+                PaintLayer("etch", Paint.Texture(TEXTURE, stops(0xFF000000.toInt(), 0xFF000000.toInt())), clip = ClipTarget.ICON_FILL,
+                    blend = BlendMode.MULTIPLY, opacity = 0.5f, mapping = Mapping(MappingMode.FILL, scale = 2f),
+                    matte = Matte(MatteMode.THRESHOLD, threshold = 0.5f, invert = true, feather = 0.003f)),
+                PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(WHITE), clip = ClipTarget.ICON_LINES),
+                PaintLayer("lines-tint", Paint.Noise(NoiseKind.RIDGED, 4, 11, stops(0xFFFF8A5C.toInt(), 0xFF5CC8FF.toInt())), clip = ClipTarget.ICON_LINES,
+                    blend = BlendMode.COLOR, opacity = 0.8f),
+            ),
+        ),
+        "layers_grain" to Theme(
+            fill = FillParams(mode = FillMode.SILHOUETTE),
+            background = BackgroundParams(shape = BackgroundShape.Square, border = Border(0.02f, 0xFFF2C14E.toInt(), 0.5f)),
+            layers = listOf(
+                PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF2B2140.toInt()), clip = ClipTarget.BACKGROUND),
+                PaintLayer("bg-grain", Paint.Noise(NoiseKind.GRAIN, seed = 3), clip = ClipTarget.BACKGROUND, blend = BlendMode.OVERLAY, opacity = 0.35f,
+                    mapping = Mapping(scale = 4f)),
+                PaintLayer("outside-glow", Paint.Texture(TEXTURE, stops(0xFFF2C14E.toInt(), 0xFFF2C14E.toInt())), clip = ClipTarget.ICON,
+                    clipInverse = true, blend = BlendMode.ADD, opacity = 0.25f, mapping = Mapping(MappingMode.TILE, scale = 0.5f), matte = Matte()),
+                EffectsLayer(),
+                PaintLayer(Layer.ICON_FILL_ID, Paint.Solid(0xFFF2C14E.toInt()), clip = ClipTarget.ICON_FILL),
+                PaintLayer("fill-tex", Paint.Texture(TEXTURE), clip = ClipTarget.ICON_FILL, blend = BlendMode.DIFFERENCE, opacity = 0.6f,
+                    mapping = Mapping(MappingMode.FIT, rotation = 45f, lockOffset = true)),
+                PaintLayer("hue-shift", Paint.Noise(NoiseKind.FBM, 2, 5, stops(0xFFFF0000.toInt(), 0xFF0000FF.toInt())), clip = ClipTarget.ICON,
+                    blend = BlendMode.HUE, opacity = 0.5f),
+                PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(WHITE), clip = ClipTarget.ICON_LINES),
+            ),
+        ),
+    )
+
     /** Every golden: directory, theme and sample name. */
     val CASES: List<Triple<String, Theme, String>>
         get() = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
             POCKET_SAMPLES.map { Triple("pockets", POCKET_THEME, it) } +
-            PRESETS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } }
+            PRESETS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } } +
+            LOOKS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
 }

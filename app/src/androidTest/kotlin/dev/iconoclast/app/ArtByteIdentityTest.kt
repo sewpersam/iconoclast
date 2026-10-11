@@ -25,6 +25,7 @@ class ArtByteIdentityTest {
     fun goldensMatchByteForByte() {
         val bundle = IconBundle(ByteBuffer.wrap(asset("samples.bin")))
         val renderer = IconRenderer()
+        assertEquals(GoldenSet.TEXTURE, renderer.textures.put(asset(GoldenSet.TEXTURE_FILE)))
         val compared = ArrayList<String>()
         val differ = ArrayList<String>()
         for ((dir, theme, name) in GoldenSet.CASES) {
@@ -36,6 +37,6 @@ class ArtByteIdentityTest {
         }
         android.util.Log.i("ArtByteIdentity", "compared ${compared.size} PNGs, ${differ.size} differ: $differ")
         assertEquals("PNGs differing from the JVM goldens", emptyList<String>(), differ)
-        assertEquals(146, compared.size)
+        assertEquals(164, compared.size)
     }
 }
