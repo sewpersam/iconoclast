@@ -24,6 +24,7 @@ fun ApplyScreen(
     onApply: () -> Unit,
     onFix: (Fix) -> Unit,
     onAppInfo: (String) -> Unit,
+    onCoverage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val working = state is ApplyState.Working
@@ -47,7 +48,8 @@ fun ApplyScreen(
             }
             is ApplyState.Installed -> {
                 val g = state.guide
-                Text("Pack installed. ${state.themed} apps themed, ${state.unthemed} keep their own icon.")
+                Text("Pack installed. ${state.themed} apps themed, ${state.unthemed} not covered by Arcticons keep their own icon.")
+                OutlinedButton(onClick = onCoverage) { Text("See coverage") }
                 if (state.firstInstall) {
                     Text("Select the pack in ${g.name}. ${g.selectPack}")
                 } else {

@@ -6,7 +6,11 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.iconoclast.app.coverage.CoverageScan
 import dev.iconoclast.app.theme.ArchiveImport
+import dev.iconoclast.app.theme.ThemeArchive
+import dev.iconoclast.pack.InvalidKeyBackupException
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.pack.RestoreResult
 import dev.iconoclast.pack.backup
@@ -50,6 +54,18 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** Theme files that could not be read on load. They stay on disk. */
     val unreadable: StateFlow<List<String>> = repo.unreadable
 
+    /** The output resolution, which the card previews draw at. */
+    val resolution: StateFlow<OutputResolution> = container.settings.resolution
+
+    private val _newSinceApply = MutableStateFlow(0)
+    /** Launchable apps installed since the last Apply, spec 2.5: the home badge. */
+    val newSinceApply: StateFlow<Int> = _newSinceApply
+
+    private val _keyPrompt = MutableStateFlow(false)
+    /** An archive with a signing key waits for the restore question; this phone has no key. */
+    val keyPrompt: StateFlow<Boolean> = _keyPrompt
+    private var pendingImport: Pair<Uri, ThemeArchive>? = null
+
     init {
         // The container loads at app start; this repeats a failed load and reports it.
         act("Themes could not be loaded") { repo.load() }
@@ -58,7 +74,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** Changes when a texture is added, so cards that lacked it redraw. */
     val texturesWritten: StateFlow<Int> = container.textures.written
 
-    suspend fun previews(theme: Theme): List<PreviewIcon> = container.previews.icons(theme)
+    suspend fun previews(doc: ThemeDocument): List<PreviewIcon> = container.previews.icons(doc)
 
     private var creating = false
 
@@ -101,25 +117,78 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         launches.trySend(withContext(Dispatchers.IO) { ThemeTransfer.shareIntent(getApplication(), doc, container.textures.store, key) })
     }
 
-    /**
-     * Imports a theme .zip or JSON: validated, migrated, its textures stored by hash, then the
-     * theme. [restoreKey] restores a signing key the archive carries, only after the user
-     * confirmed and only when this phone has none, ArchiveImport.
-     */
-    fun import(uri: Uri, restoreKey: Boolean = false) = act("Not imported") {
-        _message.value = try {
-            val textures = container.textures
-            val result = withContext(Dispatchers.IO) {
-                // The whole file is validated before anything is stored.
-                val archive = ThemeTransfer.read(getApplication(), uri, readKey = restoreKey) { textures.load(setOf(it)).isEmpty() }
-                ArchiveImport.store(archive, restoreKey, container.packKey, textures, repo)
-            }
-            "Imported ${result.doc.name}" + if (result.key == RestoreResult.RESTORED) " and its signing key" else ""
-        } catch (e: ThemeFormatException) {
-            "Not imported. ${e.message}"
-        } catch (e: OutOfMemoryError) {
-            "Not imported. This file is too large for the memory available."
+    /** Re-runs the coverage diff, spec 2.5: called whenever home is shown. */
+    fun refreshCoverage() = viewModelScope.launch {
+        _newSinceApply.value = try {
+            CoverageScan.report(getApplication(), container).installedSinceApply.size
+        } catch (e: IOException) {
+            Log.w(TAG, "Coverage not read", e)
+            0
         }
+    }
+
+    /**
+     * Imports a theme .zip or JSON, spec 2.4 and 6.5, in two passes. The first reads it
+     * without the key entries. If it carries a key and this phone has none, [keyPrompt]
+     * asks, and [answerKeyPrompt] goes on. If this phone has a key, the theme imports
+     * without the archive's key, and the message says whether that key was the same.
+     */
+    fun import(uri: Uri) = act("Not imported") {
+        _message.value = importing {
+            val archive = read(uri, readKey = false)
+            if (archive.hasKey && !container.packKey.exists) {
+                pendingImport = uri to archive
+                _keyPrompt.value = true
+                return@act
+            }
+            val note = if (archive.hasKey) keyNote(uri) else ""
+            "Imported ${store(archive, restoreKey = false).doc.name}$note"
+        }
+    }
+
+    /** The restore question's answer: [restore] re-reads the file with its key and restores it. */
+    fun answerKeyPrompt(restore: Boolean) = act("Not imported") {
+        val (uri, archive) = pendingImport ?: return@act
+        pendingImport = null
+        _keyPrompt.value = false
+        _message.value = importing {
+            if (restore) {
+                val result = store(read(uri, readKey = true), restoreKey = true)
+                "Imported ${result.doc.name}" + if (result.key == RestoreResult.RESTORED) " and restored its signing key" else ""
+            } else {
+                "Imported ${store(archive, restoreKey = false).doc.name} without its signing key"
+            }
+        }
+    }
+
+    /** What became of an archive's key when this phone already has one. Never restored. */
+    private suspend fun keyNote(uri: Uri): String = try {
+        val theirs = read(uri, readKey = true).key?.open()?.certificate?.encoded
+        val ours = withContext(Dispatchers.IO) { container.packKey.loadOrCreate().certificate.encoded }
+        if (theirs != null && theirs.contentEquals(ours)) ". Its signing key is already this phone's."
+        else ". Its signing key was not imported: this phone already has a different one, which it keeps."
+    } catch (e: ThemeFormatException) {
+        ". Its signing key could not be read and was skipped."
+    } catch (e: InvalidKeyBackupException) {
+        ". Its signing key could not be read and was skipped."
+    }
+
+    /** The whole file is validated before anything is stored. */
+    private suspend fun read(uri: Uri, readKey: Boolean): ThemeArchive = withContext(Dispatchers.IO) {
+        ThemeTransfer.read(getApplication(), uri, readKey) { container.textures.load(setOf(it)).isEmpty() }
+    }
+
+    private suspend fun store(archive: ThemeArchive, restoreKey: Boolean) = withContext(Dispatchers.IO) {
+        ArchiveImport.store(archive, restoreKey, container.packKey, container.textures, repo)
+    }
+
+    /** The import's message, or why it failed. */
+    private inline fun importing(block: () -> String): String = try {
+        block()
+    } catch (e: ThemeFormatException) {
+        "Not imported. ${e.message}"
+    } catch (e: OutOfMemoryError) {
+        "Not imported. This file is too large for the memory available."
     }
 
     /** Runs [block]; a disk failure becomes a snackbar line instead of a crash. */

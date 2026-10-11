@@ -11,7 +11,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import dev.iconoclast.app.coverage.CoverageScreen
 import dev.iconoclast.app.editor.EditorScreen
+import dev.iconoclast.app.settings.AboutScreen
 import dev.iconoclast.app.editor.EditorViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -20,10 +23,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 
-/** The app's routes. One activity, these three destinations. */
+/** The app's routes. One activity, these destinations. */
 object Routes {
     const val HOME = "home"
     const val APPLY = "apply"
+    const val COVERAGE = "coverage"
+    const val SETTINGS = "settings"
     const val EDITOR = "editor/{id}"
     fun editor(id: String) = "editor/$id"
 }
@@ -35,7 +40,27 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
     LaunchedEffect(nav) { home.created.collect { nav.navigate(Routes.editor(it)) { launchSingleTop = true } } }
     NavHost(nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            HomeScreen(home, onOpen = { nav.navigate(Routes.editor(it)) { launchSingleTop = true } }, onApply = { nav.navigate(Routes.APPLY) { launchSingleTop = true } })
+            HomeScreen(
+                home,
+                onOpen = { nav.navigate(Routes.editor(it)) { launchSingleTop = true } },
+                onApply = { nav.navigate(Routes.APPLY) { launchSingleTop = true } },
+                onCoverage = { nav.navigate(Routes.COVERAGE) { launchSingleTop = true } },
+                onSettings = { nav.navigate(Routes.SETTINGS) { launchSingleTop = true } },
+            )
+        }
+        composable(Routes.COVERAGE) {
+            Scaffold(topBar = { BackBar("Coverage", onBack = { nav.popBackStack() }) }) { padding ->
+                CoverageScreen(viewModel(), onReapply = {
+                    nav.navigate(Routes.APPLY) { popUpTo(Routes.HOME) }
+                    apply.apply()
+                }, Modifier.padding(padding))
+            }
+        }
+        composable(Routes.SETTINGS) {
+            val settings = (LocalContext.current.applicationContext as IconoclastApp).container.settings
+            Scaffold(topBar = { BackBar("Settings and about", onBack = { nav.popBackStack() }) }) { padding ->
+                AboutScreen(settings, Modifier.padding(padding))
+            }
         }
         composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
             val id = requireNotNull(entry.arguments?.getString("id"))
@@ -45,7 +70,11 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
             val state by apply.state.collectAsState()
             val active by apply.active.collectAsState()
             Scaffold(topBar = { BackBar("Apply", onBack = { nav.popBackStack() }) }) { padding ->
-                ApplyScreen(active, state, apply::apply, apply::fix, apply::openAppInfo, Modifier.padding(padding))
+                ApplyScreen(
+                    active, state, apply::apply, apply::fix, apply::openAppInfo,
+                    onCoverage = { nav.navigate(Routes.COVERAGE) { launchSingleTop = true } },
+                    modifier = Modifier.padding(padding),
+                )
             }
         }
     }

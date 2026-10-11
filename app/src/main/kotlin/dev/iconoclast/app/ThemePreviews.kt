@@ -3,6 +3,10 @@ package dev.iconoclast.app
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import dev.iconoclast.app.texture.TexturePresence
+import dev.iconoclast.app.theme.IconOverride
+import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.app.theme.applyTo
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,25 +19,37 @@ class PreviewIcon(val label: String, val image: ImageBitmap)
  * rendered off the main thread by the shared renderer at [SIZE], cached by theme.
  */
 class ThemePreviews(private val container: AppContainer) {
-    // Keyed by the Theme itself: a data class, so equal recipes share one entry. Bounded by bytes.
-    private val cache = object : LruCache<Theme, List<PreviewIcon>>(CACHE_BYTES) {
-        override fun sizeOf(key: Theme, value: List<PreviewIcon>) = value.size * SIZE * SIZE * 4
+    /** The theme, the samples' overrides and the resolution: equal recipes share one entry. */
+    private data class Key(val theme: Theme, val overrides: Map<String, IconOverride>, val resolution: OutputResolution)
+
+    // Bounded by bytes.
+    private val cache = object : LruCache<Key, List<PreviewIcon>>(CACHE_BYTES) {
+        override fun sizeOf(key: Key, value: List<PreviewIcon>) = value.size * SIZE * SIZE * 4
     }
 
     /**
      * The card's icons. A texture missing from the phone, or lost while rendering, hides
      * its layer here, and the result is not cached, so the card redraws once the texture
-     * arrives.
+     * arrives. Each icon is drawn as Apply draws it: its override and swap applied, at the
+     * chosen resolution's grain.
      */
-    suspend fun icons(theme: Theme): List<PreviewIcon> = cache.get(theme) ?: withContext(Dispatchers.Default) {
-        val source = container.iconSource()
-        val shown = TexturePresence.render(container.textures.store, theme) { t ->
-            SAMPLES.mapNotNull { name ->
-                val index = source.indexOf(name).takeIf { it >= 0 } ?: return@mapNotNull null
-                PreviewIcon(name.replace('_', ' '), container.renderer.render(name, source.icon(index), t, SIZE).toImageBitmap())
+    suspend fun icons(doc: ThemeDocument): List<PreviewIcon> {
+        val resolution = container.settings.resolution.value
+        val key = Key(doc.theme, doc.overrides.filterKeys { it in SAMPLES }, resolution)
+        return cache.get(key) ?: withContext(Dispatchers.Default) {
+            val source = container.iconSource()
+            val shown = TexturePresence.render(container.textures.store, doc.theme) { t ->
+                SAMPLES.mapNotNull { name ->
+                    if (source.indexOf(name) < 0) return@mapNotNull null
+                    val o = key.overrides[name]
+                    val geometry = o?.swapDrawable?.takeIf { source.indexOf(it) >= 0 } ?: name
+                    val theme = o?.applyTo(t) ?: t
+                    val image = container.renderer.render(geometry, source.icon(source.indexOf(geometry)), name, theme, SIZE, resolution)
+                    PreviewIcon(name.replace('_', ' '), image.toImageBitmap())
+                }
             }
+            shown.value.also { if (shown.complete) cache.put(key, it) }
         }
-        shown.value.also { if (shown.complete) cache.put(theme, it) }
     }
 
     companion object {

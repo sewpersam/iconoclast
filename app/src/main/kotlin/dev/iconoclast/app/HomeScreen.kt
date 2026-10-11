@@ -21,6 +21,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -60,7 +64,7 @@ private val PreviewBackdrop = Color(0xFF3C4043)
 /** The themes home, spec 2.2 screen 1. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Unit) {
+fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Unit, onCoverage: () -> Unit, onSettings: () -> Unit) {
     val themes by model.themes.collectAsState()
     val activeId by model.activeId.collectAsState()
     val message by model.message.collectAsState()
@@ -68,6 +72,12 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
     val snackbar = remember { SnackbarHostState() }
     var renaming by remember { mutableStateOf<ThemeDocument?>(null) }
     var deleting by remember { mutableStateOf<ThemeDocument?>(null) }
+    var exporting by remember { mutableStateOf<ThemeDocument?>(null) }
+    var overflow by remember { mutableStateOf(false) }
+    val newApps by model.newSinceApply.collectAsState()
+    val keyPrompt by model.keyPrompt.collectAsState()
+    // Spec 2.5: diff installed apps against the last Apply whenever the app is shown.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.refreshCoverage() }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
 
     LaunchedEffect(message) {
@@ -82,8 +92,24 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
             TopAppBar(
                 title = { Text("Themes") },
                 actions = {
-                    TextButton(onClick = { pick.launch(ThemeTransfer.IMPORT_TYPES) }) { Text("Import") }
+                    TextButton(
+                        onClick = onCoverage,
+                        modifier = Modifier.semantics {
+                            if (newApps > 0) contentDescription = "Coverage, $newApps new since the last Apply"
+                        },
+                    ) {
+                        BadgedBox(badge = { if (newApps > 0) Badge { Text("$newApps") } }) { Text("Coverage") }
+                    }
                     TextButton(onClick = onApply) { Text("Apply") }
+                    Box {
+                        IconButton(onClick = { overflow = true }, modifier = Modifier.semantics { contentDescription = "More" }) {
+                            Text("⋮", style = MaterialTheme.typography.titleLarge)
+                        }
+                        DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                            DropdownMenuItem(text = { Text("Import theme") }, onClick = { overflow = false; pick.launch(ThemeTransfer.IMPORT_TYPES) })
+                            DropdownMenuItem(text = { Text("Settings and about") }, onClick = { overflow = false; onSettings() })
+                        }
+                    }
                 },
             )
         },
@@ -116,11 +142,16 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
                     onOpen = { onOpen(doc.id) },
                     onRename = { renaming = doc },
                     onDelete = { deleting = doc },
+                    onExport = { exporting = doc },
                 )
             }
         }
     }
 
+    exporting?.let { doc ->
+        ExportDialog(doc.name, onDismiss = { exporting = null }) { includeKey -> model.export(doc.id, includeKey); exporting = null }
+    }
+    if (keyPrompt) ImportKeyDialog(model::answerKeyPrompt)
     renaming?.let { doc -> RenameDialog(doc, onDismiss = { renaming = null }) { model.rename(doc.id, it); renaming = null } }
     deleting?.let { doc ->
         AlertDialog(
@@ -141,6 +172,7 @@ private fun ThemeCard(
     onOpen: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onExport: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     Card(
@@ -162,7 +194,7 @@ private fun ThemeCard(
                     if (!active) DropdownMenuItem(text = { Text("Set active") }, onClick = { menu = false; model.setActive(doc.id) })
                     DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
                     DropdownMenuItem(text = { Text("Duplicate") }, onClick = { menu = false; model.duplicate(doc.id) })
-                    DropdownMenuItem(text = { Text("Export") }, onClick = { menu = false; model.export(doc.id) })
+                    DropdownMenuItem(text = { Text("Export") }, onClick = { menu = false; onExport() })
                     DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
                 }
             }
@@ -174,7 +206,8 @@ private fun ThemeCard(
 @Composable
 private fun PreviewGrid(doc: ThemeDocument, model: HomeViewModel) {
     val written by model.texturesWritten.collectAsState()
-    val icons by produceState<List<PreviewIcon>?>(null, doc.theme, written) { value = model.previews(doc.theme) }
+    val resolution by model.resolution.collectAsState()
+    val icons by produceState<List<PreviewIcon>?>(null, doc.theme, doc.overrides, written, resolution) { value = model.previews(doc) }
     Column(
         Modifier.fillMaxWidth().aspectRatio(1f).padding(8.dp)
             .background(PreviewBackdrop, RoundedCornerShape(12.dp)).padding(6.dp),
