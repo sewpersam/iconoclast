@@ -74,7 +74,7 @@ internal object Bevel {
      * 0, and a zero term adds nothing to the convolution's sums, so the result is the
      * whole-grid blur bit for bit.
      */
-    private fun blurNonZero(h: FloatArray, n: Int, sigma: Float): FloatArray {
+    internal fun blurNonZero(h: FloatArray, n: Int, sigma: Float): FloatArray {
         // Box passes keep running sums whose rounding can outlast their reach: whole grid.
         if (sigma > Blur.EXACT_SIGMA) return Blur.gaussian(h, n, n, sigma)
         var x0 = n
