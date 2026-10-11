@@ -147,11 +147,11 @@ degrees altitude. Code: `effect/Bevel.kt`, `mask/SignedDistance.kt`.
 
 | Field | Values |
 |---|---|
-| `style` | `INNER`: rises inside the icon from its edge; `EMBOSS`: rises across the edge, half outside, half inside. |
+| `style` | `INNER`: rises inside the icon from its edge, `1 - (1 - t)^2`; `EMBOSS`: rises across the edge, half outside, half inside, smoothstep `3 t^2 - 2 t^3`, flat at both ends. |
 | `lightAngle` | 0.0 to 360.0: where the light comes from. |
 | `depth` | 0.0 to 4.0: steepness; 1 rises as far as the bevel is wide. |
 | `size` | 0.001 to 0.05 of the canvas: the bevel's width. |
-| `softness` | 0.0 to 1.0: blurs the surface over this fraction of `size`. |
+| `softness` | 0.0 to 1.0: blurs the surface with sigma `softness size / 2`, never less than 1.5 px at 432 px (scaled with the render), which keeps thin features from striating. |
 | `highlight`, `highlightBlend` | Colour, its alpha the highlight's strength; blend mode. Defaults `#BFFFFFFF`, `SCREEN`. |
 | `shadow`, `shadowBlend` | The same for the shaded side. Defaults `#BF000000`, `MULTIPLY`. |
 
@@ -177,7 +177,10 @@ the icon's edges inward. Code: `effect/Glows.kt`.
 
 `grain`: monochrome noise over the whole canvas. Grey `0.5 + (n - 0.5) amount`,
 so a contrast blend (`OVERLAY`, `SOFT_LIGHT`) leaves the average alone; with
-`NORMAL` it paints grey. Each icon gets its own patch. Code: `effect/Grain.kt`,
+`NORMAL` it paints grey. Grain is source-atop: it lands only on what is already
+painted, weighted by its alpha, and keeps that alpha, so with the background
+off a transparent canvas stays transparent. Over pure white or black, overlay
+and soft light change nothing; use multiply or screen there. Each icon gets its own patch. Code: `effect/Grain.kt`,
 a wrapper over the `GRAIN` noise source, so grain has one code path.
 
 | Field | Values |
