@@ -18,8 +18,8 @@ class SigningKey(val privateKey: PrivateKey, val certificate: X509Certificate)
  * key never leaves the sandbox. If the designer is uninstalled the key is gone, spec 6.5.
  */
 class PackKeyStore(private val dir: File, private val commonName: String) {
-    private val storeFile = File(dir, "pack-signing.p12")
-    private val passwordFile = File(dir, "pack-signing.pass")
+    internal val storeFile = File(dir, "pack-signing.p12")
+    internal val passwordFile = File(dir, "pack-signing.pass")
 
     val exists: Boolean get() = storeFile.exists() && passwordFile.exists()
 
@@ -49,13 +49,13 @@ class PackKeyStore(private val dir: File, private val commonName: String) {
         return SigningKey(keys.private, cert)
     }
 
-    private fun writeAtomically(target: File, write: (java.io.OutputStream) -> Unit) {
+    internal fun writeAtomically(target: File, write: (java.io.OutputStream) -> Unit) {
         val tmp = File(target.parentFile, target.name + ".tmp")
         tmp.outputStream().use(write)
         check(tmp.renameTo(target)) { "could not write $target" }
     }
 
-    private companion object {
+    internal companion object {
         const val ALIAS = "pack"
         const val DAY = 86_400_000L
         const val VALIDITY_YEARS = 30
