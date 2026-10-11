@@ -2,6 +2,7 @@ package dev.iconoclast.app.editor
 
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
+import dev.iconoclast.render.Effect
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.Layer
 import dev.iconoclast.render.Mapping
@@ -63,7 +64,7 @@ class LayerStackTest {
         assertEquals(BlendMode.entries.toList(), BLEND_NAMES.keys.toList())
         assertEquals("Add", BLEND_NAMES[BlendMode.ADD])
         assertEquals("Normal", BLEND_NAMES[BlendMode.NORMAL])
-        assertEquals(ClipTarget.entries.toSet() - ClipTarget.EFFECTS, CLIP_NAMES.keys)
+        assertEquals(ClipTarget.entries.toSet(), CLIP_NAMES.keys)
         assertEquals("Effects", clipName(ClipTarget.EFFECTS))
     }
 
@@ -85,5 +86,36 @@ class LayerStackTest {
         val l = LayerStack.newLayer(Paint.Solid(0)).copy(clipInverse = true)
         assertEquals(ClipTarget.CANVAS to false, LayerStack.withClip(l, ClipTarget.CANVAS).let { it.clip to it.clipInverse })
         assertEquals(ClipTarget.BACKGROUND to true, LayerStack.withClip(l, ClipTarget.BACKGROUND).let { it.clip to it.clipInverse })
+    }
+
+    /** Task 9's placement: effects outside the icon go below it, effects on it on top. */
+    @Test
+    fun newEffectsGoWhereTheyShow() {
+        val streaks = LayerStack.newEffect(base, Effect.Streaks())
+        val glow = LayerStack.newEffect(base, Effect.OuterGlow())
+        val bevel = LayerStack.newEffect(base, Effect.Bevel())
+        val grain = LayerStack.newEffect(base, Effect.Grain())
+        var t = LayerStack.insertEffect(base, streaks)
+        t = LayerStack.insertEffect(t, glow)
+        t = LayerStack.insertEffect(t, bevel)
+        t = LayerStack.insertEffect(t, grain)
+        assertEquals(listOf("background", "effects", streaks.id, glow.id, "icon-fill", "icon-lines", bevel.id, grain.id), ids(t))
+        assertEquals(false, LayerStack.aboveIcon(t, streaks))
+        assertEquals(true, LayerStack.aboveIcon(t, bevel))
+        assertEquals(BlendMode.OVERLAY, grain.blend)
+        assertEquals("Streaks", LayerStack.label(t, streaks))
+        assertEquals("Bevel and emboss", LayerStack.label(t, bevel))
+        val two = LayerStack.insertEffect(t, LayerStack.newEffect(t, Effect.Grain()))
+        assertEquals("Grain 1", LayerStack.label(two, grain))
+        assertEquals(ids(t) - grain.id, ids(LayerStack.remove(t, grain.id)))
+    }
+
+    @Test
+    fun newStreaksTakeTheFirstTextureOrNoiseLayer() {
+        assertEquals(null, (LayerStack.newEffect(base, Effect.Streaks()).effect as Effect.Streaks).paintLayer)
+        val noise = LayerStack.newLayer(Paint.Noise())
+        val t = LayerStack.insertAbove(base, noise, null)
+        assertEquals(listOf(noise), LayerStack.streakSources(t))
+        assertEquals(noise.id, (LayerStack.newEffect(t, Effect.Streaks()).effect as Effect.Streaks).paintLayer)
     }
 }

@@ -23,6 +23,8 @@ import dev.iconoclast.app.theme.Presets
 import dev.iconoclast.app.theme.migrate
 import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.CoverageMatcher
+import dev.iconoclast.render.Effect
+import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
@@ -48,6 +50,8 @@ sealed interface TextureTarget {
     data class Source(val layerId: String) : TextureTarget
     /** The background tab's texture layer, made if missing. */
     data object Background : TextureTarget
+    /** The breakup of the streaks effect [layerId]. */
+    data class Breakup(val layerId: String) : TextureTarget
 }
 
 /** One preview cell. [label] is its content description. */
@@ -70,6 +74,7 @@ data class EditorUi(
     /** The layer whose controls are open in the Layers tab. */
     val selectedLayer: String? = null,
     val addingLayer: Boolean = false,
+    val addingEffect: Boolean = false,
     /** The texture chooser is open; [recentTextures] are the imported ones, newest first. */
     val choosingTexture: Boolean = false,
     val recentTextures: List<String> = emptyList(),
@@ -142,7 +147,8 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         // The toggle survives process death; the first visit shows installed apps when there are any.
         val start = saved.get<String>(SOURCE_KEY)?.let(PreviewSource::valueOf)
             ?: if (installed.isEmpty()) PreviewSource.SAMPLES else PreviewSource.INSTALLED
-        _ui.value = EditorUi(loading = false, name = doc.name, theme = doc.theme, source = start, items = itemsFor(start))
+        val recent = withContext(Dispatchers.IO) { container.textures.recent() }
+        _ui.value = EditorUi(loading = false, name = doc.name, theme = doc.theme, source = start, items = itemsFor(start), recentTextures = recent)
         refresh()
     }
 
@@ -237,6 +243,19 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         selectLayer(layer.id)
     }
 
+    fun showAddEffect(show: Boolean) {
+        _ui.value = _ui.value.copy(addingEffect = show)
+    }
+
+    /** Adds an effect where it shows, Task 9's placement, and selects it. */
+    fun addEffect(effect: Effect) {
+        val h = history ?: return
+        val layer = LayerStack.newEffect(h.theme, effect)
+        _ui.value = _ui.value.copy(addingEffect = false)
+        commit(LayerStack.insertEffect(h.theme, layer))
+        selectLayer(layer.id)
+    }
+
     fun moveLayer(id: String, up: Boolean) {
         val h = history ?: return
         commit(LayerStack.move(h.theme, id, up))
@@ -267,7 +286,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     /** Opens the texture chooser for [target]. */
     fun chooseTexture(target: TextureTarget) {
         textureTarget = target
-        _ui.value = _ui.value.copy(addingLayer = false, choosingTexture = true)
+        _ui.value = _ui.value.copy(addingLayer = false, addingEffect = false, choosingTexture = true)
         viewModelScope.launch {
             val recent = withContext(Dispatchers.IO) { container.textures.recent() }
             _ui.value = _ui.value.copy(recentTextures = recent)
@@ -311,11 +330,18 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
             val missing = withContext(Dispatchers.IO) { container.textures.load(setOf(hash)) }
             if (missing.isNotEmpty()) return@launch say("This texture could not be read.")
             val h = history ?: return@launch
+            val recent = withContext(Dispatchers.IO) { container.textures.recent() }
+            _ui.value = _ui.value.copy(recentTextures = recent)
             when (val t = textureTarget) {
                 TextureTarget.NewLayer -> addLayer(Paint.Texture(hash))
                 TextureTarget.Background -> commit(LayerStack.withBackgroundTexture(h.theme, hash))
                 is TextureTarget.Source -> (LayerStack.layer(h.theme, t.layerId) as? PaintLayer)?.let { l ->
                     commit(LayerStack.replace(h.theme, LayerStack.withTexture(l, hash)))
+                }
+                is TextureTarget.Breakup -> (LayerStack.layer(h.theme, t.layerId) as? EffectLayer)?.let { l ->
+                    val e = l.effect as? Effect.Streaks ?: return@let
+                    val b = (e.breakup ?: dev.iconoclast.render.Breakup()).copy(texture = hash)
+                    commit(LayerStack.replace(h.theme, l.copy(effect = e.copy(breakup = b))))
                 }
             }
         }

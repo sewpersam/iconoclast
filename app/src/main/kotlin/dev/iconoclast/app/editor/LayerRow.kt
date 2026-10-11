@@ -61,7 +61,7 @@ fun LayerRow(
 }
 
 @Composable
-private fun Glyph(glyph: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun Glyph(glyph: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.semantics { contentDescription = description }) {
         Text(glyph, style = MaterialTheme.typography.titleMedium)
     }
@@ -69,12 +69,8 @@ private fun Glyph(glyph: String, description: String, enabled: Boolean, onClick:
 
 /** Blend, opacity and clip at a glance: "Multiply, 80%, clip Icon". */
 private fun summary(layer: Layer): String = when (layer) {
-    is EffectsLayer -> "Border; effects arrive later"
-    is EffectLayer -> buildString {
-        append(layer.effect::class.simpleName)
-        if (!layer.enabled) append(", off")
-        append(", ").append(Math.round(layer.opacity * 100)).append('%')
-    }
+    is EffectsLayer -> "Border; new effects go above it"
+    is EffectLayer -> effectSummary(layer)
     is PaintLayer -> buildString {
         append(BLEND_NAMES.getValue(layer.blend))
         append(", ").append(Math.round(layer.opacity * 100)).append('%')

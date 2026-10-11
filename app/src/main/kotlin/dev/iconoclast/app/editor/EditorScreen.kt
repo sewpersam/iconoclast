@@ -55,9 +55,6 @@ import androidx.compose.ui.unit.dp
 
 private val TABS = listOf("Shape", "Fill", "Background", "Layers", "Effects")
 
-/** Effects is M6; its tab holds its place, disabled. */
-private const val ENABLED_TABS = 4
-
 /**
  * The theme editor, spec 2.2 screen 2: the live preview on top, the tabbed controls
  * below, undo and redo in the bar, and a press-and-hold compare.
@@ -112,8 +109,7 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.
                 Tab(
                     selected = tab == i,
                     onClick = { tab = i },
-                    enabled = i < ENABLED_TABS,
-                    text = { Text(if (i < ENABLED_TABS) name else "$name (later)") },
+                    text = { Text(name) },
                 )
             }
         }
@@ -131,12 +127,18 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.
                     vm::drag, vm::endDrag, vm::commit,
                     TextureActions({ ui.selectedLayer?.let { vm.chooseTexture(TextureTarget.Source(it)) } }, vm::textureFile),
                 )
+                4 -> EffectsTab(
+                    theme, ui.selectedLayer, vm::selectLayer, { vm.showAddEffect(true) }, vm::moveLayer, vm::removeLayer,
+                    vm::drag, vm::endDrag, vm::commit,
+                    BreakupActions(ui.recentTextures, vm::textureFile) { vm.chooseTexture(TextureTarget.Breakup(it)) },
+                )
             }
         }
     }
     if (ui.addingLayer) {
         AddLayerSheet(onDismiss = { vm.showAddLayer(false) }, onAdd = vm::addLayer, onTexture = { vm.chooseTexture(TextureTarget.NewLayer) })
     }
+    if (ui.addingEffect) AddEffectSheet(onDismiss = { vm.showAddEffect(false) }, onAdd = vm::addEffect)
     TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
 }
 

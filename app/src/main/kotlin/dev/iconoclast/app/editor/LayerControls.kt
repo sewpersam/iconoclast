@@ -41,16 +41,13 @@ val BLEND_NAMES: Map<BlendMode, String> = linkedMapOf(
     BlendMode.LUMINOSITY to "Luminosity", BlendMode.ADD to "Add",
 )
 
-/**
- * The clip targets a user can pick. Effects is left out until M6 defines what it clips
- * to; a theme that already uses it still loads and shows it by [clipName].
- */
+/** The clip targets a user can pick. Effects: what the enabled effects below the layer paint, M6. */
 val CLIP_NAMES: Map<ClipTarget, String> = linkedMapOf(
     ClipTarget.ICON to "Icon", ClipTarget.ICON_FILL to "Icon fill", ClipTarget.ICON_LINES to "Icon lines",
-    ClipTarget.BACKGROUND to "Background", ClipTarget.CANVAS to "Whole canvas",
+    ClipTarget.BACKGROUND to "Background", ClipTarget.CANVAS to "Whole canvas", ClipTarget.EFFECTS to "Effects",
 )
 
-fun clipName(clip: ClipTarget): String = CLIP_NAMES[clip] ?: "Effects"
+fun clipName(clip: ClipTarget): String = CLIP_NAMES.getValue(clip)
 
 /**
  * Every setting of one paint layer, spec 2.3 "Layers": source, clip and its inverse,
@@ -86,19 +83,19 @@ internal fun defaultsOf(layer: PaintLayer): PaintLayer =
         else LayerStack.newLayer(Paint.Solid(0xFFFFFFFF.toInt())).copy(id = layer.id)
 
 @Composable
-private fun BlendControl(blend: BlendMode, default: BlendMode, onSelect: (BlendMode) -> Unit) {
+fun BlendControl(blend: BlendMode, default: BlendMode, label: String = "Blend mode", onSelect: (BlendMode) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Blend mode", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Box {
-            OutlinedButton(onClick = { open = true }, modifier = Modifier.semantics { contentDescription = "Blend mode ${BLEND_NAMES.getValue(blend)}" }) {
+            OutlinedButton(onClick = { open = true }, modifier = Modifier.semantics { contentDescription = "$label ${BLEND_NAMES.getValue(blend)}" }) {
                 Text(BLEND_NAMES.getValue(blend))
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 for ((mode, name) in BLEND_NAMES) DropdownMenuItem(text = { Text(name) }, onClick = { open = false; onSelect(mode) })
             }
         }
-        ResetButton("Blend mode", enabled = blend != default) { onSelect(default) }
+        ResetButton(label, enabled = blend != default) { onSelect(default) }
     }
 }
 
