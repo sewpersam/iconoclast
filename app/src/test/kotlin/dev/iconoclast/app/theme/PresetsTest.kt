@@ -73,8 +73,10 @@ class PresetsTest {
         val ids = jade.layers.map { it.id }
         assertTrue(ids.indexOf(Layer.BACKGROUND_ID) < ids.indexOf(streaks.id) && ids.indexOf(streaks.id) < ids.indexOf(Layer.ICON_FILL_ID),
             "streaks between background and icon")
-        assertTrue(jade.layers.first { it.id == (streaks.effect as dev.iconoclast.render.Effect.Streaks).paintLayer } is dev.iconoclast.render.PaintLayer,
-            "streaks paint from the jade layer")
+        val link = (streaks.effect as dev.iconoclast.render.Effect.Streaks).paintLayer
+        assertEquals(Layer.ICON_FILL_ID, link, "streaks paint from the jade fill")
+        val source = jade.layer(Layer.ICON_FILL_ID).source
+        assertTrue(source is dev.iconoclast.render.Paint.Noise || source is dev.iconoclast.render.Paint.Texture, "the fill is a texture: $source")
         assertEquals(dev.iconoclast.render.BackgroundShape.RoundedSquare(0.2f), jade.background.shape)
         assertEquals(dev.iconoclast.render.Paint.Solid(0xFF000000.toInt()), jade.layer(dev.iconoclast.render.Layer.BACKGROUND_ID).source)
     }

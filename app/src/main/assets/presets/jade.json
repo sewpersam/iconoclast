@@ -52,41 +52,6 @@
                 "matte": null
             },
             {
-                "type": "paint",
-                "id": "jade",
-                "source": {
-                    "type": "noise",
-                    "kind": "FBM",
-                    "octaves": 5,
-                    "seed": 17,
-                    "stops": [
-                        {
-                            "offset": 0.0,
-                            "color": "#FF06402C"
-                        },
-                        {
-                            "offset": 0.55,
-                            "color": "#FF1E8C5E"
-                        },
-                        {
-                            "offset": 1.0,
-                            "color": "#FF8FE0B8"
-                        }
-                    ]
-                },
-                "clip": "BACKGROUND",
-                "clipInverse": false,
-                "blend": "NORMAL",
-                "opacity": 0.0,
-                "mapping": {
-                    "mode": "FILL",
-                    "scale": 1.5,
-                    "rotation": 0.0,
-                    "lockOffset": false
-                },
-                "matte": null
-            },
-            {
                 "type": "effects",
                 "id": "effects"
             },
@@ -109,7 +74,7 @@
                         "contrast": 0.4,
                         "seed": 0
                     },
-                    "paintLayer": "jade",
+                    "paintLayer": "icon-fill",
                     "color": "#FFFFFFFF"
                 }
             },

@@ -263,9 +263,8 @@ object GoldenSet {
      * Jade, spec 2.4 and the user's words: black rounded square, jade texture, thicker icons,
      * textured low-opacity streaks between icon and background. Stroke 1.75, invert fill;
      * procedural jade (fBm through a jade gradient map) as the icon fill with ridged veins
-     * screened over it; the same jade as a layer clipped to the background at opacity 0,
-     * under the icon paint, which paints nothing itself and is what the streaks are linked
-     * to; dry-brush streaks at 35% between background and icon. No bevel, no grain.
+     * screened over it; dry-brush streaks at 35% between background and icon, painted from
+     * the jade fill layer. No bevel, no grain.
      *
      * Neon, the range preset: outline only, a magenta to cyan gradient line on a near-black
      * circle with a violet outer glow. Glow instead of streaks, outline instead of invert, a
@@ -278,11 +277,10 @@ object GoldenSet {
             background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
             layers = listOf(
                 PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF000000.toInt()), clip = ClipTarget.BACKGROUND),
-                PaintLayer("jade", JADE_NOISE, clip = ClipTarget.BACKGROUND, opacity = 0f, mapping = Mapping(scale = 1.5f)),
                 EffectsLayer(),
                 EffectLayer("streaks", Effect.Streaks(angle = 300f, length = 0.35f, decay = Decay.EXPONENTIAL,
                     breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.55f, contrast = 0.4f),
-                    paintLayer = "jade"), opacity = 0.35f),
+                    paintLayer = Layer.ICON_FILL_ID), opacity = 0.35f),
                 PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
                 PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
                     blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
