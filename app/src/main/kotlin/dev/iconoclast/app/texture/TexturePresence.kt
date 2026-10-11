@@ -11,7 +11,7 @@ import dev.iconoclast.render.texture.TextureStore
  */
 object TexturePresence {
 
-    /** Loads [theme]'s textures from disk. Returns those still missing. Slow; not on the main thread. */
+    /** Decodes each of [theme]'s textures through the store. Returns those that cannot render. Slow; not on the main thread. */
     fun ensure(files: TextureFiles, theme: Theme): Set<String> = files.load(theme.textureHashes())
 
     /** The hashes of [theme] that are not in [store]. Cheap; no disk access. */

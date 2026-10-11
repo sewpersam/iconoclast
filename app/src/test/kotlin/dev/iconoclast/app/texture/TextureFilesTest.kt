@@ -19,19 +19,18 @@ class TextureFilesTest {
 
     @Test
     fun addedTextureLoadsIntoAFreshStore() {
-        val hash = TextureFiles(dir, TextureStore()).add(cracks)
+        val hash = TextureFiles(dir).add(cracks)
         assertEquals(GoldenSet.TEXTURE, hash)
         assertTrue(File(dir, "$hash.png").exists())
-        val store = TextureStore()
-        val files = TextureFiles(dir, store)
+        val files = TextureFiles(dir)
         assertEquals(emptySet(), files.load(setOf(hash)))
-        assertContentEquals(File(dir, "$hash.png").readBytes(), store.bytes(hash))
+        assertContentEquals(File(dir, "$hash.png").readBytes(), files.store.bytes(hash))
         assertEquals(listOf(hash), files.recent())
     }
 
     @Test
     fun missingOrDamagedFilesAreReported() {
-        val files = TextureFiles(dir, TextureStore())
+        val files = TextureFiles(dir)
         val absent = "0".repeat(64)
         assertEquals(setOf(absent), files.load(setOf(absent)))
         File(dir, "${GoldenSet.TEXTURE}.png").writeBytes(byteArrayOf(1, 2, 3))
@@ -41,25 +40,38 @@ class TextureFilesTest {
     @Test
     fun presenceHidesOnlyTheMissingLayers() {
         val theme = GoldenSet.LOOKS.values.first()
-        val store = TextureStore()
+        val files = TextureFiles(dir)
+        val store = files.store
         val absent = TexturePresence.absent(store, theme)
         assertEquals(theme.textureHashes(), absent)
         val shown = TexturePresence.without(theme, absent)
         assertTrue(shown.textureHashes().isEmpty())
         assertEquals(theme.layers.count { ((it as? PaintLayer)?.source !is Paint.Texture) }, shown.layers.size)
         assertEquals(theme, TexturePresence.without(theme, emptySet()))
-        assertFalse(TexturePresence.ensure(TextureFiles(dir, store), Theme()).isNotEmpty())
+        assertFalse(TexturePresence.ensure(files, Theme()).isNotEmpty())
     }
 
     @Test
     fun importSizesKeepTheLongestSideAtMost2048() {
-        assertEquals(1, TextureImport.sampleSize(2048, 1000, 2048))
-        assertEquals(1, TextureImport.sampleSize(4000, 3000, 2048))
-        assertEquals(2, TextureImport.sampleSize(4096, 3000, 2048))
-        assertEquals(4, TextureImport.sampleSize(12000, 9000, 2048))
         assertEquals(2048 to 1536, TextureImport.fitted(4000, 3000, 2048))
         assertEquals(1536 to 2048, TextureImport.fitted(3000, 4000, 2048))
         assertEquals(256 to 256, TextureImport.fitted(256, 256, 2048))
         assertEquals(2048 to 1, TextureImport.fitted(10000, 2, 2048))
+    }
+
+    /** Item 1: many textures on disk, a small cap: memory stays bounded and every one still renders. */
+    @Test
+    fun manyTexturesStayWithinTheCapAndReload() {
+        val one = 64 * 64 * 4L
+        val files = TextureFiles(dir, maxBytes = 3 * one + 3 * 20_000)
+        val hashes = (0 until 12).map { n ->
+            val px = ByteArray(64 * 64 * 4) { i -> if (i % 4 == 3) -1 else ((i * 31 + n * 97) % 251).toByte() }
+            files.add(TextureStore.encode(64, 64, px))
+        }
+        assertEquals(emptySet(), files.load(hashes.toSet()))
+        assertTrue(files.store.residentBytes <= 3 * one + 3 * 20_000)
+        assertFalse(files.store.isResident(hashes.first()))
+        assertTrue(hashes.first() in files.store, "present means on disk")
+        assertTrue(files.store[hashes.first()] != null)
     }
 }

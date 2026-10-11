@@ -21,11 +21,11 @@ class AppContainer(private val app: Application) {
     /** Outlives every screen. For work that must finish even if the user leaves. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** The one renderer. Its mask cache is shared by previews, editor and Apply. */
-    val renderer = IconRenderer()
+    /** Imported textures on disk, and the renderer's bounded store that loads them on demand. */
+    val textures = TextureFiles(File(app.filesDir, "textures"))
 
-    /** Imported textures, on disk and loaded into the renderer's store on demand. */
-    val textures = TextureFiles(File(app.filesDir, "textures"), renderer.textures)
+    /** The one renderer. Its mask cache is shared by previews, editor and Apply. */
+    val renderer = IconRenderer(textures = textures.store)
 
     private val source = scope.async(Dispatchers.IO, start = CoroutineStart.LAZY) { IconSource.open(app.assets) }
 

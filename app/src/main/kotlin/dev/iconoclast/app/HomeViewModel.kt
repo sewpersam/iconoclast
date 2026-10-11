@@ -88,12 +88,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         _message.value = try {
             val textures = container.textures
             val archive = withContext(Dispatchers.IO) {
-                ThemeZipImport.read(ThemeTransfer.read(getApplication(), uri), textures.store) { textures.load(setOf(it)).isEmpty() }
-                    .also { a -> a.textures.forEach(textures::write) }
+                // The whole file is validated before anything is stored.
+                ThemeZipImport.read(ThemeTransfer.read(getApplication(), uri)) { textures.load(setOf(it)).isEmpty() }
+                    .also { a -> a.textures.forEach { (hash, png) -> textures.write(hash, png) } }
             }
             "Imported ${repo.import(archive.json).name}"
         } catch (e: ThemeFormatException) {
             "Not imported. ${e.message}"
+        } catch (e: OutOfMemoryError) {
+            "Not imported. This file is too large for the memory available."
         }
     }
 

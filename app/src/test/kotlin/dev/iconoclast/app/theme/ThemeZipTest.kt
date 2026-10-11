@@ -2,6 +2,9 @@ package dev.iconoclast.app.theme
 
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
+import dev.iconoclast.render.Paint
+import dev.iconoclast.render.PaintLayer
+import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.IconBundle
 import dev.iconoclast.render.texture.TextureStore
 import java.io.ByteArrayOutputStream
@@ -34,12 +37,13 @@ class ThemeZipTest {
             val from = sourceStore()
             val zip = ThemeZipExport.write(original, from)
 
+            val archive = ThemeZipImport.read(zip) { false }
+            assertEquals(original.theme.textureHashes(), archive.textures.keys, name)
             val to = TextureStore()
-            val archive = ThemeZipImport.read(zip, to) { false }
-            assertEquals(original.theme.textureHashes(), archive.textures, name)
+            for ((hash, png) in archive.textures) to.put(hash, png)
             val imported = migrate(archive.json)
             assertEquals(original, imported, name)
-            for (hash in archive.textures) assertContentEquals(from.bytes(hash), to.bytes(hash))
+            for (hash in archive.textures.keys) assertContentEquals(from.bytes(hash), to.bytes(hash))
 
             val a = IconRenderer(textures = from)
             val b = IconRenderer(textures = to)
@@ -62,7 +66,7 @@ class ThemeZipTest {
     @Test
     fun archiveWithoutThemeIsRefused() {
         val zip = zip("textures/${GoldenSet.TEXTURE}.png" to cracks)
-        val e = assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip, TextureStore()) { false } }
+        val e = assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip) { false } }
         assertTrue("theme.json" in e.message!!)
     }
 
@@ -70,8 +74,8 @@ class ThemeZipTest {
     fun missingTextureIsRefusedUnlessOnThePhone() {
         val json = doc(GoldenSet.LOOKS.keys.first()).toJson()
         val zip = zip("theme.json" to json.toByteArray())
-        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip, TextureStore()) { false } }
-        assertEquals(emptySet(), ThemeZipImport.read(zip, TextureStore()) { true }.textures)
+        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip) { false } }
+        assertEquals(emptySet(), ThemeZipImport.read(zip) { true }.textures.keys)
     }
 
     @Test
@@ -79,26 +83,61 @@ class ThemeZipTest {
         val json = doc(GoldenSet.LOOKS.keys.first()).toJson()
         val other = TextureStore.encode(1, 1, byteArrayOf(0, 0, 0, -1))
         val zip = zip("theme.json" to json.toByteArray(), "textures/${GoldenSet.TEXTURE}.png" to other)
-        val e = assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip, TextureStore()) { false } }
+        val e = assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip) { false } }
         assertTrue("damaged" in e.message!!)
         val garbage = zip("theme.json" to json.toByteArray(), "textures/${GoldenSet.TEXTURE}.png" to byteArrayOf(1, 2, 3))
-        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(garbage, TextureStore()) { false } }
+        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(garbage) { false } }
     }
 
     @Test
     fun bareJsonImportsWhenItsTexturesAreOnThePhone() {
         val json = doc(GoldenSet.LOOKS.keys.first()).toJson().toByteArray()
-        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(json, TextureStore()) { false } }
-        assertEquals(json.decodeToString(), ThemeZipImport.read(json, TextureStore()) { true }.json)
-        val plain = ThemeDocument(id = "p", name = "Plain", created = 1, modified = 2, theme = dev.iconoclast.render.Theme()).toJson()
-        assertEquals(plain, ThemeZipImport.read(plain.toByteArray(), TextureStore()) { false }.json)
+        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(json) { false } }
+        assertEquals(json.decodeToString(), ThemeZipImport.read(json) { true }.json)
+        val plain = ThemeDocument(id = "p", name = "Plain", created = 1, modified = 2, theme = Theme()).toJson()
+        assertEquals(plain, ThemeZipImport.read(plain.toByteArray()) { false }.json)
     }
 
     @Test
     fun damagedArchiveOrThemeIsRefused() {
         val zip = ThemeZipExport.write(doc(GoldenSet.LOOKS.keys.first()), sourceStore())
-        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip.copyOf(zip.size / 2), TextureStore()) { false } }
-        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip("theme.json" to "{}".toByteArray()), TextureStore()) { false } }
+        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip.copyOf(zip.size / 2)) { false } }
+        assertFailsWith<ThemeFormatException> { ThemeZipImport.read(zip("theme.json" to "{}".toByteArray())) { false } }
+    }
+
+    /** Validation stores nothing: a failing archive leaves no texture behind. */
+    @Test
+    fun validationTouchesNoStore() {
+        val d = doc(GoldenSet.LOOKS.keys.first())
+        val archive = ThemeZipImport.read(ThemeZipExport.write(d, sourceStore())) { false }
+        assertEquals(setOf(GoldenSet.TEXTURE), archive.textures.keys)
+        assertContentEquals(sourceStore().bytes(GoldenSet.TEXTURE), archive.textures[GoldenSet.TEXTURE])
+    }
+
+    /** Item 2: entries the theme does not reference are never read, however many. */
+    @Test
+    fun unreferencedEntriesAreSkippedUnread() {
+        val json = doc(GoldenSet.LOOKS.keys.first()).toJson().toByteArray()
+        val junk = ByteArray(2 * 1024 * 1024)
+        val entries = listOf("theme.json" to json, "textures/${GoldenSet.TEXTURE}.png" to cracks) +
+            (0 until 40).map { "textures/%064x.png".format(it) to junk } + (0 until 40).map { "junk/$it.bin" to junk }
+        val archive = ThemeZipImport.read(zip(*entries.toTypedArray())) { false }
+        assertEquals(setOf(GoldenSet.TEXTURE), archive.textures.keys)
+    }
+
+    /** Item 2: compressible entries the theme does reference are capped in total, refused before decoding. */
+    @Test
+    fun referencedEntriesAreCappedInTotal() {
+        val hashes = (1..4).map { "%064x".format(it) }
+        val theme = Theme().let { t -> t.copy(layers = t.layers + hashes.map { PaintLayer(it, Paint.Texture(it)) }) }
+        val json = ThemeDocument(id = "b", name = "Bomb", created = 1, modified = 2, theme = theme).toJson().toByteArray()
+        val big = ByteArray(20 * 1024 * 1024)
+        val bomb = zip("theme.json" to json, *hashes.map { "textures/$it.png" to big }.toTypedArray())
+        assertTrue(bomb.size < 1024 * 1024, "the archive itself is small")
+        val e = assertFailsWith<ThemeFormatException> { ThemeZipImport.read(bomb) { false } }
+        assertTrue("too large" in e.message!!, e.message)
+        val one = zip("theme.json" to json, "textures/${hashes[0]}.png" to ByteArray(ThemeZipImport.MAX_TEXTURE + 1))
+        assertTrue("too large" in assertFailsWith<ThemeFormatException> { ThemeZipImport.read(one) { false } }.message!!)
     }
 
     private fun zip(vararg files: Pair<String, ByteArray>): ByteArray {
