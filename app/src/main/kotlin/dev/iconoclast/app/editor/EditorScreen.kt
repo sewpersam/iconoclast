@@ -32,6 +32,8 @@ import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,8 +54,8 @@ import androidx.compose.ui.unit.dp
 
 private val TABS = listOf("Shape", "Fill", "Background", "Layers", "Effects")
 
-/** Layers and Effects are M5 and M6; their tabs hold their place, disabled. */
-private const val ENABLED_TABS = 3
+/** Effects is M6; its tab holds its place, disabled. */
+private const val ENABLED_TABS = 4
 
 /**
  * The theme editor, spec 2.2 screen 2: the live preview on top, the tabbed controls
@@ -69,8 +71,9 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.flush() }
     LaunchedEffect(ui.message) {
         ui.message?.let {
-            snackbar.showSnackbar(it)
+            val result = snackbar.showSnackbar(it, actionLabel = if (ui.undoable) "Undo" else null, withDismissAction = ui.undoable)
             vm.messageShown()
+            if (result == SnackbarResult.ActionPerformed) vm.undo()
         }
     }
     Scaffold(
@@ -102,6 +105,7 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.
     Column(Modifier.fillMaxSize()) {
         PreviewGrid(ui.items, images, vm::setVisible, Modifier.fillMaxWidth().height(232.dp))
         PreviewBar(vm, ui)
+        if (ui.importingTexture) LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = "Importing texture" })
         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
             TABS.forEachIndexed { i, name ->
                 Tab(
@@ -119,10 +123,20 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.
             when (tab) {
                 0 -> ShapeTab(theme, vm::drag, vm::endDrag, vm::commit)
                 1 -> FillTab(theme, vm::drag, vm::endDrag, vm::commit)
-                2 -> BackgroundTab(theme, vm::drag, vm::endDrag, vm::commit)
+                2 -> BackgroundTab(theme, vm::drag, vm::endDrag, vm::commit,
+                    TextureActions({ vm.chooseTexture(TextureTarget.Background) }, vm::textureFile))
+                3 -> LayersTab(
+                    theme, ui.selectedLayer, vm::selectLayer, { vm.showAddLayer(true) }, vm::moveLayer, vm::removeLayer,
+                    vm::drag, vm::endDrag, vm::commit,
+                    TextureActions({ ui.selectedLayer?.let { vm.chooseTexture(TextureTarget.Source(it)) } }, vm::textureFile),
+                )
             }
         }
     }
+    if (ui.addingLayer) {
+        AddLayerSheet(onDismiss = { vm.showAddLayer(false) }, onAdd = vm::addLayer, onTexture = { vm.chooseTexture(TextureTarget.NewLayer) })
+    }
+    TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
 }
 
 /** The installed or sample toggle, and compare: plain Arcticons while held. */

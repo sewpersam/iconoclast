@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.BackgroundParams
 import dev.iconoclast.render.Border
@@ -14,13 +16,16 @@ import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
 
 /**
- * Spec 2.3, Background. The paint is the base stack's background layer. The shape is
+ * Spec 2.3, Background. The paint is the base stack's background layer. Its texture
+ * option is a layer of its own, clipped to the background right above that paint: the
+ * switch adds or removes it, through [textures], and its controls show here as in the
+ * Layers tab. The shape is
  * baked into the PNG, so the tab says to turn off launcher masking if the two conflict. With no border set, the width reads 0 and the
  * colour and opacity start from white at full opacity. Resetting the width removes the
  * border, back to the default of none.
  */
 @Composable
-fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (Theme) -> Unit) {
+fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (Theme) -> Unit, textures: TextureActions) {
     val b = theme.background
     val d = BackgroundParams()
     val border = b.border ?: NO_BORDER
@@ -41,6 +46,13 @@ fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit:
             { drag(with(b.copy(size = it))) }, done, { commit(with(b.copy(size = d.size))) })
         backgroundPaint(theme)?.let { paint ->
             PaintControl(paint, DEFAULT_PAINT, { drag(withBackgroundPaint(theme, it)) }, done, { commit(withBackgroundPaint(theme, it)) })
+        }
+        val texture = LayerStack.backgroundTexture(theme)
+        SwitchControl("Texture layer", texture != null, false) { on ->
+            if (on) textures.choose() else commit(LayerStack.remove(theme, LayerStack.BACKGROUND_TEXTURE_ID))
+        }
+        if (texture != null) {
+            Column(Modifier.padding(start = 8.dp)) { LayerControls(texture, theme, drag, done, commit, textures) }
         }
         SliderControl("Border width", border.width, 0f..0.1f, 0f, percent,
             { drag(withBorder(border.copy(width = it))) }, done, { commit(with(b.copy(border = d.border))) })
