@@ -38,7 +38,7 @@ internal object Streaks {
         e.breakup?.let { b ->
             val gain = 1f / (1f - 0.95f * b.contrast)
             val shift = 1f - b.density
-            val (ox, oy) = Mappings.offset(Mapping(), input.drawable)
+            val (ox, oy) = Mappings.offset(Mapping(), input.seedName)
             val tex = b.texture?.let { checkNotNull(input.textures[it]) { "texture $it is not in the store" } }
             for (j in 0 until side) for (i in 0 until side) {
                 val k = j * side + i

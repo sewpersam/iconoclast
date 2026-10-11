@@ -18,7 +18,8 @@ import dev.iconoclast.render.texture.TextureStore
 
 /** What the stack reads for one icon at one size. Masks come from the cache, read-only. */
 internal class StackInput(
-    val drawable: String,
+    /** The slot's drawable name, which seeds every per-icon choice. Never a cache key for geometry. */
+    val seedName: String,
     val size: Int,
     val masks: GlyphMasks,
     /** Body union lines, computed on first use. */
@@ -182,7 +183,7 @@ internal object StackEvaluator {
             }
             is Paint.Texture -> {
                 val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
-                val px = Mappings.texture(tex, layer.mapping, input.drawable, input.size, need)
+                val px = Mappings.texture(tex, layer.mapping, input.seedName, input.size, need)
                 val lum = if (needLuminance) lumOf(px, n) else null
                 paint.stops?.let { stops ->
                     val c = FloatArray(4)
@@ -199,11 +200,11 @@ internal object StackEvaluator {
                 // The cached field is the whole canvas; outside [need] nothing reads it, so the
                 // pixels are the same either way. Read-only: the gradient map writes to px.
                 val v = if (input.cacheNoise) {
-                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size)) {
-                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size)
+                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, input.seedName, input.size)) {
+                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.seedName, input.size)
                     }
                 } else {
-                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size, need)
+                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.seedName, input.size, need)
                 }
                 val px = FloatArray(v.size * 4)
                 val c = FloatArray(4)

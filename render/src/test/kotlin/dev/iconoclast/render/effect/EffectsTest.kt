@@ -59,7 +59,7 @@ class EffectsTest {
     fun cachedMasksStayUntouched() {
         val r = IconRenderer()
         val theme = GoldenSet.JADE_LIKE
-        val input = r.stackInput(name, icon, theme, 432)
+        val input = r.stackInput(name, icon, name, theme, 432)
         val before = EffectSource.icon(input).copyOf()
         val sd = EffectSource.signedDistance(input).copyOf()
         for (t in looks.values) r.render(name, icon, t.copy(shape = theme.shape, fill = theme.fill), 432)
@@ -139,7 +139,7 @@ class EffectsTest {
         val theme = GoldenSet.EFFECTS.getValue("effect_drop_shadow")
         val bare = theme.copy(layers = theme.layers.filterNot { it is EffectLayer })
         val r = IconRenderer()
-        val mask = EffectSource.icon(r.stackInput(name, icon, theme, 128))
+        val mask = EffectSource.icon(r.stackInput(name, icon, name, theme, 128))
         val a = r.render(name, icon, theme, 128).pixels
         val b = r.render(name, icon, bare, 128).pixels
         var inside = 0

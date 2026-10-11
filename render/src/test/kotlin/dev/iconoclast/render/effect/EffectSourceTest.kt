@@ -16,7 +16,7 @@ class EffectSourceTest {
     fun effectsReadBodyUnionLinesFromTheCache() {
         val r = IconRenderer()
         val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
-        val input = r.stackInput("square", EffectTestIcons.square, theme, 96)
+        val input = r.stackInput("square", EffectTestIcons.square, "square", theme, 96)
         assertEquals(EffectKind.ICON, input.iconKey!!.kind)
         val icon = EffectSource.icon(input)
         val body = input.masks.body!!
@@ -24,10 +24,10 @@ class EffectSourceTest {
         for (i in icon.indices) assertEquals(body[i] + lines[i] - body[i] * lines[i], icon[i])
         assertTrue((icon.indices).any { lines[it] > 0f && body[it] == 0f }, "the lines are in, which the body alone lacks")
         val misses = r.cache.misses
-        assertTrue(EffectSource.icon(r.stackInput("square", EffectTestIcons.square, theme, 96)) === icon, "one cached instance")
+        assertTrue(EffectSource.icon(r.stackInput("square", EffectTestIcons.square, "square", theme, 96)) === icon, "one cached instance")
         assertEquals(misses, r.cache.misses)
         // Outline mode has no body at all; the effects still see the lines.
-        val outline = r.stackInput("square", EffectTestIcons.square, Theme(), 96)
+        val outline = r.stackInput("square", EffectTestIcons.square, "square", Theme(), 96)
         assertEquals(null, outline.masks.body)
         assertTrue(EffectSource.icon(outline).sum() > 0f)
     }

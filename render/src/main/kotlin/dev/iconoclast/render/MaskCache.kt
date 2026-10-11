@@ -1,8 +1,9 @@
 package dev.iconoclast.render
 
 /**
- * Geometry depends on the drawable, the shape parameters and the size, nothing else. The
- * drawable is its name, so overrides and custom glyphs can take names of their own.
+ * Geometry depends on the drawable, the shape parameters and the size, nothing else.
+ * [drawable] is the geometry's own drawable name, never the slot it is drawn for: a slot
+ * swapped to another drawable reads that drawable's entries and cannot write its own.
  */
 data class GeometryKey(val drawable: String, val shape: ShapeParams, val size: Int)
 
@@ -77,7 +78,7 @@ data class EffectKey(
  * gives without a need mask. It depends on no geometry, so a drag that changes the shape
  * reuses it. Only preview sizes are cached; see IconRenderer.
  */
-data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val drawable: String, val size: Int)
+data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val seedName: String, val size: Int)
 
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 

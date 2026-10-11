@@ -39,7 +39,7 @@ class LayerSourceTest {
         for (src in sources) for (name in listOf("a", "b")) {
             val layer = PaintLayer("x", src, clip = ClipTarget.ICON_FILL, opacity = 0.3f, matte = Matte(),
                 mapping = Mapping(MappingMode.TILE, scale = 2f, rotation = 30f))
-            val input = r.stackInput(name, EffectTestIcons.square, Theme(), size)
+            val input = r.stackInput(name, EffectTestIcons.square, name, Theme(), size)
             val colors = StackEvaluator.sourceColors(layer, input)
             val painted = FloatArray(4 * size * size)
             StackEvaluator.paint(painted, listOf(layer.copy(clip = ClipTarget.CANVAS, opacity = 1f, matte = null)), input)
@@ -47,7 +47,7 @@ class LayerSourceTest {
         }
         // The per-icon offset reaches it: two icons get two patches.
         val noise = PaintLayer("n", sources[3])
-        assertFalse(StackEvaluator.sourceColors(noise, r.stackInput("a", EffectTestIcons.square, Theme(), size))
-            .contentEquals(StackEvaluator.sourceColors(noise, r.stackInput("b", EffectTestIcons.square, Theme(), size))))
+        assertFalse(StackEvaluator.sourceColors(noise, r.stackInput("a", EffectTestIcons.square, "a", Theme(), size))
+            .contentEquals(StackEvaluator.sourceColors(noise, r.stackInput("b", EffectTestIcons.square, "b", Theme(), size))))
     }
 }
