@@ -1,5 +1,6 @@
 package dev.iconoclast.app
 
+import android.os.Debug
 import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -9,6 +10,8 @@ import dev.iconoclast.app.theme.migrate
 import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.CoveragePlan
 import dev.iconoclast.pack.ZipRewriter
+import dev.iconoclast.render.Effect
+import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
 import dev.iconoclast.render.GoldenSet
@@ -20,7 +23,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.nio.ByteBuffer
+import java.util.zip.ZipFile
 
 /**
  * Spec 3.3's phone budgets, measured on the device. Each run starts with a new renderer,
@@ -76,10 +81,31 @@ class PhoneBudgetTest {
     @Test
     fun applyOf300IconsNeonPreset() = apply(preset("neon.json"), "neon-preset")
 
+    /**
+     * The review's heap case: grain at 0.6 (GoldenSet "effect_grain"), about 300 KB an icon.
+     * Before the streaming pack build this held every PNG and two copies of the pack in heap.
+     * Also runs the same look without grain and with grain at full amount, for the pack-size
+     * note: what grain adds per icon.
+     */
+    @Test
+    fun applyOf300IconsGrain() {
+        val grain = GoldenSet.EFFECTS.getValue("effect_grain")
+        val base = grain.copy(layers = grain.layers.filterNot { it.id == "grain" })
+        val full = grain.copy(layers = grain.layers.map { l ->
+            if (l is EffectLayer && l.effect is Effect.Grain) l.copy(effect = (l.effect as Effect.Grain).copy(amount = 1f), opacity = 1f) else l
+        })
+        val none = apply(base, "grain-none", runs = 1)
+        val at06 = apply(grain, "grain-0.6")
+        val atFull = apply(full, "grain-full", runs = 1)
+        Log.i(TAG, "grain per icon: none ${none / 1024} KB, 0.6 ${at06 / 1024} KB (+${(at06 - none) / 1024}), " +
+            "full ${atFull / 1024} KB (+${(atFull - none) / 1024})")
+    }
+
     private fun preset(file: String): Theme =
         migrate(instrumentation.targetContext.assets.open("${Presets.DIR}/$file").use { it.readBytes().decodeToString() }).theme
 
-    private fun apply(theme: Theme, label: String) {
+    /** Builds the pack [runs] times; gates the warm runs, logs time and peak heap. Returns the mean icon PNG size. */
+    private fun apply(theme: Theme, label: String, runs: Int = RUNS): Long {
         val target = instrumentation.targetContext.assets
         val source = IconSource.open(target)
         val template = target.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
@@ -89,18 +115,51 @@ class PhoneBudgetTest {
             items = drawables.indices.map { "budget.app$it/budget.app$it.Main" to it },
             unmatched = emptyList(),
         )
-        val runs = (0 until RUNS).map {
-            var apk = ByteArray(0)
-            val ms = timed {
-                apk = runBlocking { PackBuilder(source, IconRenderer()).build(template, plan, theme) { _, _ -> } }
+        val dir = File(instrumentation.targetContext.cacheDir, "budget").apply { deleteRecursively(); mkdirs() }
+        val apk = File(dir, "unsigned.apk")
+        val rt = Runtime.getRuntime()
+        var iconBytes = 0L
+        val times = (0 until runs).map {
+            System.gc()
+            val heap = HeapPeak()
+            val ms = try {
+                timed { runBlocking { PackBuilder(source, IconRenderer()).build(template, plan, theme, File(dir, "icons"), apk) { _, _ -> } } }
+            } finally {
+                heap.stop()
             }
-            assertEquals(ZipRewriter.entryNames(template).size, ZipRewriter.entryNames(apk).size)
-            Log.i(TAG, "apply run: $ms ms, ${apk.size} bytes")
+            ZipFile(apk).use { z ->
+                assertEquals(ZipRewriter.entryNames(template).size, z.size())
+                iconBytes = (0 until APPLY_ICONS).sumOf { z.getEntry(PackBuilder.slotPath(it)).size } / APPLY_ICONS
+            }
+            Log.i(TAG, "apply run $label: $ms ms, ${apk.length()} bytes, ${iconBytes / 1024} KB per icon, " +
+                "peak java heap ${heap.java / MB} MB of ${rt.maxMemory() / MB} MB, peak native heap ${heap.native / MB} MB")
             ms
         }
         Log.i(TAG, "apply $APPLY_ICONS@full $label, ${PackBuilder.RENDER_THREADS} threads, " +
-            "${Runtime.getRuntime().availableProcessors()} cpus, ms per run, first is cold: $runs")
-        assertTrue("apply runs $runs ms, budget $APPLY_BUDGET_MS ms", runs.drop(1).all { it < APPLY_BUDGET_MS })
+            "${rt.availableProcessors()} cpus, ms per run, first is cold: $times")
+        dir.deleteRecursively()
+        assertTrue("apply runs $times ms, budget $APPLY_BUDGET_MS ms", times.drop(1).all { it < APPLY_BUDGET_MS })
+        return iconBytes
+    }
+
+    /** Samples the used Java heap and the allocated native heap every 5 ms until [stop]. */
+    private class HeapPeak {
+        @Volatile private var running = true
+        @Volatile var java = 0L; private set
+        @Volatile var native = 0L; private set
+        private val thread = Thread {
+            val rt = Runtime.getRuntime()
+            while (running) {
+                java = maxOf(java, rt.totalMemory() - rt.freeMemory())
+                native = maxOf(native, Debug.getNativeHeapAllocatedSize())
+                Thread.sleep(5)
+            }
+        }.apply { isDaemon = true; start() }
+
+        fun stop() {
+            running = false
+            thread.join()
+        }
     }
 
     private inline fun timed(block: () -> Unit): Long {
@@ -116,5 +175,6 @@ class PhoneBudgetTest {
         const val PREVIEW_BUDGET_MS = 150L
         const val APPLY_ICONS = 300
         const val APPLY_BUDGET_MS = 20_000L
+        const val MB = 1024 * 1024
     }
 }

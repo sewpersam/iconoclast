@@ -1,6 +1,10 @@
 package dev.iconoclast.pack
 
+import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.FilterOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.CRC32
@@ -11,7 +15,7 @@ import java.util.zip.CRC32
  * Entries keep their template order. `META-INF/` is dropped. Each replaced entry gets
  * the new bytes, stored uncompressed. Untouched entries are copied byte for byte,
  * compressed or not. Every STORED entry's data is aligned to 4 bytes. The output depends
- * only on the template and the replacements, so it is deterministic.
+ * only on the template and the replacements' bytes, so it is deterministic.
  */
 object ZipRewriter {
     const val ALIGNMENT = 4
@@ -41,67 +45,86 @@ object ZipRewriter {
     }
 
     /**
-     * Rewrites [template]. Every key of [replacements] must name an entry of the template,
-     * so a slot that does not exist fails loudly instead of being silently dropped.
+     * Rewrites [template] into [out], streaming: each replacement is read from its file
+     * and copied, never held whole, so a pack of hundreds of large icons fits a small heap.
+     * Every key of [replacements] must name an entry of the template, so a slot that does
+     * not exist fails loudly instead of being silently dropped.
      */
-    fun rewrite(template: ByteArray, replacements: Map<String, ByteArray>): ByteArray {
+    fun rewrite(template: ByteArray, replacements: Map<String, File>, out: File) {
         val src = ByteBuffer.wrap(template).order(ByteOrder.LITTLE_ENDIAN)
         val entries = readCentralDirectory(src).sortedBy { it.localOffset }
         val missing = replacements.keys - entries.map { it.nameString }.toSet()
         require(missing.isEmpty()) { "not in the template: ${missing.sorted().take(5)}" }
 
-        val out = Output()
         val central = Output()
         var count = 0
-        for (e in entries) {
-            val name = e.nameString
-            if (name.startsWith("META-INF/")) continue
-            val replacement = replacements[name]
-            val method: Int
-            val crc: Int
-            val compressedSize: Int
-            val size: Int
-            val data: ByteBuffer
-            if (replacement != null) {
-                method = STORED
-                crc = CRC32().apply { update(replacement) }.value.toInt()
-                compressedSize = replacement.size
-                size = replacement.size
-                data = ByteBuffer.wrap(replacement)
-            } else {
-                method = e.method
-                crc = e.crc
-                compressedSize = e.compressedSize
-                size = e.size
-                data = localData(src, e)
-            }
-            val flags = e.flags and UTF8_FLAG
-            val offset = out.size
-            val extra = if (method == STORED) {
-                ZipAlignment.extraField(offset + 30L + e.name.size, ALIGNMENT)
-            } else {
-                ByteArray(0)
-            }
+        Sink(out).use { sink ->
+            for (e in entries) {
+                val name = e.nameString
+                if (name.startsWith("META-INF/")) continue
+                val replacement = replacements[name]
+                val method: Int
+                val crc: Int
+                val compressedSize: Int
+                val size: Int
+                if (replacement != null) {
+                    val length = replacement.length()
+                    require(length <= Int.MAX_VALUE) { "$name is too large" }
+                    method = STORED
+                    crc = crcOf(replacement)
+                    compressedSize = length.toInt()
+                    size = length.toInt()
+                } else {
+                    method = e.method
+                    crc = e.crc
+                    compressedSize = e.compressedSize
+                    size = e.size
+                }
+                val flags = e.flags and UTF8_FLAG
+                val offset = sink.size
+                val extra = if (method == STORED) {
+                    ZipAlignment.extraField(offset + 30L + e.name.size, ALIGNMENT)
+                } else {
+                    ByteArray(0)
+                }
 
-            out.int(LOCAL_SIG); out.short(e.versionNeeded); out.short(flags); out.short(method)
-            out.short(e.time); out.short(e.date); out.int(crc); out.int(compressedSize); out.int(size)
-            out.short(e.name.size); out.short(extra.size); out.bytes(e.name); out.bytes(extra)
-            out.buffer(data)
+                sink.int(LOCAL_SIG); sink.short(e.versionNeeded); sink.short(flags); sink.short(method)
+                sink.short(e.time); sink.short(e.date); sink.int(crc); sink.int(compressedSize); sink.int(size)
+                sink.short(e.name.size); sink.short(extra.size); sink.bytes(e.name); sink.bytes(extra)
+                if (replacement != null) {
+                    val copied = replacement.inputStream().use { it.copyTo(sink) }
+                    check(copied == size.toLong()) { "$name changed while it was written" }
+                } else {
+                    sink.buffer(localData(src, e))
+                }
 
-            central.int(CENTRAL_SIG); central.short(e.versionMadeBy); central.short(e.versionNeeded)
-            central.short(flags); central.short(method); central.short(e.time); central.short(e.date)
-            central.int(crc); central.int(compressedSize); central.int(size)
-            central.short(e.name.size); central.short(0); central.short(0); central.short(0)
-            central.short(e.internalAttrs); central.int(e.externalAttrs); central.int(offset.toInt())
-            central.bytes(e.name)
-            count++
+                central.int(CENTRAL_SIG); central.short(e.versionMadeBy); central.short(e.versionNeeded)
+                central.short(flags); central.short(method); central.short(e.time); central.short(e.date)
+                central.int(crc); central.int(compressedSize); central.int(size)
+                central.short(e.name.size); central.short(0); central.short(0); central.short(0)
+                central.short(e.internalAttrs); central.int(e.externalAttrs); central.int(offset.toInt())
+                central.bytes(e.name)
+                count++
+            }
+            val centralOffset = sink.size
+            val centralBytes = central.toByteArray()
+            sink.bytes(centralBytes)
+            sink.int(END_SIG); sink.short(0); sink.short(0); sink.short(count); sink.short(count)
+            sink.int(centralBytes.size); sink.int(centralOffset.toInt()); sink.short(0)
         }
-        val centralOffset = out.size
-        val centralBytes = central.toByteArray()
-        out.bytes(centralBytes)
-        out.int(END_SIG); out.short(0); out.short(0); out.short(count); out.short(count)
-        out.int(centralBytes.size); out.int(centralOffset.toInt()); out.short(0)
-        return out.toByteArray()
+    }
+
+    private fun crcOf(file: File): Int {
+        val crc = CRC32()
+        val buf = ByteArray(BUFFER)
+        file.inputStream().use { input ->
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                crc.update(buf, 0, n)
+            }
+        }
+        return crc.value.toInt()
     }
 
     /** Entry names of [zip] in central directory order. */
@@ -161,9 +184,22 @@ object ZipRewriter {
 
     private fun u16(b: ByteBuffer, at: Int) = b.getShort(at).toInt() and 0xFFFF
 
+    private const val BUFFER = 64 * 1024
+
+    /** The central directory, a few dozen bytes per entry, built in memory. */
     private class Output : ByteArrayOutputStream() {
-        val size: Long get() = count.toLong()
         fun short(v: Int) { write(v); write(v ushr 8) }
+        fun int(v: Int) { short(v and 0xFFFF); short(v ushr 16) }
+        fun bytes(b: ByteArray) = write(b, 0, b.size)
+    }
+
+    /** The output file, buffered, counting the bytes written so far. */
+    private class Sink(file: File) : FilterOutputStream(BufferedOutputStream(FileOutputStream(file), BUFFER)) {
+        var size = 0L
+            private set
+        override fun write(b: Int) { out.write(b); size++ }
+        override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len); size += len }
+        fun short(v: Int) { write(v and 0xFF); write((v ushr 8) and 0xFF) }
         fun int(v: Int) { short(v and 0xFFFF); short(v ushr 16) }
         fun bytes(b: ByteArray) = write(b, 0, b.size)
         fun buffer(b: ByteBuffer) {

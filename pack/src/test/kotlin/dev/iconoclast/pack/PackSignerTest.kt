@@ -15,7 +15,7 @@ class PackSignerTest {
     @Test
     fun signedPackVerifiesWithV2AndV3AndStaysAligned() {
         val key = PackKeyStore(File(dir, "keys"), "Test Pack").loadOrCreate()
-        val unsigned = ZipRewriter.rewrite(templateBytes(), mapOf("res/drawable-nodpi-v4/slot_0001.png" to ByteArray(123) { 5 }))
+        val unsigned = rewriteToFile(templateBytes(), mapOf("res/drawable-nodpi-v4/slot_0001.png" to ByteArray(123) { 5 }), dir, File(dir, "unsigned.apk"))
         val apk = File(dir, "signed.apk")
         PackSigner.sign(unsigned, key, apk)
 

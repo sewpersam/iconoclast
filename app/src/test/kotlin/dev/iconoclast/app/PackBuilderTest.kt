@@ -57,8 +57,17 @@ class PackBuilderTest {
     private val thick = Theme(shape = ShapeParams(strokeWeight = 2f))
     private val plan = CoverageMatcher.match(components, PackBuilder.slotCount(template), source::resolve)
 
-    private fun build(renderer: IconRenderer = IconRenderer()) =
-        runBlocking { PackBuilder(source, renderer).build(template, plan, thick) { _, _ -> } }
+    private val dir: File = java.nio.file.Files.createTempDirectory("packbuilder").toFile().apply { deleteOnExit() }
+    private var builds = 0
+
+    /** The unsigned pack's bytes, built to a file as Apply builds it. */
+    private fun build(renderer: IconRenderer = IconRenderer()): ByteArray {
+        val out = File(dir, "unsigned-${builds++}.apk")
+        val work = File(dir, "icons")
+        runBlocking { PackBuilder(source, renderer).build(template, plan, thick, work, out) { _, _ -> } }
+        assertTrue(!work.exists(), "the icon files are removed after the rewrite")
+        return out.readBytes()
+    }
 
     private fun entries(apk: ByteArray): Map<String, ByteArray> {
         val out = LinkedHashMap<String, ByteArray>()

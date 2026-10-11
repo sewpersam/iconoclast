@@ -27,9 +27,12 @@ class ZipRewriterTest {
 
     private fun write(bytes: ByteArray, name: String) = File(dir, name).apply { writeBytes(bytes) }
 
+    private fun rewrite(template: ByteArray, replacements: Map<String, ByteArray>, name: String) =
+        rewriteToFile(template, replacements, dir, File(dir, name))
+
     @Test
     fun rewrittenTemplatePassesZipalign() {
-        val out = write(ZipRewriter.rewrite(templateBytes(), replacements), "aligned.apk")
+        val out = rewrite(templateBytes(), replacements, "aligned.apk")
         val report = assertZipaligned(out)
         assertTrue("Verification succesful" in report || "Verification successful" in report, report.takeLast(200))
     }
@@ -37,7 +40,7 @@ class ZipRewriterTest {
     @Test
     fun keepsOrderAndContentAndStoresReplacements() {
         val template = write(templateBytes(), "template.apk")
-        val out = write(ZipRewriter.rewrite(template.readBytes(), replacements), "out.apk")
+        val out = rewrite(template.readBytes(), replacements, "out.apk")
         ZipFile(template).use { t ->
             ZipFile(out).use { o ->
                 assertEquals(t.entries().toList().map { it.name }, o.entries().toList().map { it.name })
@@ -60,15 +63,15 @@ class ZipRewriterTest {
 
     @Test
     fun sameInputsGiveTheSameBytes() {
-        val a = ZipRewriter.rewrite(templateBytes(), replacements)
-        val b = ZipRewriter.rewrite(templateBytes(), replacements.entries.reversed().associate { it.toPair() })
+        val a = rewrite(templateBytes(), replacements, "a.apk").readBytes()
+        val b = rewrite(templateBytes(), replacements.entries.reversed().associate { it.toPair() }, "b.apk").readBytes()
         assertContentEquals(a, b)
     }
 
     @Test
     fun rejectsAnEntryTheTemplateDoesNotHave() {
         val e = assertFailsWith<IllegalArgumentException> {
-            ZipRewriter.rewrite(templateBytes(), mapOf("res/drawable-nodpi-v4/slot_1024.png" to byteArrayOf(1)))
+            rewrite(templateBytes(), mapOf("res/drawable-nodpi-v4/slot_1024.png" to byteArrayOf(1)), "missing.apk")
         }
         assertTrue("slot_1024" in e.message!!)
     }
@@ -88,7 +91,7 @@ class ZipRewriterTest {
             z.putNextEntry(ZipEntry("c.txt")); z.write("old".toByteArray()); z.closeEntry()
         }
         assertTrue(entryFlags(src.toByteArray()).any { (local, _) -> local and 0x8 != 0 }, "input must use data descriptors")
-        val out = write(ZipRewriter.rewrite(src.toByteArray(), mapOf("c.txt" to "new".toByteArray())), "small.zip")
+        val out = rewrite(src.toByteArray(), mapOf("c.txt" to "new".toByteArray()), "small.zip")
         assertZipaligned(out)
         for ((local, central) in entryFlags(out.readBytes())) {
             assertEquals(0, local and 0x8, "local header data descriptor bit")

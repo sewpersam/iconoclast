@@ -94,7 +94,9 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val t1 = SystemClock.elapsedRealtime()
 
         _state.value = ApplyState.Working("Drawing icons", 0, plan.drawables.size + 1)
-        val unsigned = PackBuilder(icons, container.renderer).build(template, plan, theme) { done, total ->
+        val dir = withContext(Dispatchers.IO) { File(app.cacheDir, "pack").apply { mkdirs() } }
+        val unsigned = dir.resolve("unsigned.apk")
+        PackBuilder(icons, container.renderer).build(template, plan, theme, dir.resolve("icons"), unsigned) { done, total ->
             _state.value = ApplyState.Working("Drawing icons", done, total)
         }
         val t2 = SystemClock.elapsedRealtime()
@@ -105,7 +107,7 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         // before the system offers an update that can only fail.
         if (installedPackSigner()?.let { !it.contentEquals(key.certificate.encoded) } == true) return mismatch()
         val apk = withContext(Dispatchers.IO) {
-            File(app.cacheDir, "pack").apply { mkdirs() }.resolve("pack.apk").also { PackSigner.sign(unsigned, key, it) }
+            dir.resolve("pack.apk").also { PackSigner.sign(unsigned, key, it); unsigned.delete() }
         }
         val t3 = SystemClock.elapsedRealtime()
         Log.i(TAG, "apply: ${components.size} activities, ${plan.items.size} themed, ${plan.drawables.size} slots; " +
