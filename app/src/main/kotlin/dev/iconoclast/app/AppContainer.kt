@@ -2,6 +2,7 @@ package dev.iconoclast.app
 
 import android.app.Application
 import android.util.Log
+import dev.iconoclast.app.coverage.CoverageStore
 import dev.iconoclast.app.texture.TextureFiles
 import dev.iconoclast.app.theme.Presets
 import dev.iconoclast.app.theme.ThemeRepository
@@ -35,6 +36,9 @@ class AppContainer(private val app: Application) {
     val themes = ThemeRepository(File(app.filesDir, "themes"), presets = { Presets.read(app.assets) })
 
     val previews = ThemePreviews(this)
+
+    /** What the last successful Apply installed, for the coverage diff on open. */
+    val coverage = CoverageStore(File(app.filesDir, "coverage"))
 
     private companion object {
         const val TAG = "Iconoclast"

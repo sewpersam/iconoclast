@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.iconoclast.app.coverage.AppliedCoverage
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.app.theme.effectiveGeometry
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 sealed interface ApplyState {
     data object Idle : ApplyState
@@ -121,6 +123,7 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = ApplyState.Working("Installing")
         val result = PackInstallSession(app).install(apk, PACK_PACKAGE) { launches.trySend(it) }
         Log.i(TAG, "install: $result in ${SystemClock.elapsedRealtime() - t3} ms")
+        if (result == InstallResult.Success) recordCoverage(doc, components)
         return when (result) {
             InstallResult.Success -> ApplyState.Installed(firstInstall, currentLauncher(), plan.items.size, plan.unmatched.size)
             InstallResult.NeedsPermission -> ApplyState.Problem(
@@ -129,6 +132,15 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             )
             is InstallResult.SignatureMismatch -> mismatch()
             is InstallResult.Failed -> ApplyState.Problem(result.message)
+        }
+    }
+
+    /** The pack is installed whatever happens here; a failed write only loses the next diff. */
+    private suspend fun recordCoverage(doc: ThemeDocument, components: Set<String>) = withContext(Dispatchers.IO) {
+        try {
+            container.coverage.write(AppliedCoverage(doc.id, System.currentTimeMillis(), components))
+        } catch (e: IOException) {
+            Log.w(TAG, "Coverage of this Apply was not saved", e)
         }
     }
 

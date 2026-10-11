@@ -23,11 +23,15 @@ androidComponents {
     }
 }
 
-// DrawableSearchTest ranks searches over every converted drawable name at the pin.
+// DrawableSearchTest ranks searches over every converted drawable name at the pin;
+// CalendarFallbackTest resolves through the compiled appfilter.
 tasks.withType<Test>().configureEach {
     val convert = tasks.named<ConvertIconsTask>("convertArcticonsIcons")
     inputs.dir(convert.flatMap { it.outputDir })
     systemProperty("arcticons.names", convert.get().outputDir.get().asFile.resolve("arcticons/names.txt").path)
+    val appfilter = tasks.named<CompileAppfilterTask>("compileArcticonsAppfilter")
+    inputs.dir(appfilter.flatMap { it.outputDir })
+    systemProperty("arcticons.components", appfilter.get().outputDir.get().asFile.resolve("arcticons/components.bin").path)
 }
 
 dependencies {
