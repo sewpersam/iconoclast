@@ -47,4 +47,31 @@ class EffectsClipTest {
         StackEvaluator.paint(buf, listOf(PaintLayer("t", Paint.Solid(-1), clip = ClipTarget.EFFECTS)), input)
         assertEquals(0f, buf.max())
     }
+
+    /** Review round 2: atop is exact Porter-Duff, co = ab x + (1 - as) cb, ao = ab, x the blended source. */
+    @Test
+    fun atopIsExactPorterDuff() {
+        val n1 = 1
+        for (mode in listOf(BlendMode.NORMAL, BlendMode.MULTIPLY, BlendMode.OVERLAY)) for (ab in listOf(0f, 0.25f, 0.6f, 1f)) {
+            val cbStraight = floatArrayOf(0.8f, 0.4f, 0.1f)
+            val buf = floatArrayOf(cbStraight[0] * ab, cbStraight[1] * ab, cbStraight[2] * ab, ab)
+            val cs = floatArrayOf(0.3f, 0.5f, 0.9f)
+            val cov = 0.7f
+            val src = floatArrayOf(cs[0], cs[1], cs[2], 1f)
+            StackEvaluator.paintEffect(buf, StackEvaluator.EffectOutput(floatArrayOf(cov), src, null, mode, atop = true), 1f, StackEvaluator.Pass(n1))
+            val asrc = cov
+            for (k in 0..2) {
+                val b = when (mode) {
+                    BlendMode.MULTIPLY -> cbStraight[k] * cs[k]
+                    BlendMode.OVERLAY -> if (cbStraight[k] <= 0.5f) cs[k] * 2f * cbStraight[k] else {
+                        val t = 2f * cbStraight[k] - 1f; cs[k] + t - cs[k] * t }
+                    else -> cs[k]
+                }
+                val blended = if (mode == BlendMode.NORMAL) cs[k] else (1f - ab) * cs[k] + ab * b
+                val expected = ab * asrc * blended + (1f - asrc) * cbStraight[k] * ab
+                assertEquals(expected, buf[k], 1e-6f, "$mode ab $ab channel $k")
+            }
+            assertEquals(ab, buf[3], "$mode ab $ab alpha kept")
+        }
+    }
 }

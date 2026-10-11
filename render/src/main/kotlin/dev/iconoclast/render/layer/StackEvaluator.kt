@@ -69,9 +69,10 @@ internal object StackEvaluator {
     class EffectOutput(
         val coverage: FloatArray, val solid: FloatArray?, val colors: FloatArray?, val blend: BlendMode,
         /**
-         * Source-atop: the coverage is weighted by the backdrop's alpha and the backdrop's
-         * alpha is kept, so the output lands only on what is already painted. Grain uses it,
-         * so over a transparent backdrop it adds nothing.
+         * Source-atop, Porter-Duff: `co = ab x + (1 - as) cb`, `ao = ab`, x the blended
+         * source, so the output lands only on what is already painted and keeps its alpha.
+         * Over an opaque backdrop that is source-over; over a transparent one, nothing.
+         * Grain uses it.
          */
         val atop: Boolean = false,
     )
@@ -91,24 +92,35 @@ internal object StackEvaluator {
             if (cov > 1f) cov = 1f
             if (opacity != 1f) cov *= opacity
             val o = 4 * i
-            val backdrop = buf[o + 3]
-            if (out.atop) {
-                cov *= backdrop
-                if (cov == 0f) continue
-            }
+            val ab = buf[o + 3]
+            val partial = out.atop && ab < 1f
+            if (out.atop && ab == 0f) continue
+            // Bookkeeping for exact atop: the backdrop before the composite.
+            val br = buf[o]
+            val bg = buf[o + 1]
+            val bb = buf[o + 2]
             val e = acc[i]
-            acc[i] = e + cov - e * cov
+            val shown = if (out.atop) cov * ab else cov
+            acc[i] = e + shown - e * shown
             val s = out.solid
+            val sa: Float
             if (s != null) {
-                BlendModes.composite(out.blend, s[0] * cov, s[1] * cov, s[2] * cov, s[3] * cov, buf, o, scratch)
+                sa = s[3] * cov
+                BlendModes.composite(out.blend, s[0] * cov, s[1] * cov, s[2] * cov, sa, buf, o, scratch)
             } else {
                 val c = out.colors!!
-                BlendModes.composite(out.blend, c[o] * cov, c[o + 1] * cov, c[o + 2] * cov, c[o + 3] * cov, buf, o, scratch)
+                sa = c[o + 3] * cov
+                BlendModes.composite(out.blend, c[o] * cov, c[o + 1] * cov, c[o + 2] * cov, sa, buf, o, scratch)
             }
-            if (out.atop && backdrop < 1f) {
-                // Keep the backdrop's alpha; colour stays premultiplied within it.
-                buf[o + 3] = backdrop
-                for (k in 0..2) if (buf[o + k] > backdrop) buf[o + k] = backdrop
+            if (partial) {
+                // Porter-Duff atop on premultiplied values, W3C Compositing 9.1.8 with the
+                // blend: co = ab x' + (1 - as) cb, ao = ab, where x' = co_over - (1 - as) cb
+                // is the blended source the source-over composite above just added.
+                val keep = 1f - sa
+                buf[o] = (ab * (buf[o] - keep * br) + keep * br).coerceIn(0f, ab)
+                buf[o + 1] = (ab * (buf[o + 1] - keep * bg) + keep * bg).coerceIn(0f, ab)
+                buf[o + 2] = (ab * (buf[o + 2] - keep * bb) + keep * bb).coerceIn(0f, ab)
+                buf[o + 3] = ab
             }
         }
     }
