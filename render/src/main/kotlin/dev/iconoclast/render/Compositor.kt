@@ -42,7 +42,10 @@ const val SAFE_ZONE = 66f / 108f
 class IconRenderer(
     val cache: MaskCache = MaskCache(),
     val textures: TextureStore = TextureStore(),
-    /** Below this size noise fields are cached per icon, [StackInput.cacheNoise]. 0 turns it off. */
+    /**
+     * Below this size noise fields are cached per icon, [StackInput.cacheNoise]. 0 turns it
+     * off. A render at its pack size never caches: each pack icon is drawn once.
+     */
     private val noiseCacheBelow: Int = OUTPUT_SIZE,
 ) {
 
@@ -100,7 +103,7 @@ class IconRenderer(
             textures = textures,
             cache = cache,
             iconKey = iconKey(geometryName, theme, size, masks),
-            cacheNoise = size < noiseCacheBelow,
+            cacheNoise = size < minOf(noiseCacheBelow, resolution.px),
         )
     }
 

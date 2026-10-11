@@ -39,6 +39,21 @@ class NoiseFieldCacheTest {
         assertEquals(emptyList(), differ.take(10))
     }
 
+    /** A pack render draws each icon once: at its pack size, 432 or 324, it never fills the cache with noise fields. */
+    @Test
+    fun packSizesDoNotCacheNoise() {
+        val bundle = IconBundle(ByteBuffer.wrap(resource("samples.bin")))
+        val r = IconRenderer()
+        val jade = GoldenSet.STARTERS.getValue("preset_jade")
+        for (res in OutputResolution.entries) {
+            assertEquals(false, r.stackInput("fdroid", bundle.icon(0), "fdroid", jade, res.px, res).cacheNoise, "$res pack")
+            assertEquals(true, r.stackInput("fdroid", bundle.icon(0), "fdroid", jade, PREVIEW, res).cacheNoise, "$res preview")
+        }
+        val cached = IconRenderer().apply { render("fdroid", bundle.icon(0), "fdroid", jade, 324, OutputResolution.COMPACT) }
+        val plain = IconRenderer(noiseCacheBelow = 0).apply { render("fdroid", bundle.icon(0), "fdroid", jade, 324, OutputResolution.COMPACT) }
+        assertEquals(plain.cache.bytesHeld, cached.cache.bytesHeld, "no noise fields held after a 324 pack render")
+    }
+
     private companion object {
         const val PREVIEW = 128
     }

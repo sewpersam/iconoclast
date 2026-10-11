@@ -16,6 +16,7 @@ import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
+import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.IconBundle
 import kotlinx.coroutines.runBlocking
@@ -77,6 +78,15 @@ class PhoneBudgetTest {
     @Test
     fun applyOf300IconsJadePreset() = apply(preset("jade.json"), "jade-preset")
 
+    /**
+     * M7 Task 11: the Jade preset as a compact, 324 px pack. Compared with
+     * [applyOf300IconsJadePreset] in the same session; the budget is stated at 432 px.
+     */
+    @Test
+    fun applyOf300IconsJadePresetCompact() {
+        measure(preset("jade.json"), "jade-preset-324", resolution = OutputResolution.COMPACT)
+    }
+
     /** The Neon preset, the third starter: outline, gradient line, outer glow. */
     @Test
     fun applyOf300IconsNeonPreset() = apply(preset("neon.json"), "neon-preset")
@@ -109,7 +119,7 @@ class PhoneBudgetTest {
         measure(theme, label)
     }
 
-    private fun measure(theme: Theme, label: String, runs: Int = RUNS): Long {
+    private fun measure(theme: Theme, label: String, runs: Int = RUNS, resolution: OutputResolution = OutputResolution.FULL): Long {
         val target = instrumentation.targetContext.assets
         val source = IconSource.open(target)
         val template = target.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
@@ -127,7 +137,7 @@ class PhoneBudgetTest {
             System.gc()
             val heap = HeapPeak()
             val ms = try {
-                timed { runBlocking { PackBuilder(source, IconRenderer()).build(template, plan, PackBuilder.uniform(theme), File(dir, "icons"), apk) { _, _ -> } } }
+                timed { runBlocking { PackBuilder(source, IconRenderer()).build(template, plan, PackBuilder.uniform(theme), File(dir, "icons"), apk, resolution) { _, _ -> } } }
             } finally {
                 heap.stop()
             }
@@ -139,7 +149,7 @@ class PhoneBudgetTest {
                 "peak java heap ${heap.java / MB} MB of ${rt.maxMemory() / MB} MB, peak native heap ${heap.native / MB} MB")
             ms
         }
-        Log.i(TAG, "apply $APPLY_ICONS@full $label, ${PackBuilder.RENDER_THREADS} threads, " +
+        Log.i(TAG, "apply $APPLY_ICONS@${resolution.px} $label, ${PackBuilder.RENDER_THREADS} threads, " +
             "${rt.availableProcessors()} cpus, ms per run, first is cold: $times")
         dir.deleteRecursively()
         assertTrue("apply runs $times ms, budget $APPLY_BUDGET_MS ms", times.drop(1).all { it < APPLY_BUDGET_MS })
