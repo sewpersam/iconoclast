@@ -143,10 +143,49 @@ object GoldenSet {
         ),
     )
 
+    val BLEND_SAMPLES = listOf("camera", "weather")
+
+    /**
+     * The nine blend modes the looks leave out, each over a varied backdrop: dodge, burn
+     * and soft light on the background; hard light, darken and saturation on the fill;
+     * lighten over the whole icon; exclusion over the canvas; luminosity on the lines.
+     */
+    val BLENDS: Map<String, Theme> = mapOf(
+        "layers_blends" to Theme(
+            fill = FillParams(mode = FillMode.INVERT),
+            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.25f)),
+            layers = listOf(
+                PaintLayer(Layer.BACKGROUND_ID, Paint.LinearGradient(0f, 0f, 1f, 1f, stops(0xFF5B6FA8.toInt(), 0xFF2E3550.toInt())),
+                    clip = ClipTarget.BACKGROUND),
+                PaintLayer("bg-dodge", Paint.Texture(TEXTURE, stops(0xFF000000.toInt(), 0xFFB07A3A.toInt())), clip = ClipTarget.BACKGROUND,
+                    blend = BlendMode.COLOR_DODGE, opacity = 0.8f, mapping = Mapping(MappingMode.TILE, scale = 0.75f)),
+                PaintLayer("bg-burn", Paint.RadialGradient(0.5f, 0.5f, 0.7f, stops(0xFFFFFFFF.toInt(), 0xFF6A2C70.toInt())),
+                    clip = ClipTarget.BACKGROUND, blend = BlendMode.COLOR_BURN, opacity = 0.7f),
+                PaintLayer("bg-soft", Paint.Noise(NoiseKind.FBM, 4, 21, stops(0xFF000000.toInt(), 0xFFFFFFFF.toInt())),
+                    clip = ClipTarget.BACKGROUND, blend = BlendMode.SOFT_LIGHT),
+                EffectsLayer(),
+                PaintLayer(Layer.ICON_FILL_ID, Paint.Solid(0xFFE07A5F.toInt()), clip = ClipTarget.ICON_FILL),
+                PaintLayer("fill-hard", Paint.LinearGradient(0f, 1f, 1f, 0f, stops(0xFF1A1A40.toInt(), 0xFFF4F1BB.toInt())),
+                    clip = ClipTarget.ICON_FILL, blend = BlendMode.HARD_LIGHT, opacity = 0.9f),
+                PaintLayer("fill-darken", Paint.Texture(TEXTURE, stops(0xFF3D405B.toInt(), 0xFFFFFFFF.toInt())), clip = ClipTarget.ICON_FILL,
+                    blend = BlendMode.DARKEN, mapping = Mapping(MappingMode.FILL, scale = 2f, rotation = 60f)),
+                PaintLayer("fill-sat", Paint.Solid(0xFF00FFAA.toInt()), clip = ClipTarget.ICON_FILL, blend = BlendMode.SATURATION, opacity = 0.6f),
+                PaintLayer("icon-lighten", Paint.Noise(NoiseKind.RIDGED, 3, 9, stops(0xFF202020.toInt(), 0xFF9AD1D4.toInt())),
+                    clip = ClipTarget.ICON, blend = BlendMode.LIGHTEN, opacity = 0.7f),
+                PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFFF2CC8F.toInt()), clip = ClipTarget.ICON_LINES),
+                PaintLayer("lines-lum", Paint.LinearGradient(0f, 0f, 0f, 1f, stops(0xFFFFFFFF.toInt(), 0xFF303030.toInt())),
+                    clip = ClipTarget.ICON_LINES, blend = BlendMode.LUMINOSITY, opacity = 0.8f),
+                PaintLayer("canvas-excl", Paint.Noise(NoiseKind.FBM, 2, 33, stops(0xFF000000.toInt(), 0xFF80C0FF.toInt())),
+                    clip = ClipTarget.CANVAS, blend = BlendMode.EXCLUSION, opacity = 0.35f),
+            ),
+        ),
+    )
+
     /** Every golden: directory, theme and sample name. */
     val CASES: List<Triple<String, Theme, String>>
         get() = THEMES.flatMap { (mode, theme) -> SAMPLES.map { Triple(mode.name.lowercase(), theme, it) } } +
             POCKET_SAMPLES.map { Triple("pockets", POCKET_THEME, it) } +
             PRESETS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } } +
-            LOOKS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
+            LOOKS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
+            BLENDS.flatMap { (dir, theme) -> BLEND_SAMPLES.map { Triple(dir, theme, it) } }
 }

@@ -127,4 +127,12 @@ class BlendModesTest {
         }
         return o
     }
+    /** The goldens, and so ART byte identity, exercise every blend mode. */
+    @Test
+    fun goldensCoverEveryBlendMode() {
+        val used = dev.iconoclast.render.GoldenSet.CASES.flatMap { (_, theme, _) ->
+            theme.layers.filterIsInstance<dev.iconoclast.render.PaintLayer>().map { it.blend }
+        }.toSet()
+        assertEquals(BlendMode.entries.toSet(), used)
+    }
 }

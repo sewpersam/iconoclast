@@ -192,7 +192,8 @@ bytes exactly. `PngEncoderTest` checks every (c, a) pair.
 icons in each of the four fill modes, the two pocket cases, the Plain and
 Jade presets (made by the M4 renderer, reproduced by the layer stack), and
 three layer looks on six samples over the original test texture
-`textures/cracks.png`. 164 PNGs; `GoldenSet.CASES` lists them, and
+`textures/cracks.png`, and `layers_blends` on two samples for the nine
+blend modes the looks leave out. 166 PNGs; `GoldenSet.CASES` lists them, and
 `ArtByteIdentityTest` renders the same set on ART. The
 sample icons are copied into `samples.bin` so the test does not need the
 converter. After an intended change to the output:
