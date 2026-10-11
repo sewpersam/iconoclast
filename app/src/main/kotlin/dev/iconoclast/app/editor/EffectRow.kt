@@ -54,7 +54,9 @@ fun EffectRow(
                 val where = if (aboveIcon) "on the icon" else "below the icon"
                 Text("${effectSummary(layer)}, $where", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (layer.effect is Effect.Grain) {
-                    Text("Grain increases pack size.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // Measured by PhoneBudgetTest.applyOf300IconsGrain: 331 KB per icon over the
+                    // same look without grain, amount 1 at full opacity. docs/verification/m6.md.
+                    Text("Grain at full amount adds about 330 KB per icon.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Switch(layer.enabled, onEnabled, Modifier.semantics { contentDescription = label })
