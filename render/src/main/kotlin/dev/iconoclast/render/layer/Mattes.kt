@@ -5,8 +5,9 @@ import dev.iconoclast.render.MatteMode
 import dev.iconoclast.render.math.ceil
 
 /**
- * Mask adjustments, spec 2.3: luminance to alpha matte. Luminance is the W3C Lum of the
- * premultiplied source, 0.3 r + 0.59 g + 0.11 b, so transparent reads as black. Then
+ * Mask adjustments, spec 2.3: luminance to alpha matte. The luminance comes from the
+ * source before any gradient map (layer/StackEvaluator): the W3C Lum, 0.3 r + 0.59 g +
+ * 0.11 b, of premultiplied texels, so transparent reads as black, or raw noise. Then
  * levels or threshold, invert, and a separable Gaussian feather: sigma half the radius,
  * taps out to the radius, edges clamped, weights from StrictMath.exp normalised to 1.
  */

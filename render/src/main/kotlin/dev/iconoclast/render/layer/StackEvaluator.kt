@@ -46,11 +46,12 @@ internal object StackEvaluator {
         val clip = clip(layer, input)
         if (clip.empty) return
         val n = input.size * input.size
-        val src = source(layer.source, layer, input)
-        val matte = layer.matte?.let { Mattes.apply(it, luminance(src, n), input.size) }
+        val src = source(layer.source, layer, input, needLuminance = layer.matte != null)
+        val matte = layer.matte?.let { Mattes.apply(it, src.luminance!!, input.size) }
         val opacity = layer.opacity
         val solid = src.solid
         val colors = src.colors
+        val scratch = FloatArray(3)
         for (i in 0 until n) {
             var cov = clip.at(i)
             if (opacity != 1f) cov *= opacity
@@ -58,53 +59,62 @@ internal object StackEvaluator {
             if (cov == 0f) continue
             val o = 4 * i
             if (solid != null) {
-                BlendModes.composite(layer.blend, solid[0] * cov, solid[1] * cov, solid[2] * cov, solid[3] * cov, buf, o)
+                BlendModes.composite(layer.blend, solid[0] * cov, solid[1] * cov, solid[2] * cov, solid[3] * cov, buf, o, scratch)
             } else {
                 val c = colors!!
-                BlendModes.composite(layer.blend, c[o] * cov, c[o + 1] * cov, c[o + 2] * cov, c[o + 3] * cov, buf, o)
+                BlendModes.composite(layer.blend, c[o] * cov, c[o + 1] * cov, c[o + 2] * cov, c[o + 3] * cov, buf, o, scratch)
             }
         }
     }
 
-    /** A layer's source: one premultiplied colour, or one per pixel. */
-    private class Source(val solid: FloatArray?, val colors: FloatArray?)
+    /**
+     * A layer's source: one premultiplied colour, or one per pixel. [luminance] is what a
+     * matte reads, taken from the source before any gradient map: the premultiplied
+     * texels' Lum for a texture (so transparent reads as black), the raw value for noise,
+     * the colour's Lum for solids and gradients. Present only when asked for.
+     */
+    private class Source(val solid: FloatArray?, val colors: FloatArray?, val luminance: FloatArray?)
 
-    private fun source(paint: Paint, layer: PaintLayer, input: StackInput): Source = when (paint) {
-        is Paint.Solid -> Source(FloatArray(4).also { Paints.premultiply(paint.argb, it) }, null)
-        is Paint.LinearGradient, is Paint.RadialGradient -> Source(null, Paints.fill(paint, input.size))
-        is Paint.Texture -> {
-            val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
-            val px = Mappings.texture(tex, layer.mapping, input.drawable, input.size)
-            paint.stops?.let { stops ->
-                val c = FloatArray(4)
-                for (o in px.indices step 4) {
-                    val a = px[o + 3]
-                    if (a == 0f) continue
-                    Paints.sample(stops, BlendModes.lum(px[o], px[o + 1], px[o + 2]) / a, c)
-                    for (k in 0..3) px[o + k] = c[k] * a
+    private fun source(paint: Paint, layer: PaintLayer, input: StackInput, needLuminance: Boolean): Source {
+        val n = input.size * input.size
+        return when (paint) {
+            is Paint.Solid -> {
+                val c = FloatArray(4).also { Paints.premultiply(paint.argb, it) }
+                Source(c, null, if (needLuminance) FloatArray(n) { BlendModes.lum(c[0], c[1], c[2]) } else null)
+            }
+            is Paint.LinearGradient, is Paint.RadialGradient -> {
+                val px = Paints.fill(paint, input.size)
+                Source(null, px, if (needLuminance) lumOf(px, n) else null)
+            }
+            is Paint.Texture -> {
+                val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
+                val px = Mappings.texture(tex, layer.mapping, input.drawable, input.size)
+                val lum = if (needLuminance) lumOf(px, n) else null
+                paint.stops?.let { stops ->
+                    val c = FloatArray(4)
+                    for (o in px.indices step 4) {
+                        val a = px[o + 3]
+                        if (a == 0f) continue
+                        Paints.sample(stops, BlendModes.lum(px[o], px[o + 1], px[o + 2]) / a, c)
+                        for (k in 0..3) px[o + k] = c[k] * a
+                    }
                 }
+                Source(null, px, lum)
             }
-            Source(null, px)
-        }
-        is Paint.Noise -> {
-            val v = Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size)
-            val px = FloatArray(v.size * 4)
-            val c = FloatArray(4)
-            for (i in v.indices) {
-                Paints.sample(paint.stops, v[i], c)
-                c.copyInto(px, 4 * i)
+            is Paint.Noise -> {
+                val v = Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.drawable, input.size)
+                val px = FloatArray(v.size * 4)
+                val c = FloatArray(4)
+                for (i in v.indices) {
+                    Paints.sample(paint.stops, v[i], c)
+                    c.copyInto(px, 4 * i)
+                }
+                Source(null, px, if (needLuminance) v else null)
             }
-            Source(null, px)
         }
     }
 
-    /** The luminance a matte reads: of the source as painted, premultiplied. */
-    private fun luminance(src: Source, n: Int): FloatArray {
-        val solid = src.solid
-        if (solid != null) return FloatArray(n) { BlendModes.lum(solid[0], solid[1], solid[2]) }
-        val c = src.colors!!
-        return FloatArray(n) { BlendModes.lum(c[4 * it], c[4 * it + 1], c[4 * it + 2]) }
-    }
+    private fun lumOf(px: FloatArray, n: Int) = FloatArray(n) { BlendModes.lum(px[4 * it], px[4 * it + 1], px[4 * it + 2]) }
 
     /** A clip target resolved to per-pixel coverage. */
     private class Clip(private val values: FloatArray?, private val full: Boolean, private val support: Boolean, private val inverse: Boolean) {
@@ -137,10 +147,11 @@ internal object StackEvaluator {
     /** Source-over of premultiplied colour [c] through coverage [mask]: the border. */
     private fun over(buf: FloatArray, mask: Mask, c: FloatArray) {
         val v = mask.values
+        val scratch = FloatArray(3)
         for (i in v.indices) {
             val m = v[i]
             if (m == 0f) continue
-            BlendModes.composite(BlendMode.NORMAL, c[0] * m, c[1] * m, c[2] * m, c[3] * m, buf, 4 * i)
+            BlendModes.composite(BlendMode.NORMAL, c[0] * m, c[1] * m, c[2] * m, c[3] * m, buf, 4 * i, scratch)
         }
     }
 }

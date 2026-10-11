@@ -145,9 +145,11 @@ is composited into the premultiplied buffer.
 - **Noise** (`layer/Noise`). Value noise on a lowbias32 lattice hash with
   Perlin's quintic fade; fBm (lacunarity 2, gain 0.5, Musgrave); ridged,
   `(1 - |2n - 1|)^2` per octave; grain, one hashed value per cell.
-- **Matte** (`layer/Mattes`). Luminance `0.3 r + 0.59 g + 0.11 b` of the
-  premultiplied source, levels or threshold, invert, then a separable
-  Gaussian feather.
+- **Matte** (`layer/Mattes`). Luminance of the source before any gradient
+  map: `0.3 r + 0.59 g + 0.11 b` of the premultiplied texels, the raw noise
+  value, or the colour's. Then levels or threshold, invert, and a separable
+  Gaussian feather. A black-and-white texture with stops `(C, C)` becomes a
+  layer of colour C wherever the texture is light.
 
 ## Textures
 

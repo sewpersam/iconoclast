@@ -86,6 +86,26 @@ class LayerStackTest {
         assertEquals(setOf(0, 255), alphas)
     }
 
+    /**
+     * The spec's use of a matte: a black-and-white texture becomes the alpha of a colour.
+     * Single-colour stops paint red; the matte reads the texture before the stops, so red
+     * shows where the texture is white and nothing where it is black.
+     */
+    @Test
+    fun blackAndWhiteTextureBecomesTheAlphaOfAColour() {
+        val r = IconRenderer()
+        val px = ByteArray(size * size * 4) { val p = it / 4; if (it % 4 == 3) -1 else if ((p % size / 8 + p / size / 8) % 2 == 0) -1 else 0 }
+        val hash = r.textures.put(TextureStore.encode(size, size, px))
+        val layer = PaintLayer("t", Paint.Texture(hash, listOf(dev.iconoclast.render.ColorStop(0f, red))),
+            mapping = Mapping(lockOffset = true), matte = Matte())
+        val img = render(Theme(background = clear, layers = listOf(Theme().layers[1], layer)), r = r)
+        for (i in 0 until size * size) {
+            val white = px[4 * i] != 0.toByte()
+            assertEquals(if (white) 255 else 0, alpha(img, i), "pixel $i")
+            if (white) assertEquals(255, img.pixels[4 * i].toInt() and 0xFF, "red at $i")
+        }
+    }
+
     @Test
     fun texturesComeFromTheStoreAndMovePerIcon() {
         val r = IconRenderer()
