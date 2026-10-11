@@ -118,6 +118,39 @@ class ThemeZipTest {
         assertEquals(plain, ThemeZipImport.read(plain.toByteArray()) { false }.json)
     }
 
+    /**
+     * The picked file is streamed, never held whole: an archive larger than the old 64 MB
+     * whole-file cap imports when the entries it reads stay in bounds, and every stream
+     * opened is closed. A bare JSON is capped at MAX_JSON.
+     */
+    @Test
+    fun streamsTheFileAndClosesEveryStream() {
+        val file = File.createTempFile("big-theme", ".zip").apply { deleteOnExit() }
+        val junk = ByteArray(1024 * 1024).also { kotlin.random.Random(1).nextBytes(it) }
+        ZipOutputStream(file.outputStream().buffered()).use { z ->
+            z.setLevel(0)
+            z.putNextEntry(ZipEntry("theme.json")); z.write(doc(GoldenSet.LOOKS.keys.first()).toJson().toByteArray()); z.closeEntry()
+            z.putNextEntry(ZipEntry("textures/${GoldenSet.TEXTURE}.png")); z.write(cracks); z.closeEntry()
+            repeat(70) { z.putNextEntry(ZipEntry("junk/$it.bin")); z.write(junk); z.closeEntry() }
+        }
+        assertTrue(file.length() > 70L * 1024 * 1024, "bigger than the old cap")
+        var opened = 0
+        var closed = 0
+        val open = {
+            opened++
+            object : java.io.FilterInputStream(file.inputStream()) {
+                private var done = false
+                override fun close() { if (!done) { done = true; closed++ }; super.close() }
+            }
+        }
+        assertEquals(setOf(GoldenSet.TEXTURE), ThemeZipImport.read(open) { false }.textures.keys)
+        assertTrue(opened > 0)
+        assertEquals(opened, closed)
+
+        val bare = ByteArray(ThemeZipImport.MAX_JSON + 1) { ' '.code.toByte() }
+        assertTrue("too large" in assertFailsWith<ThemeFormatException> { ThemeZipImport.read(bare) { false } }.message!!)
+    }
+
     @Test
     fun damagedArchiveOrThemeIsRefused() {
         val zip = ThemeZipExport.write(doc(GoldenSet.LOOKS.keys.first()), sourceStore())

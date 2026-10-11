@@ -34,8 +34,17 @@ object ThemeZipImport {
     private val TEXTURE_ENTRY = Regex("textures/([0-9a-f]{64})\\.png")
 
     /** [bytes] is the picked file. [onPhone] says whether a texture the archive lacks is available anyway. */
-    fun read(bytes: ByteArray, onPhone: (String) -> Boolean): ThemeArchive {
-        if (!isZip(bytes)) {
+    fun read(bytes: ByteArray, onPhone: (String) -> Boolean): ThemeArchive = read({ ByteArrayInputStream(bytes) }, onPhone)
+
+    /**
+     * Reads the picked file from [open], which gives a new stream from its start on each call.
+     * The file is streamed, never held whole: a zip is read entry by entry under the bounds
+     * above, a bare JSON up to [MAX_JSON]. An [IOException] from [open] itself propagates.
+     */
+    fun read(open: () -> InputStream, onPhone: (String) -> Boolean): ThemeArchive {
+        if (!isZip(open().use { it.readNBytes(4) })) {
+            val bytes = open().use { it.readNBytes(MAX_JSON + 1) }
+            if (bytes.size > MAX_JSON) throw ThemeFormatException("This file is too large to be a theme.")
             val json = bytes.decodeToString()
             val missing = migrate(json).theme.textureHashes().filterNot { BuiltInBrushes.isBuiltIn(it) || onPhone(it) }
             if (missing.isNotEmpty()) {
@@ -44,12 +53,12 @@ object ThemeZipImport {
             return ThemeArchive(json, emptyMap())
         }
         val budget = Budget()
-        val json = entries(bytes, budget) { if (it == ThemeZipExport.THEME_ENTRY) MAX_JSON else null }
+        val json = entries(open, budget) { if (it == ThemeZipExport.THEME_ENTRY) MAX_JSON else null }
             .values.firstOrNull()?.decodeToString()
             ?: throw ThemeFormatException("This archive has no theme.json, so it is not a theme export.")
         // Built-in brushes are on every phone and never in an archive.
         val hashes = migrate(json).theme.textureHashes().filterNot(BuiltInBrushes::isBuiltIn).toSet()
-        val found = entries(bytes, budget) { name ->
+        val found = entries(open, budget) { name ->
             TEXTURE_ENTRY.matchEntire(name)?.groupValues?.get(1)?.takeIf { it in hashes }?.let { MAX_TEXTURE }
         }.mapKeys { TEXTURE_ENTRY.matchEntire(it.key)!!.groupValues[1] }
         val brought = LinkedHashMap<String, ByteArray>()
@@ -79,22 +88,27 @@ object ThemeZipImport {
     }
 
     /** The entries [limit] names, each bounded by the limit it returns and all by [MAX_TOTAL]. The rest are skipped unread. */
-    private fun entries(bytes: ByteArray, budget: Budget, limit: (String) -> Int?): Map<String, ByteArray> = try {
-        val out = LinkedHashMap<String, ByteArray>()
-        ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
-            while (true) {
-                val e = zip.nextEntry ?: break
-                if (e.isDirectory || e.name in out) continue
-                val max = limit(e.name) ?: continue
-                out[e.name] = zip.readBounded(max, e.name, budget)
+    private fun entries(open: () -> InputStream, budget: Budget, limit: (String) -> Int?): Map<String, ByteArray> {
+        val raw = open()
+        return try {
+            val out = LinkedHashMap<String, ByteArray>()
+            ZipInputStream(raw.buffered()).use { zip ->
+                while (true) {
+                    val e = zip.nextEntry ?: break
+                    if (e.isDirectory || e.name in out) continue
+                    val max = limit(e.name) ?: continue
+                    out[e.name] = zip.readBounded(max, e.name, budget)
+                }
             }
+            out
+        } catch (e: IOException) {
+            throw ThemeFormatException("This archive is damaged.", e)
+        } catch (e: IllegalArgumentException) {
+            // ZipInputStream rejects malformed entry names this way.
+            throw ThemeFormatException("This archive is damaged.", e)
+        } finally {
+            raw.close()
         }
-        out
-    } catch (e: IOException) {
-        throw ThemeFormatException("This archive is damaged.", e)
-    } catch (e: IllegalArgumentException) {
-        // ZipInputStream rejects malformed entry names this way.
-        throw ThemeFormatException("This archive is damaged.", e)
     }
 
     private fun InputStream.readBounded(limit: Int, name: String, budget: Budget): ByteArray {

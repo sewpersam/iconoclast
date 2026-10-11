@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeFormatException
-import dev.iconoclast.app.theme.ThemeZipImport
 import dev.iconoclast.render.Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -96,7 +95,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val textures = container.textures
             val archive = withContext(Dispatchers.IO) {
                 // The whole file is validated before anything is stored.
-                ThemeZipImport.read(ThemeTransfer.read(getApplication(), uri)) { textures.load(setOf(it)).isEmpty() }
+                ThemeTransfer.read(getApplication(), uri) { textures.load(setOf(it)).isEmpty() }
                     .also { a -> a.textures.forEach { (hash, png) -> textures.write(hash, png) } }
             }
             "Imported ${repo.import(archive.json).name}"
