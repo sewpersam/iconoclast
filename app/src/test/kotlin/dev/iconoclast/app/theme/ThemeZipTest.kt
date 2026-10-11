@@ -63,6 +63,26 @@ class ThemeZipTest {
         assertEquals(setOf("theme.json", "textures/${GoldenSet.TEXTURE}.png"), names)
     }
 
+    /** Built-in brushes are never exported and never required of an archive. */
+    @Test
+    fun builtInBrushesStayOutOfArchives() {
+        val brush = dev.iconoclast.render.texture.BuiltInBrushes.BRISTLE.sha256
+        val theme = GoldenSet.LOOKS.getValue("layers_stone").withEffect(
+            dev.iconoclast.render.EffectLayer("s", dev.iconoclast.render.Effect.Streaks(breakup = dev.iconoclast.render.Breakup(texture = brush))))
+        val d = ThemeDocument(id = "b", name = "Brush", created = 1, modified = 2, theme = theme)
+        assertTrue(brush in theme.textureHashes())
+        val zip = ThemeZipExport.write(d, sourceStore())
+        assertEquals(setOf("theme.json", "textures/${GoldenSet.TEXTURE}.png"), entries(zip).keys)
+        val archive = ThemeZipImport.read(zip) { false }
+        assertEquals(setOf(GoldenSet.TEXTURE), archive.textures.keys)
+        assertEquals(d, migrate(archive.json))
+        // A bare JSON whose only texture is a brush needs nothing on the phone.
+        val bare = ThemeDocument(id = "c", name = "Bare", created = 1, modified = 2,
+            theme = Theme().withEffect(dev.iconoclast.render.EffectLayer("s", dev.iconoclast.render.Effect.Streaks(
+                breakup = dev.iconoclast.render.Breakup(texture = brush))))).toJson()
+        assertEquals(bare, ThemeZipImport.read(bare.toByteArray()) { false }.json)
+    }
+
     @Test
     fun archiveWithoutThemeIsRefused() {
         val zip = zip("textures/${GoldenSet.TEXTURE}.png" to cracks)

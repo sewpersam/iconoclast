@@ -63,11 +63,17 @@ class TextureStore(
         require(put(png) == hash) { "texture file does not match its hash $hash" }
     }
 
-    /** The texture, loaded again through [load] if it was evicted. Null when absent or damaged. */
-    operator fun get(hash: String): Texture? = entry(hash)?.texture
+    /**
+     * The texture, loaded again through [load] if it was evicted. Null when absent or
+     * damaged. A built-in brush, [BuiltInBrushes], is always here.
+     */
+    operator fun get(hash: String): Texture? = BuiltInBrushes.texture(hash) ?: entry(hash)?.texture
 
-    /** The canonical PNG of a texture: what a theme export writes as `<hash>.png`. */
-    fun bytes(hash: String): ByteArray? = entry(hash)?.png?.copyOf()
+    /**
+     * The canonical PNG of a texture: what a theme export writes as `<hash>.png`. A
+     * built-in brush is encoded on demand; exports leave it out.
+     */
+    fun bytes(hash: String): ByteArray? = BuiltInBrushes.png(hash) ?: entry(hash)?.png?.copyOf()
 
     /**
      * In memory, or on disk where [load] can reach it. Reads no file, and asks [exists] once
@@ -75,6 +81,7 @@ class TextureStore(
      * missing, damaged or undecodable file.
      */
     operator fun contains(hash: String): Boolean {
+        if (BuiltInBrushes.isBuiltIn(hash)) return true
         synchronized(this) {
             if (hash in textures) return true
             onDisk[hash]?.let { return it }

@@ -1,5 +1,6 @@
 package dev.iconoclast.app.theme
 
+import dev.iconoclast.render.texture.BuiltInBrushes
 import dev.iconoclast.render.texture.TextureStore
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
@@ -8,7 +9,8 @@ import java.util.zip.ZipOutputStream
 
 /**
  * Theme export, spec 2.4: a `.zip` with `theme.json` and `textures/<sha256>.png` for every
- * texture the theme uses, the canonical files from the store. Entries are written in a
+ * texture the theme uses, the canonical files from the store, except the built-in brushes
+ * ([BuiltInBrushes]), which every install generates for itself. Entries are written in a
  * fixed order with a fixed time, so one theme gives one archive.
  */
 object ThemeZipExport {
@@ -22,6 +24,7 @@ object ThemeZipExport {
         ZipOutputStream(out).use { zip ->
             zip.entry(THEME_ENTRY, doc.toJson().toByteArray())
             for (hash in doc.theme.textureHashes()) {
+                if (BuiltInBrushes.isBuiltIn(hash)) continue
                 val png = checkNotNull(textures.bytes(hash)) { "texture $hash is not in the store" }
                 zip.entry("$TEXTURE_DIR$hash.png", png)
             }

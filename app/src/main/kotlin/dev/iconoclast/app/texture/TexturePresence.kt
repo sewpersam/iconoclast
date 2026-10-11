@@ -1,5 +1,7 @@
 package dev.iconoclast.app.texture
 
+import dev.iconoclast.render.Effect
+import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
@@ -42,10 +44,21 @@ object TexturePresence {
 
     private fun missing(store: TextureStore, hashes: Set<String>): Set<String> = hashes.filterTo(LinkedHashSet()) { store[it] == null }
 
-    /** [theme] without the layers whose texture is in [absent]: what a preview can still show. */
+    /**
+     * [theme] without the layers whose texture is in [absent]: what a preview can still
+     * show. A paint layer goes with its texture, a streak with its breakup texture. A
+     * streak whose linked paint layer went paints its own colour. Built-in brushes are
+     * never absent: the store always has them.
+     */
     fun without(theme: Theme, absent: Set<String>): Theme =
         if (absent.isEmpty()) theme
-        else theme.copy(layers = theme.layers.filterNot { ((it as? PaintLayer)?.source as? Paint.Texture)?.sha256 in absent })
+        else theme.copy(layers = theme.layers.filterNot {
+            when (it) {
+                is PaintLayer -> (it.source as? Paint.Texture)?.sha256 in absent
+                is EffectLayer -> (it.effect as? Effect.Streaks)?.breakup?.texture in absent
+                else -> false
+            }
+        })
 
     /** The user's explanation. */
     fun message(count: Int): String =

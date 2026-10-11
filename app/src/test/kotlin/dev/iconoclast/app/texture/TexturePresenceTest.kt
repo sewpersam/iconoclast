@@ -46,4 +46,17 @@ class TexturePresenceTest {
         val shown = TexturePresence.render(store, theme) { t -> IconRenderer(textures = store).render(name, icon, t, 64).pixels }
         assertTrue(shown.complete)
     }
+
+    /** Built-in brushes are present on a phone with no texture files; a missing breakup texture hides its streak. */
+    @Test
+    fun brushesAreAlwaysPresentAndStreaksHideWithTheirTexture() {
+        val brush = dev.iconoclast.render.texture.BuiltInBrushes.CHALK.sha256
+        val user = "ab".repeat(32)
+        val store = TextureStore(load = { null }, exists = { false })
+        val streak = { id: String, tex: String -> dev.iconoclast.render.EffectLayer(id, dev.iconoclast.render.Effect.Streaks(
+            breakup = dev.iconoclast.render.Breakup(texture = tex))) }
+        val t = dev.iconoclast.render.Theme().withEffect(streak("a", brush)).withEffect(streak("b", user))
+        assertEquals(setOf(user), TexturePresence.absent(store, t))
+        assertEquals(listOf("a"), TexturePresence.without(t, setOf(user)).layers.filterIsInstance<dev.iconoclast.render.EffectLayer>().map { it.id })
+    }
 }

@@ -30,9 +30,20 @@ data class Theme(
         return copy(layers = layers.subList(0, at) + layer + layers.subList(at, layers.size))
     }
 
-    /** Every texture the stack uses, by hash: what a theme export must carry. */
-    fun textureHashes(): Set<String> =
-        layers.mapNotNullTo(LinkedHashSet()) { ((it as? PaintLayer)?.source as? Paint.Texture)?.sha256 }
+    /**
+     * Every texture the stack uses, by hash, built-in brushes included: what must be in the
+     * store before it renders. Paint layers' textures, which covers every layer a streak
+     * takes its paint from, then effect textures, a streak's breakup. Effects switched off
+     * count, so a theme keeps them across export and import. A theme export carries all of
+     * them except the built-in brushes, which every install has.
+     */
+    fun textureHashes(): Set<String> = layers.mapNotNullTo(LinkedHashSet()) {
+        when (it) {
+            is PaintLayer -> (it.source as? Paint.Texture)?.sha256
+            is EffectLayer -> (it.effect as? Effect.Streaks)?.breakup?.texture
+            is EffectsLayer -> null
+        }
+    }
 
     companion object {
         /**

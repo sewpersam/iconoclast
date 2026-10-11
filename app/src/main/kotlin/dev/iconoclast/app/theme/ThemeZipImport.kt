@@ -1,5 +1,6 @@
 package dev.iconoclast.app.theme
 
+import dev.iconoclast.render.texture.BuiltInBrushes
 import dev.iconoclast.render.texture.TextureStore
 import java.io.ByteArrayInputStream
 import java.io.IOException
@@ -36,7 +37,7 @@ object ThemeZipImport {
     fun read(bytes: ByteArray, onPhone: (String) -> Boolean): ThemeArchive {
         if (!isZip(bytes)) {
             val json = bytes.decodeToString()
-            val missing = migrate(json).theme.textureHashes().filterNot(onPhone)
+            val missing = migrate(json).theme.textureHashes().filterNot { BuiltInBrushes.isBuiltIn(it) || onPhone(it) }
             if (missing.isNotEmpty()) {
                 throw ThemeFormatException("This theme uses textures that are not in the file. Import its .zip export instead.")
             }
@@ -46,7 +47,8 @@ object ThemeZipImport {
         val json = entries(bytes, budget) { if (it == ThemeZipExport.THEME_ENTRY) MAX_JSON else null }
             .values.firstOrNull()?.decodeToString()
             ?: throw ThemeFormatException("This archive has no theme.json, so it is not a theme export.")
-        val hashes = migrate(json).theme.textureHashes()
+        // Built-in brushes are on every phone and never in an archive.
+        val hashes = migrate(json).theme.textureHashes().filterNot(BuiltInBrushes::isBuiltIn).toSet()
         val found = entries(bytes, budget) { name ->
             TEXTURE_ENTRY.matchEntire(name)?.groupValues?.get(1)?.takeIf { it in hashes }?.let { MAX_TEXTURE }
         }.mapKeys { TEXTURE_ENTRY.matchEntire(it.key)!!.groupValues[1] }
