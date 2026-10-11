@@ -161,6 +161,20 @@ internal object StackEvaluator {
         }
     }
 
+    /**
+     * [layer]'s source at every pixel, premultiplied RGBA: under its mapping and the icon's
+     * per-icon offset, gradient-mapped through its stops, and not clipped, matted or faded
+     * by its opacity. What a layer paints on the whole canvas at full opacity. Streaks
+     * take their paint from here.
+     */
+    fun sourceColors(layer: PaintLayer, input: StackInput): FloatArray {
+        val src = source(layer.source, layer, input, needLuminance = false)
+        src.colors?.let { return it }
+        val c = src.solid!!
+        val n = input.size * input.size
+        return FloatArray(4 * n) { c[it and 3] }
+    }
+
     private fun lumOf(px: FloatArray, n: Int) = FloatArray(n) { BlendModes.lum(px[4 * it], px[4 * it + 1], px[4 * it + 2]) }
 
     /** A clip target resolved to per-pixel coverage. */
