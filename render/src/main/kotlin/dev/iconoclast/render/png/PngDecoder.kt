@@ -12,6 +12,7 @@ class DecodedPng(val width: Int, val height: Int, val straight: ByteArray)
  */
 object PngDecoder {
 
+    /** [maxSide] is checked against the IHDR before anything is allocated. */
     fun decode(png: ByteArray, maxSide: Int = 16384): DecodedPng {
         require(png.size >= 8 && SIGNATURE.indices.all { png[it] == SIGNATURE[it] }) { "not a PNG" }
         var p = 8
@@ -44,8 +45,10 @@ object PngDecoder {
             require(width > 0) { "IHDR must come first" }
             p += 12 + len
         }
+        val rawSize = (width * 4L + 1) * height
+        require(rawSize <= Int.MAX_VALUE - 8) { "image ${width}x$height is too large" }
         val stride = width * 4
-        val raw = Inflate.zlib(idat.toByteArray(), limit = (stride + 1) * height)
+        val raw = Inflate.zlib(idat.toByteArray(), limit = rawSize.toInt())
         require(raw.size == (stride + 1) * height) { "image data is ${raw.size} bytes" }
         val out = ByteArray(stride * height)
         for (y in 0 until height) {

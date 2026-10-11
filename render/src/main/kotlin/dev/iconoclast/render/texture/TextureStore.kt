@@ -10,34 +10,44 @@ class Texture internal constructor(val width: Int, val height: Int, internal val
 /**
  * Textures by content hash, spec 2.4. A texture file is a canonical PNG: the pixels
  * written by [encode], the project's own encoder, so equal pixels give equal bytes and the
- * same SHA-256 on every platform. Themes refer to textures by that hash. The store decodes
+ * same SHA-256 on every platform. [put] canonicalises whatever 8-bit RGBA PNG it is given. Themes refer to textures by that hash. The store decodes
  * through the pure-Kotlin [PngDecoder] and keeps the decoded pixels; it never touches the
  * mask cache. Downscaling to [MAX_SIDE] is the importer's job; the store refuses anything
  * larger. Thread-safe.
  */
 class TextureStore {
-    private val textures = HashMap<String, Texture>()
+    private class Entry(val texture: Texture, val png: ByteArray)
 
-    /** Adds a texture PNG and returns its hash. Adding the same bytes twice is a no-op. */
+    private val textures = HashMap<String, Entry>()
+
+    /**
+     * Adds a texture PNG and returns its hash. The PNG is decoded and re-encoded with the
+     * project's encoder, and the hash is of those canonical bytes, so the same pixels get
+     * the same hash whichever encoder wrote [png]. [bytes] gives back the canonical file.
+     */
     fun put(png: ByteArray): String {
-        val hash = sha256(png)
-        if (contains(hash)) return hash
-        val t = decode(png)
-        synchronized(this) { textures[hash] = t }
+        val texture = decode(png)
+        val canonical = PngEncoder.encode(texture.width, texture.height, texture.premultiplied)
+        val hash = sha256(canonical)
+        synchronized(this) { if (hash !in textures) textures[hash] = Entry(texture, canonical) }
         return hash
     }
 
-    /** Adds a texture read back from storage, checking that its bytes still have [hash]. */
+    /** Adds a texture read back from storage, checking that its pixels still have [hash]. */
     fun put(hash: String, png: ByteArray) {
-        require(sha256(png) == hash) { "texture file does not match its hash $hash" }
-        put(png)
+        require(put(png) == hash) { "texture file does not match its hash $hash" }
     }
 
-    operator fun get(hash: String): Texture? = synchronized(this) { textures[hash] }
+    operator fun get(hash: String): Texture? = synchronized(this) { textures[hash]?.texture }
+
+    /** The canonical PNG of a stored texture: what a theme export writes as `<hash>.png`. */
+    fun bytes(hash: String): ByteArray? = synchronized(this) { textures[hash]?.png?.copyOf() }
 
     operator fun contains(hash: String): Boolean = synchronized(this) { hash in textures }
 
-    fun remove(hash: String) = synchronized(this) { textures.remove(hash) }
+    fun remove(hash: String) {
+        synchronized(this) { textures.remove(hash) }
+    }
 
     companion object {
         /** Spec 2.4: the longest side of an imported texture. */
@@ -55,11 +65,10 @@ class TextureStore {
 
         private fun decode(png: ByteArray): Texture {
             val d = try {
-                PngDecoder.decode(png, maxSide = Int.MAX_VALUE / 8)
+                PngDecoder.decode(png, maxSide = MAX_SIDE)
             } catch (e: IllegalArgumentException) {
                 throw IllegalArgumentException("not a texture PNG: ${e.message}", e)
             }
-            require(maxOf(d.width, d.height) <= MAX_SIDE) { "texture ${d.width}x${d.height} is over $MAX_SIDE px" }
             val s = d.straight
             val p = ByteArray(s.size)
             for (i in s.indices step 4) {
