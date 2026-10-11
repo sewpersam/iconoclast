@@ -8,6 +8,7 @@ import dev.iconoclast.render.format.Icon
 import dev.iconoclast.render.format.Primitive
 import dev.iconoclast.render.format.Verb
 import dev.iconoclast.render.geom.Affine
+import dev.iconoclast.render.mask.squaredEdt
 import dev.iconoclast.render.raster.GlyphSpec
 import dev.iconoclast.render.raster.rasterizeGlyph
 import kotlin.math.PI
@@ -149,6 +150,45 @@ class FillModesTest {
         }
         assertEquals(1f, band(1.5f))
         assertEquals(1f, band(3f), "still enclosed once buried")
+    }
+
+    /**
+     * Readiness 9: a region enclosed at one closing stays enclosed at every wider one, in
+     * steps far below a pixel. Fixed sampling at ceil(closing) radii failed this: the
+     * sample radii move with the closing, so an inside could form and vanish unseen.
+     */
+    @Test
+    fun sealingIsMonotoneBelowOneStep() {
+        val inner = line(20f, 20f, 44f, 20f, 44f, 44f, 20f, 44f, closed = true)
+        val fixtures = listOf(
+            // Dashes around a ring, 2 px apart.
+            arrayOf(inner) + listOf(14f, 22f, 30f, 38f, 46f).flatMap { a ->
+                listOf(line(a, 14f, a + 4f, 14f), line(a, 50f, a + 4f, 50f), line(14f, a, 14f, a + 4f), line(50f, a, 50f, a + 4f))
+            },
+            // Gaps of 3, 4 and 5 px in one square, and a narrow notch. Exterior channels
+            // follow their own rule, tested above.
+            arrayOf(
+                line(16f, 29f, 16f, 16f, 29f, 16f), line(32f, 16f, 48f, 16f, 48f, 30f), line(48f, 34.5f, 48f, 48f, 16f, 48f, 16f, 34f),
+                line(30f, 48f, 30f, 40f), line(34f, 48f, 34f, 40f),
+            ),
+        )
+        for ((f, prims) in fixtures.withIndex()) {
+            var prev: FloatArray? = null
+            for (step in 0..60) {
+                val closing = step * 0.07f
+                val i = input(*prims, closing = closing, gap = 0.5f)
+                val sil = FillModes.silhouette(i)
+                // Pixels clear of the strokes: the seal's own edge against a stroke end may
+                // shift by a pixel as the outside grows, the sealed region may not.
+                val clear = squaredEdt(BooleanArray(i.geometry.size) { i.geometry[it] >= 0.5f }, size, size)
+                prev?.let { p ->
+                    val lost = p.indices.filter { p[it] == 1f && sil[it] < 1f && clear[it] > 2f }
+                    assertEquals(emptyList(), lost.map { "(${it % size}, ${it / size})" },
+                        "fixture $f: pixels enclosed at ${closing - 0.07f} px lost at $closing px")
+                }
+                prev = sil
+            }
+        }
     }
 
     @Test

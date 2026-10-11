@@ -6,7 +6,6 @@ import dev.iconoclast.render.mask.Morphology
 import dev.iconoclast.render.mask.label4
 import dev.iconoclast.render.mask.squaredEdt
 import dev.iconoclast.render.mask.touchesBorder
-import dev.iconoclast.render.math.ceil
 import dev.iconoclast.render.math.sqrt
 
 /**
@@ -119,10 +118,12 @@ object FillModes {
      * Sealing is monotone in the closing: a region enclosed at a smaller radius stays
      * enclosed at a larger one. A wide closing can bury a sealed region under the dilated
      * strokes entirely, as the band inside signal's dashed ring at 2 units, so the regions
-     * are labelled at every radius from 0 up to the closing in steps of at most a pixel.
-     * An inside that vanishes between two steps is grown at the radius it last had and
-     * kept. A region is enclosed when some radius
-     * seals its openings while its core is still wider than the seal.
+     * are labelled at every radius where the dilated strokes change: each distinct squared
+     * stroke distance up to the closing squared. Fixed steps of up to a pixel missed insides
+     * that formed and vanished between two samples, so a slightly wider closing could seal
+     * less. Each level's inside is grown by every radius short of the next level and kept.
+     * A region is enclosed when some radius seals its openings while its core is still
+     * wider than the seal.
      *
      * Pixels no step reaches and the grown outside does not reach are pockets: corners
      * where strokes meet, channels narrower than the seal. A pocket belongs to the inside
@@ -138,36 +139,31 @@ object FillModes {
         val stroke = BooleanArray(n) { g[it] >= 0.5f }
         val r = input.closingPx
         val strokeD2 = if (r > 0f) squaredEdt(stroke, size, size) else null
-        val steps = ceil(r).toInt()
+        val levels = sealingLevels(strokeD2, r * r)
         val sealed = BooleanArray(n)
         var outsideGrown = BooleanArray(n)
-        // An inside that survives to the next step is grown at the last one; only insides
-        // that vanish between steps are grown at their own radius. Corners the last
-        // growth misses are pockets beside an inside, so enclosed either way.
-        var prev: IntArray? = null
+        // Each level's inside is grown as far as that level holds: every radius short of
+        // the next level, an open disk, and the last level by the closing itself. Insides
+        // only shrink from level to level, so it is enough to grow the pixels each level
+        // loses. A wider closing keeps every level and growth of a narrower one, which is
+        // what makes sealing monotone. Corners the growth misses are pockets beside an
+        // inside, so enclosed either way.
         var prevInside: BooleanArray? = null
-        var prevRadius = 0f
-        for (k in 0..steps) {
-            val rk = if (steps == 0) 0f else r * k / steps
-            val r2 = rk * rk
-            val barrier = if (strokeD2 == null || k == 0) stroke else BooleanArray(n) { strokeD2[it] <= r2 }
+        for (k in levels.indices) {
+            val barrier = if (strokeD2 == null || k == 0) stroke else BooleanArray(n) { strokeD2[it] <= levels[k] }
             val labels = label4(BooleanArray(n) { !barrier[it] }, size, size)
             val border = touchesBorder(labels, size, size)
             val l = labels.labels
             val inside = BooleanArray(n) { l[it] != 0 && !border[l[it]] }
-            if (prev != null && prevInside != null) {
-                val survives = BooleanArray(prev.max() + 1)
-                for (i in 0 until n) if (prevInside[i] && inside[i]) survives[prev[i]] = true
-                val dying = BooleanArray(n) { prevInside[it] && !survives[prev[it]] }
-                if (dying.any { it }) or(sealed, Morphology.dilate(dying, size, size, prevRadius))
+            prevInside?.let { p ->
+                val lost = BooleanArray(n) { p[it] && !inside[it] }
+                if (lost.any { it }) or(sealed, Morphology.dilateBelow(lost, size, size, levels[k]))
             }
-            if (k == steps) {
-                or(sealed, Morphology.dilate(inside, size, size, rk))
-                outsideGrown = Morphology.dilate(BooleanArray(n) { l[it] != 0 && border[l[it]] }, size, size, rk)
+            if (k == levels.size - 1) {
+                or(sealed, Morphology.dilate(inside, size, size, r))
+                outsideGrown = Morphology.dilate(BooleanArray(n) { l[it] != 0 && border[l[it]] }, size, size, r)
             }
-            prev = l
             prevInside = inside
-            prevRadius = rk
         }
         val pocket = BooleanArray(n) { !stroke[it] && !sealed[it] && !outsideGrown[it] }
         val exterior = exteriorPockets(pocket, sealed, outsideGrown, stroke, size)
@@ -175,6 +171,19 @@ object FillModes {
             !stroke[it] && (sealed[it] || pocket[it] && !exterior[it])
         }
         return Regions(stroke, enclosed)
+    }
+
+    /**
+     * The squared radii at which the dilated strokes change: 0, then every distinct squared
+     * stroke distance up to [r2]. The barrier is the same between two of them, so labelling
+     * at each one sees every inside that ever forms, however small the closing step.
+     */
+    private fun sealingLevels(strokeD2: FloatArray?, r2: Float): FloatArray {
+        if (strokeD2 == null) return floatArrayOf(0f)
+        val distinct = java.util.TreeSet<Float>()
+        distinct += 0f
+        for (d in strokeD2) if (d > 0f && d <= r2) distinct += d
+        return distinct.toFloatArray()
     }
 
     /** The [pocket] pixels whose component borders reached outside and no reached inside. */

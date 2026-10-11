@@ -15,4 +15,10 @@ object Morphology {
         val r2 = r * r
         return BooleanArray(w * h) { d[it] <= r2 }
     }
+
+    /** Pixels whose squared distance to the mask is below [r2]: an open disk. */
+    fun dilateBelow(mask: BooleanArray, w: Int, h: Int, r2: Float): BooleanArray {
+        val d = squaredEdt(mask, w, h)
+        return BooleanArray(w * h) { d[it] < r2 }
+    }
 }
