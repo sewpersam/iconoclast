@@ -77,6 +77,19 @@ class ZipRewriterTest {
     }
 
     @Test
+    fun aFailedRewriteLeavesNoTruncatedPackAndKeepsTheOldOne() {
+        val out = File(dir, "kept.apk").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val good = File(dir, "good.png").apply { writeBytes(ByteArray(5000) { 1 }) }
+        // A replacement late in the template that has gone: the rewrite fails after writing most of the pack.
+        val gone = File(dir, "gone.png")
+        assertFailsWith<java.io.IOException> {
+            ZipRewriter.rewrite(templateBytes(), mapOf("res/drawable-nodpi-v4/slot_0000.png" to good, "assets/drawable.xml" to gone), out)
+        }
+        assertContentEquals(byteArrayOf(1, 2, 3), out.readBytes())
+        assertTrue(!File(dir, "kept.apk.tmp").exists())
+    }
+
+    @Test
     fun dropsMetaInfAndHandlesDataDescriptors() {
         // ZipOutputStream writes deflated entries with data descriptors after the data.
         val src = ByteArrayOutputStream()

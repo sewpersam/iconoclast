@@ -49,8 +49,23 @@ object ZipRewriter {
      * and copied, never held whole, so a pack of hundreds of large icons fits a small heap.
      * Every key of [replacements] must name an entry of the template, so a slot that does
      * not exist fails loudly instead of being silently dropped.
+     *
+     * The pack is written to `<out>.tmp` and renamed over [out] only once it is whole, so a
+     * failure part way leaves no truncated pack and keeps any earlier [out] as it was.
      */
     fun rewrite(template: ByteArray, replacements: Map<String, File>, out: File) {
+        val tmp = File(out.parentFile, out.name + ".tmp")
+        tmp.delete()
+        try {
+            write(template, replacements, tmp)
+        } catch (e: Throwable) {
+            tmp.delete()
+            throw e
+        }
+        check(tmp.renameTo(out)) { "could not write $out" }
+    }
+
+    private fun write(template: ByteArray, replacements: Map<String, File>, out: File) {
         val src = ByteBuffer.wrap(template).order(ByteOrder.LITTLE_ENDIAN)
         val entries = readCentralDirectory(src).sortedBy { it.localOffset }
         val missing = replacements.keys - entries.map { it.nameString }.toSet()
