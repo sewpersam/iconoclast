@@ -141,7 +141,10 @@ is composited into the premultiplied buffer.
   the texture leaves, so the patch stays inside it; TILE shifts by the
   offset times the texture; lock centres it. Noise uses the same turn and
   scale, 8 lattice cells across the canvas (432 for grain), offset by up to
-  4096 cells.
+  256 cells. The period keeps lattice coordinates below 2^16 at 8 octaves
+  and scale 0.25, so floats are spaced at most 1/256 cell; 4096 left the top
+  octaves stair-stepped at 1/16 cell. The lattice hash is seeded, not wrapped:
+  the same seed gives the same field everywhere.
 - **Noise** (`layer/Noise`). Value noise on a lowbias32 lattice hash with
   Perlin's quintic fade; fBm (lacunarity 2, gain 0.5, Musgrave); ridged,
   `(1 - |2n - 1|)^2` per octave; grain, one hashed value per cell.

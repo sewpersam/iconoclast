@@ -44,4 +44,10 @@ class NoiseTest {
             prev = v
         }
     }
+    /** The farthest lattice coordinate, top octave at the smallest scale, keeps floats 1/256 cell apart. */
+    @Test
+    fun noisePeriodKeepsTheTopOctaveSmooth() {
+        val reach = (Mappings.NOISE_PERIOD + Mappings.NOISE_CELLS / 0.25f) * (1 shl 7)
+        assertTrue(Math.ulp(reach) <= 1f / 256, "float spacing ${Math.ulp(reach)} at $reach")
+    }
 }

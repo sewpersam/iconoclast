@@ -31,8 +31,13 @@ internal object Mappings {
     /** Lattice cells across the canvas at scale 1: fBm and ridged, then grain. */
     const val NOISE_CELLS = 8f
     const val GRAIN_CELLS = 432f
-    /** How far the per-icon offset moves the noise field, in lattice cells. */
-    const val NOISE_PERIOD = 4096f
+    /**
+     * How far the per-icon offset moves the noise field, in lattice cells. The top fBm
+     * octave (8, frequency 128) at the smallest scale (0.25, 32 cells) reaches
+     * (256 + 16) * 128 < 2^16, where floats are spaced 1/256 cell: smooth. At 4096 the
+     * spacing was 1/16 cell, and the top octaves stair-stepped.
+     */
+    const val NOISE_PERIOD = 256f
 
     fun offset(mapping: Mapping, drawable: String): Pair<Float, Float> {
         if (mapping.lockOffset) return 0.5f to 0.5f
