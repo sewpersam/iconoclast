@@ -29,31 +29,31 @@ fun main(args: Array<String>) {
         "${Runtime.getRuntime().availableProcessors()} cpus")
     val themes = FillMode.entries.map { it.name to Theme(fill = FillParams(mode = it)) } + ("JADE" to JADE)
     for ((label, theme) in themes) {
-        val previewMs = best { IconRenderer().let { r -> preview.forEach { r.render(it, bundle.icon(it), theme, 128) } } }
-        val renderMs = best { IconRenderer().let { r -> apply.forEach { r.render(it, bundle.icon(it), theme, 432) } } }
-        val pngMs = best { IconRenderer().let { r -> apply.forEach { r.renderPng(it, bundle.icon(it), theme, 432) } } }
+        val previewMs = best { IconRenderer().let { r -> preview.forEach { r.render("icon$it", bundle.icon(it), theme, 128) } } }
+        val renderMs = best { IconRenderer().let { r -> apply.forEach { r.render("icon$it", bundle.icon(it), theme, 432) } } }
+        val pngMs = best { IconRenderer().let { r -> apply.forEach { r.renderPng("icon$it", bundle.icon(it), theme, 432) } } }
         val pool = Executors.newFixedThreadPool(threads)
         val parallelMs = try {
             best {
                 val r = IconRenderer()
-                pool.invokeAll(apply.map { i -> Callable { r.renderPng(i, bundle.icon(i), theme, 432) } }).forEach { it.get() }
+                pool.invokeAll(apply.map { i -> Callable { r.renderPng("icon$i", bundle.icon(i), theme, 432) } }).forEach { it.get() }
             }
         } finally {
             pool.shutdown()
         }
-        val bytes = IconRenderer().let { r -> apply.sumOf { r.renderPng(it, bundle.icon(it), theme, 432).size.toLong() } }
+        val bytes = IconRenderer().let { r -> apply.sumOf { r.renderPng("icon$it", bundle.icon(it), theme, 432).size.toLong() } }
         println("%-18s preview 24@128 %5.0f ms | apply 300@432 render %6.0f ms, render+png %6.0f ms, %d threads %6.0f ms | %d KB/icon"
             .format(label, previewMs, renderMs, pngMs, threads, parallelMs, bytes / 300 / 1024))
     }
     // A paint-only change: geometry and fill come from the cache.
     val r = IconRenderer()
-    preview.forEach { r.render(it, bundle.icon(it), JADE, 128) }
-    val warm = best { preview.forEach { r.render(it, bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 128) } }
+    preview.forEach { r.render("icon$it", bundle.icon(it), JADE, 128) }
+    val warm = best { preview.forEach { r.render("icon$it", bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 128) } }
     println("JADE preview 24@128, paint change with warm cache %.1f ms".format(warm))
     // The compositing cost alone: 300 icons at full size with geometry and fill cached.
     val big = IconRenderer(dev.iconoclast.render.MaskCache(1L shl 31))
-    apply.forEach { big.render(it, bundle.icon(it), JADE, 432) }
-    val warmApply = best { apply.forEach { big.render(it, bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 432) } }
+    apply.forEach { big.render("icon$it", bundle.icon(it), JADE, 432) }
+    val warmApply = best { apply.forEach { big.render("icon$it", bundle.icon(it), JADE.copy(glyph = JADE.glyph.copy(body = 0xFF336699.toInt())), 432) } }
     println("JADE apply 300@432 render, paint change with warm cache %.0f ms".format(warmApply))
 }
 

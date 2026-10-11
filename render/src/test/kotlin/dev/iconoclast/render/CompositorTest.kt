@@ -27,14 +27,14 @@ class CompositorTest {
     fun paintChangesReuseGeometryAndFill() {
         val r = IconRenderer()
         val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
-        r.render(1, icon, theme, 96)
+        r.render("square", icon, theme, 96)
         val misses = r.cache.misses
-        r.render(1, icon, theme.copy(background = theme.background.copy(paint = Paint.Solid(0xFF336699.toInt()))), 96)
-        r.render(1, icon, theme.copy(glyph = GlyphPaint(line = 0xFFFF0000.toInt())), 96)
+        r.render("square", icon, theme.copy(background = theme.background.copy(paint = Paint.Solid(0xFF336699.toInt()))), 96)
+        r.render("square", icon, theme.copy(glyph = GlyphPaint(line = 0xFFFF0000.toInt())), 96)
         assertEquals(misses, r.cache.misses, "only paint changed")
-        r.render(1, icon, theme.copy(fill = theme.fill.copy(gapWidth = 2f)), 96)
+        r.render("square", icon, theme.copy(fill = theme.fill.copy(gapWidth = 2f)), 96)
         assertEquals(misses + 2, r.cache.misses, "a gap change recomputes the fill and its lone lines only")
-        r.render(1, icon, theme.copy(shape = theme.shape.copy(strokeWeight = 2f)), 96)
+        r.render("square", icon, theme.copy(shape = theme.shape.copy(strokeWeight = 2f)), 96)
         assertEquals(misses + 5, r.cache.misses, "a shape change recomputes geometry, fill and lone lines")
     }
 
@@ -42,20 +42,20 @@ class CompositorTest {
     fun thresholdAndLoneLinesReuseTheFillMasks() {
         val r = IconRenderer()
         val theme = Theme(fill = FillParams(mode = FillMode.INVERT))
-        val first = r.render(1, icon, theme, 96)
+        val first = r.render("square", icon, theme, 96)
         val misses = r.cache.misses
-        r.render(1, icon, theme.copy(fill = theme.fill.copy(fallbackThreshold = 0.3f)), 96)
-        r.render(1, icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96)
+        r.render("square", icon, theme.copy(fill = theme.fill.copy(fallbackThreshold = 0.3f)), 96)
+        r.render("square", icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96)
         assertEquals(misses, r.cache.misses, "threshold and lone lines choose between cached masks")
         // The same pixels as a renderer that never cached the other settings.
-        assertContentEquals(first.pixels, r.render(1, icon, theme, 96).pixels)
-        val noLines = r.render(1, icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96)
-        assertContentEquals(IconRenderer().render(1, icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96).pixels, noLines.pixels)
+        assertContentEquals(first.pixels, r.render("square", icon, theme, 96).pixels)
+        val noLines = r.render("square", icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96)
+        assertContentEquals(IconRenderer().render("square", icon, theme.copy(fill = theme.fill.copy(keepLoneLines = false)), 96).pixels, noLines.pixels)
         // Outline ignores gap and closing, so changing them hits the cache.
         val outline = Theme()
-        r.render(1, icon, outline, 96)
+        r.render("square", icon, outline, 96)
         val m2 = r.cache.misses
-        r.render(1, icon, outline.copy(fill = outline.fill.copy(gapWidth = 3f, gapClosing = 1.5f)), 96)
+        r.render("square", icon, outline.copy(fill = outline.fill.copy(gapWidth = 3f, gapClosing = 1.5f)), 96)
         assertEquals(m2, r.cache.misses, "outline does not read gap or closing")
     }
 
@@ -69,21 +69,33 @@ class CompositorTest {
         val mask = 4L * 96 * 96
         val r = IconRenderer()
         val theme = Theme(fill = FillParams(mode = FillMode.OUTLINE_SILHOUETTE))
-        val first = r.render(1, icon, theme, 96)
+        val first = r.render("square", icon, theme, 96)
         assertEquals(3 * mask, r.cache.bytesHeld)
-        r.glyphMasks(1, icon, theme, 96).lines!!.toFloatArray().fill(1f)
-        assertContentEquals(first.pixels, r.render(1, icon, theme, 96).pixels)
+        r.glyphMasks("square", icon, theme, 96).lines!!.toFloatArray().fill(1f)
+        assertContentEquals(first.pixels, r.render("square", icon, theme, 96).pixels)
         // Bounded below what one render needs, the cache still gives the same pixels.
         val small = IconRenderer(MaskCache(maxBytes = 2 * mask))
-        assertContentEquals(first.pixels, small.render(1, icon, theme, 96).pixels)
+        assertContentEquals(first.pixels, small.render("square", icon, theme, 96).pixels)
         assertTrue(small.cache.bytesHeld <= 2 * mask)
-        assertContentEquals(first.pixels, small.render(1, icon, theme, 96).pixels)
+        assertContentEquals(first.pixels, small.render("square", icon, theme, 96).pixels)
+    }
+
+    /** The cache is keyed by drawable name: two icons never share masks, one name always does. */
+    @Test
+    fun cacheKeysAreDrawableNames() {
+        val dash = Icon(icon.primitives.drop(1))
+        val r = IconRenderer()
+        val square = r.render("square", icon, Theme(), 96)
+        assertTrue(!square.pixels.contentEquals(r.render("dash", dash, Theme(), 96).pixels))
+        val misses = r.cache.misses
+        assertContentEquals(square.pixels, r.render("square", icon, Theme(), 96).pixels)
+        assertEquals(misses, r.cache.misses)
     }
 
     @Test
     fun outputIsPremultipliedAndClippedToTheShape() {
         val theme = Theme(background = BackgroundParams(shape = BackgroundShape.Circle, size = 0.8f))
-        val img = IconRenderer().render(0, icon, theme, 128)
+        val img = IconRenderer().render("square", icon, theme, 128)
         for (i in 0 until 128 * 128) {
             val a = img.pixels[4 * i + 3].toInt() and 0xFF
             for (k in 0..2) assertTrue((img.pixels[4 * i + k].toInt() and 0xFF) <= a)
@@ -95,7 +107,7 @@ class CompositorTest {
     @Test
     fun disabledBackgroundLeavesOnlyTheGlyph() {
         val theme = Theme(background = BackgroundParams(enabled = false))
-        val img = IconRenderer().render(0, icon, theme, 128)
+        val img = IconRenderer().render("square", icon, theme, 128)
         assertEquals(0, alpha(img, 64, 64), "inside the square, outline mode")
         val s = IconRenderer.unitScale(theme.shape, 128)
         val o = (128 - 48 * s) / 2
@@ -107,8 +119,8 @@ class CompositorTest {
         val theme = Theme(fill = FillParams(mode = FillMode.INVERT), background = BackgroundParams(
             paint = Paint.RadialGradient(0.3f, 0.3f, 0.9f, listOf(ColorStop(0f, 0xFF3366AA.toInt()), ColorStop(1f, 0xFF112233.toInt()))),
         ))
-        val a = IconRenderer().renderPng(0, icon, theme, 160)
-        val b = IconRenderer().renderPng(0, icon, theme, 160)
+        val a = IconRenderer().renderPng("square", icon, theme, 160)
+        val b = IconRenderer().renderPng("square", icon, theme, 160)
         assertContentEquals(a, b)
     }
 
@@ -120,7 +132,7 @@ class CompositorTest {
             floatArrayOf(24.75f, 24f, 24.75f, 24f + k, 24f + k, 24.75f, 24f, 24.75f, 24f - k, 24.75f, 23.25f, 24f + k,
                 23.25f, 24f, 23.25f, 24f - k, 24f - k, 23.25f, 24f, 23.25f, 24f + k, 23.25f, 24.75f, 24f - k, 24.75f, 24f))
         val dotIcon = Icon(listOf(dot))
-        fun area(shape: ShapeParams) = IconRenderer().glyphMasks(0, dotIcon, Theme(shape = shape), 256).lines!!.sum()
+        fun area(shape: ShapeParams) = IconRenderer().glyphMasks("square", dotIcon, Theme(shape = shape), 256).lines!!.sum()
         val one = area(ShapeParams())
         assertEquals(4f * one, area(ShapeParams(strokeWeight = 2f)), 0.02f * 4f * one)
         assertEquals(one, area(ShapeParams(strokeWeight = 2f, dots = DotMode.KEEP_ORIGINAL)), 0.001f * one)

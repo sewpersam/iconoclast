@@ -5,12 +5,13 @@ no Android dependency, so the app and the JVM tests run the same code.
 
 ```kotlin
 val renderer = IconRenderer()                   // share one; it owns the mask cache
-val png: ByteArray = renderer.renderPng(index, source.icon(index), theme, OUTPUT_SIZE)
-val image: RgbaImage = renderer.render(index, source.icon(index), theme, 128)  // premultiplied RGBA
+val png: ByteArray = renderer.renderPng(name, source.icon(index), theme, OUTPUT_SIZE)
+val image: RgbaImage = renderer.render(name, source.icon(index), theme, 128)  // premultiplied RGBA
 ```
 
-`index` is the drawable's index in the icon bundle. It keys the mask cache, so
-it must always name the same icon. `IconRenderer` is thread-safe.
+`name` is the Arcticons drawable name, the icon's stable identity. It keys the
+mask cache and seeds every per-icon choice through `IconSeed`, so it must
+always name the same icon. `IconRenderer` is thread-safe.
 
 ## Output size: 432 px
 

@@ -21,8 +21,8 @@ class PreviewSizeTest {
         assertTrue(ThemePreviews.SIZE >= 128, "previews render at 128 px minimum")
         for (name in listOf("settings", "clock")) {
             val i = GoldenSet.SAMPLES.indexOf(name)
-            val at64 = IconRenderer().glyphMasks(i, bundle.icon(i), jade, 64).fellBack
-            val atPreview = IconRenderer().glyphMasks(i, bundle.icon(i), jade, ThemePreviews.SIZE).fellBack
+            val at64 = IconRenderer().glyphMasks(GoldenSet.SAMPLES[i], bundle.icon(i), jade, 64).fellBack
+            val atPreview = IconRenderer().glyphMasks(GoldenSet.SAMPLES[i], bundle.icon(i), jade, ThemePreviews.SIZE).fellBack
             println("$name: fellBack at 64 px = $at64, at ${ThemePreviews.SIZE} px = $atPreview")
             assertTrue(at64, "$name at 64 px was expected to fall back")
             assertFalse(atPreview, "$name falls back at ${ThemePreviews.SIZE} px")

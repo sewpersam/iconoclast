@@ -48,7 +48,7 @@ class GoldenTest {
         val mismatches = mutableListOf<String>()
         for ((dir, theme, name) in GoldenSet.CASES) {
             val i = SAMPLES.indexOf(name)
-            val png = renderer.renderPng(i, bundle.icon(i), theme, SIZE)
+            val png = renderer.renderPng(name, bundle.icon(i), theme, SIZE)
             val path = "$dir/$name.png"
             if (update) {
                 File(System.getProperty("golden.dir"), path).apply { parentFile.mkdirs() }.writeBytes(png)
@@ -83,8 +83,8 @@ class GoldenTest {
         val origin = (SIZE - 48 * scale) / 2
         for ((name, points) in probes) {
             val i = SAMPLES.indexOf(name)
-            val img = renderer.render(i, bundle.icon(i), theme, SIZE)
-            assertTrue(!renderer.glyphMasks(i, bundle.icon(i), theme, SIZE).fellBack, "$name fell back to Outline")
+            val img = renderer.render(name, bundle.icon(i), theme, SIZE)
+            assertTrue(!renderer.glyphMasks(name, bundle.icon(i), theme, SIZE).fellBack, "$name fell back to Outline")
             for ((u, v, want) in points) {
                 val x = (origin + u * scale).toInt()
                 val y = (origin + v * scale).toInt()
@@ -105,8 +105,8 @@ class GoldenTest {
     fun sameRenderEncodesToTheSameBytes() {
         val i = SAMPLES.indexOf("fdroid")
         for (theme in THEMES.values) {
-            val image = IconRenderer().render(i, bundle.icon(i), theme, SIZE)
-            val again = IconRenderer().render(i, bundle.icon(i), theme, SIZE)
+            val image = IconRenderer().render("fdroid", bundle.icon(i), theme, SIZE)
+            val again = IconRenderer().render("fdroid", bundle.icon(i), theme, SIZE)
             assertContentEquals(image.pixels, again.pixels)
             assertContentEquals(PngEncoder.encode(image), PngEncoder.encode(again))
         }

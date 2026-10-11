@@ -42,7 +42,7 @@ class ThemeSerializationTest {
         for (theme in themes) {
             val parsed = migrate(doc(theme).toJson()).theme
             val icon = bundle.icon(3)
-            assertContentEquals(IconRenderer().renderPng(3, icon, theme, 128), IconRenderer().renderPng(3, icon, parsed, 128))
+            assertContentEquals(IconRenderer().renderPng("test", icon, theme, 128), IconRenderer().renderPng("test", icon, parsed, 128))
         }
     }
 

@@ -23,7 +23,7 @@ object RenderWarmup {
         for (mode in FillMode.entries) for (i in 0 until ROUNDS) {
             // Each round a new stroke weight, so every pass computes its masks.
             val theme = Theme(shape = Theme().shape.copy(strokeWeight = 1f + i * 0.1f), fill = FillParams(mode = mode))
-            renderer.render(0, ICON, theme, SIZE)
+            renderer.render("warmup", ICON, theme, SIZE)
         }
         Log.i("IconoclastEditor", "render warm-up: ${FillMode.entries.size * ROUNDS} renders in ${SystemClock.elapsedRealtime() - t0} ms")
     }

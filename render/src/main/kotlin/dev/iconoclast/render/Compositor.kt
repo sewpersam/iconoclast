@@ -35,10 +35,12 @@ const val SAFE_ZONE = 66f / 108f
 class IconRenderer(val cache: MaskCache = MaskCache()) {
 
     /**
-     * Renders one drawable. [drawable] identifies [icon] for the cache, normally its index
-     * in the icon bundle; the same id must always mean the same icon.
+     * Renders one drawable. [drawable] is its stable identity, the Arcticons drawable name:
+     * it keys the mask cache and, through [IconSeed], seeds every per-icon choice, so the
+     * same name must always mean the same icon. The bundle index is not stable across
+     * Arcticons updates and is not used.
      */
-    fun render(drawable: Int, icon: Icon, theme: Theme, size: Int): RgbaImage {
+    fun render(drawable: String, icon: Icon, theme: Theme, size: Int): RgbaImage {
         val masks = glyphMasks(drawable, icon, theme, size)
         val buf = FloatArray(size * size * 4)
         val bg = theme.background
@@ -53,14 +55,14 @@ class IconRenderer(val cache: MaskCache = MaskCache()) {
     }
 
     /** [render], encoded as PNG. */
-    fun renderPng(drawable: Int, icon: Icon, theme: Theme, size: Int): ByteArray =
+    fun renderPng(drawable: String, icon: Icon, theme: Theme, size: Int): ByteArray =
         PngEncoder.encode(render(drawable, icon, theme, size))
 
     /**
      * Steps 1 and 2, cached. The geometry, the fill masks and invert fill's lone lines are
      * cached apart, so the fallback threshold and the lone-lines switch reuse the masks.
      */
-    fun glyphMasks(drawable: Int, icon: Icon, theme: Theme, size: Int): GlyphMasks {
+    fun glyphMasks(drawable: String, icon: Icon, theme: Theme, size: Int): GlyphMasks {
         val shape = theme.shape
         val fill = theme.fill
         val key = FillKey.of(drawable, shape, fill, size)

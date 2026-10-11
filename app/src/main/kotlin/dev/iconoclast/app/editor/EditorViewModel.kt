@@ -208,7 +208,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     private fun draw(drawable: Int, theme: Theme): ImageBitmap {
         val icons = requireNotNull(source)
-        val image = container.renderer.render(drawable, icons.icon(drawable), theme, SIZE)
+        val image = container.renderer.render(icons.names.name(drawable), icons.icon(drawable), theme, SIZE)
         val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
         // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
         bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))

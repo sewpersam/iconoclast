@@ -82,7 +82,7 @@ class PackBuilderTest {
         val renderer = IconRenderer()
         val files = entries(build())
         for ((slot, drawable) in plan.drawables.withIndex()) {
-            val expected = renderer.renderPng(drawable, source.icon(drawable), thick, OUTPUT_SIZE)
+            val expected = renderer.renderPng(source.names.name(drawable), source.icon(drawable), thick, OUTPUT_SIZE)
             assertContentEquals(expected, files.getValue(PackBuilder.slotPath(slot)), "slot $slot")
         }
         // The preview: "arcticons" is not a sample, so it falls back to the first slot's drawable.

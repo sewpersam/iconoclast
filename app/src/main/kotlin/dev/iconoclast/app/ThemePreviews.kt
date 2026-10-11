@@ -26,7 +26,7 @@ class ThemePreviews(private val container: AppContainer) {
         val source = container.iconSource()
         SAMPLES.mapNotNull { name ->
             val index = source.indexOf(name).takeIf { it >= 0 } ?: return@mapNotNull null
-            val image = container.renderer.render(index, source.icon(index), theme, SIZE)
+            val image = container.renderer.render(name, source.icon(index), theme, SIZE)
             val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
             // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
             bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))

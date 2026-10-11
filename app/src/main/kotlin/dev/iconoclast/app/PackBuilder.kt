@@ -29,7 +29,7 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
         val pngs = coroutineScope {
             jobs.map { index ->
                 async(pool) {
-                    renderer.renderPng(index, source.icon(index), theme, OUTPUT_SIZE).also {
+                    renderer.renderPng(source.names.name(index), source.icon(index), theme, OUTPUT_SIZE).also {
                         progress(done.incrementAndGet(), jobs.size)
                     }
                 }

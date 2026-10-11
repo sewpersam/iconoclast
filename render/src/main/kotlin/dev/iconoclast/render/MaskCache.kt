@@ -1,17 +1,20 @@
 package dev.iconoclast.render
 
-/** Geometry depends on the drawable, the shape parameters and the size, nothing else. */
-data class GeometryKey(val drawable: Int, val shape: ShapeParams, val size: Int)
+/**
+ * Geometry depends on the drawable, the shape parameters and the size, nothing else. The
+ * drawable is its name, so overrides and custom glyphs can take names of their own.
+ */
+data class GeometryKey(val drawable: String, val shape: ShapeParams, val size: Int)
 
 /**
  * The fill stage adds the fill parameters that change its masks: the mode, and the gap
  * and closing where the mode reads them. The fallback threshold and the lone-lines switch
  * only choose between cached masks, so they are not part of the key.
  */
-data class FillKey(val drawable: Int, val shape: ShapeParams, val mode: FillMode, val gapWidth: Float, val gapClosing: Float, val size: Int) {
+data class FillKey(val drawable: String, val shape: ShapeParams, val mode: FillMode, val gapWidth: Float, val gapClosing: Float, val size: Int) {
     companion object {
         /** Unused parameters are zeroed, so changing them cannot miss the cache. */
-        fun of(drawable: Int, shape: ShapeParams, fill: FillParams, size: Int) = when (fill.mode) {
+        fun of(drawable: String, shape: ShapeParams, fill: FillParams, size: Int) = when (fill.mode) {
             FillMode.OUTLINE -> FillKey(drawable, shape, fill.mode, 0f, 0f, size)
             FillMode.SILHOUETTE, FillMode.OUTLINE_SILHOUETTE -> FillKey(drawable, shape, fill.mode, 0f, fill.gapClosing + 0f, size)
             FillMode.INVERT -> FillKey(drawable, shape, fill.mode, fill.gapWidth + 0f, fill.gapClosing + 0f, size)

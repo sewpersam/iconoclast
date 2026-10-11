@@ -27,8 +27,8 @@ class PreviewParityTest {
         val mismatches = mutableListOf<String>()
         var checked = 0
         for ((name, theme) in themes) for ((i, icon) in GoldenSet.SAMPLES.withIndex()) {
-            val preview = IconRenderer().glyphMasks(i, bundle.icon(i), theme, EditorViewModel.SIZE).fellBack
-            val pack = IconRenderer().glyphMasks(i, bundle.icon(i), theme, OUTPUT_SIZE).fellBack
+            val preview = IconRenderer().glyphMasks(GoldenSet.SAMPLES[i], bundle.icon(i), theme, EditorViewModel.SIZE).fellBack
+            val pack = IconRenderer().glyphMasks(GoldenSet.SAMPLES[i], bundle.icon(i), theme, OUTPUT_SIZE).fellBack
             checked++
             if (preview != pack) mismatches += "$name/$icon: preview $preview, pack $pack"
         }

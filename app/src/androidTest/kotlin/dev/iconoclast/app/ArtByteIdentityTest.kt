@@ -30,7 +30,7 @@ class ArtByteIdentityTest {
         for ((dir, theme, name) in GoldenSet.CASES) {
             val i = GoldenSet.SAMPLES.indexOf(name)
             val path = "$dir/$name.png"
-            val png = renderer.renderPng(i, bundle.icon(i), theme, OUTPUT_SIZE)
+            val png = renderer.renderPng(name, bundle.icon(i), theme, OUTPUT_SIZE)
             compared += path
             if (!png.contentEquals(asset(path))) differ += path
         }

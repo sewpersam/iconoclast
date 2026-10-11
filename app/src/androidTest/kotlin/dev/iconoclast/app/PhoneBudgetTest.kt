@@ -38,7 +38,7 @@ class PhoneBudgetTest {
         val theme = Theme()
         val runs = (0 until RUNS).map {
             val renderer = IconRenderer()
-            timed { for (i in GoldenSet.SAMPLES.indices) renderer.render(i, bundle.icon(i), theme, PREVIEW_SIZE) }
+            timed { for (i in GoldenSet.SAMPLES.indices) renderer.render(GoldenSet.SAMPLES[i], bundle.icon(i), theme, PREVIEW_SIZE) }
         }
         Log.i(TAG, "preview 24@$PREVIEW_SIZE plain, ms per run, first is cold: $runs")
         assertTrue("preview runs $runs ms, budget $PREVIEW_BUDGET_MS ms", runs.drop(1).all { it < PREVIEW_BUDGET_MS })
