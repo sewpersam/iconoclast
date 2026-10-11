@@ -2,7 +2,9 @@ package dev.iconoclast.render.effect
 
 import dev.iconoclast.render.EffectKind
 import dev.iconoclast.render.Field
+import dev.iconoclast.render.Mask
 import dev.iconoclast.render.layer.StackInput
+import dev.iconoclast.render.mask.Blur
 import dev.iconoclast.render.mask.SignedDistance
 
 /**
@@ -21,5 +23,16 @@ internal object EffectSource {
         val compute = { Field(SignedDistance.of(icon(input), input.size, input.size)) }
         val key = input.iconKey ?: return compute().values
         return input.cache.field(key.derived(EffectKind.SIGNED_DISTANCE), compute).values
+    }
+
+    /**
+     * The icon mask blurred with standard deviation [sigma] pixels, zero outside the
+     * canvas, cached by sigma: shadows and glows of one blur share it, and a colour or
+     * offset change reuses it.
+     */
+    fun blurred(input: StackInput, sigma: Float): FloatArray {
+        val compute = { Mask(Blur.gaussian(icon(input), input.size, input.size, sigma)) }
+        val key = input.iconKey ?: return compute().values
+        return input.cache.effect(key.derived(EffectKind.BLUR, sigma), compute).values
     }
 }
