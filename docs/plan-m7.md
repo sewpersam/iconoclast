@@ -29,7 +29,7 @@ residual, spec §2.4 export and import with the key, §2.5 coverage rules,
   effective-theme resolver with tests for every override field (stroke
   weight, fill mode, gap closing, texture offset, hide streaks, swap
   drawable); PackBuilder per-slot theme and icon.
-- Drawable swap search: substring and prefix search over all 14,028 names
+- Drawable swap search: substring and prefix search over all 15,322 names at this pin (the spec's 14,028 counts distinct appfilter drawables; the swap offers every converted name)
   from the existing index, ranked prefix first; a JVM test for ranking.
 - Coverage data: persist the applied component set, theme id and time on
   successful install; a diff on open producing installed-since-last-Apply

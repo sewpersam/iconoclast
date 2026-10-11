@@ -179,7 +179,8 @@ sealed interface Effect {
     /**
      * Monochrome noise over the whole canvas: grey around mid-grey, so a contrast blend
      * such as overlay or soft light leaves the average alone. Each icon gets its own
-     * patch, seeded by its drawable name.
+     * patch from its one per-icon offset, [TextureOffset], so grain follows a texture
+     * offset override.
      */
     data class Grain(
         /** 0 to 1: how far the grey swings from mid-grey. */

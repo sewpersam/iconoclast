@@ -120,4 +120,13 @@ class EffectiveThemeTest {
         val effective = with(IconOverride(textureOffset = TextureOffset(0.5f, 0.5f))).effectiveTheme("fdroid")
         assertFailsWith<IllegalArgumentException> { doc.copy(theme = effective).toJson() }
     }
+
+    /** Review fix: overrides are strict like the theme: an unknown field or a blank drawable name is damage. */
+    @Test
+    fun unknownOverrideFieldsAndBlankNamesAreRejected() {
+        val ok = doc.withOverride("fdroid", IconOverride(strokeWeight = 2f)).toJson()
+        assertFailsWith<ThemeFormatException> { migrate(ok.replace("\"hideStreaks\": false", "\"hideStreaks\": false, \"glow\": true")) }
+        assertFailsWith<ThemeFormatException> { migrate(ok.replace("\"fdroid\": {", "\"\": {")) }
+        assertFailsWith<IllegalArgumentException> { doc.withOverride("", IconOverride(hideStreaks = true)) }
+    }
 }

@@ -22,6 +22,10 @@ data class ThemeDocument(
      */
     val overrides: Map<String, IconOverride> = emptyMap(),
 ) {
+    init {
+        require(overrides.keys.none { it.isBlank() }) { "an override needs a drawable name" }
+    }
+
     /** Pretty-printed JSON at the current schema version, overrides sorted by name. */
     fun toJson(): String = JSON.encodeToString(serializer(), copy(schemaVersion = CURRENT_SCHEMA, overrides = overrides.toSortedMap()))
 
