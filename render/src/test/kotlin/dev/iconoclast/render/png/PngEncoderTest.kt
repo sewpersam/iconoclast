@@ -37,12 +37,43 @@ class PngEncoderTest {
             "abcabcabcabd".repeat(5000).toByteArray(),
             ByteArray(200_000) { if (rnd.nextInt(10) == 0) rnd.nextInt(4).toByte() else 0 },
         )
-        for ((k, c) in cases.withIndex()) {
-            val z = Deflate.zlib(c)
-            val back = runCatching { inflate(z) }.getOrElse { throw AssertionError("case $k: ${it.message}") }
-            assertContentEquals(c, back, "case $k")
+        for (effort in Deflate.Effort.entries) for ((k, c) in cases.withIndex()) {
+            val z = Deflate.zlib(c, effort)
+            val back = runCatching { inflate(z) }.getOrElse { throw AssertionError("$effort case $k: ${it.message}") }
+            assertContentEquals(c, back, "$effort case $k")
         }
         assertTrue(Deflate.zlib(ByteArray(100_000)).size < 1000)
+    }
+
+    /** The first block's BTYPE: 1 fixed, 2 dynamic. */
+    private fun firstBlockType(z: ByteArray) = (z[2].toInt() ushr 1) and 3
+
+    /** FAST takes the fixed code where it is cheaper, a short block; CANONICAL never does. */
+    @Test
+    fun fastChoosesTheCheaperCode() {
+        val short = "a fixed code wins on a short block".toByteArray()
+        assertEquals(1, firstBlockType(Deflate.zlib(short, Deflate.Effort.FAST)))
+        assertEquals(2, firstBlockType(Deflate.zlib(short, Deflate.Effort.CANONICAL)))
+        val skewed = ByteArray(50_000) { if (it % 97 == 0) 1 else 0 }
+        assertEquals(2, firstBlockType(Deflate.zlib(skewed, Deflate.Effort.FAST)))
+        // Whichever it takes, FAST is never larger than its dynamic-only output would be.
+        val rnd = Random(9)
+        for (len in listOf(10, 200, 5000, 60_000)) {
+            val data = ByteArray(len) { (rnd.nextInt(16) + 60).toByte() }
+            assertContentEquals(data, inflate(Deflate.zlib(data, Deflate.Effort.FAST)))
+        }
+    }
+
+    /**
+     * Texture files are named by the SHA-256 of their CANONICAL bytes, so those bytes are
+     * pinned: this hash was taken from the M5 encoder, before FAST existed. GoldenTest pins
+     * the same through the bundled texture's hash.
+     */
+    @Test
+    fun canonicalBytesArePinned() {
+        val px = ByteArray(64 * 48 * 4) { i -> if (i % 4 == 3) (200 + i % 56).toByte() else ((i * 31 + i / 256) % 200).toByte() }
+        val png = PngEncoder.encode(64, 48, px, Deflate.Effort.CANONICAL)
+        assertEquals(CANONICAL_SHA, dev.iconoclast.render.texture.TextureStore.sha256(png))
     }
 
     @Test
@@ -90,5 +121,9 @@ class PngEncoderTest {
                 ((straight[4 * i + 1].toInt() and 0xFF) shl 8) or (straight[4 * i + 2].toInt() and 0xFF)
             assertEquals(expect, argb, "pixel $i")
         }
+    }
+
+    private companion object {
+        const val CANONICAL_SHA = "2812235e7301d95084a267090369476dcebaf43a9ac1fd649471dfe96c14cfdf"
     }
 }

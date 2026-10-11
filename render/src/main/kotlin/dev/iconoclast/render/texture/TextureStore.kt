@@ -1,5 +1,6 @@
 package dev.iconoclast.render.texture
 
+import dev.iconoclast.render.png.Deflate
 import dev.iconoclast.render.png.PngDecoder
 import dev.iconoclast.render.png.PngEncoder
 import java.security.MessageDigest
@@ -51,7 +52,7 @@ class TextureStore(
      */
     fun put(png: ByteArray): String {
         val texture = decode(png)
-        val canonical = PngEncoder.encode(texture.width, texture.height, texture.premultiplied)
+        val canonical = PngEncoder.encode(texture.width, texture.height, texture.premultiplied, Deflate.Effort.CANONICAL)
         val hash = sha256(canonical)
         forget(hash)
         insert(hash, Entry(texture, canonical))
@@ -157,7 +158,7 @@ class TextureStore(
         /** The canonical texture PNG of [premultiplied] RGBA pixels. */
         fun encode(width: Int, height: Int, premultiplied: ByteArray): ByteArray {
             require(maxOf(width, height) <= MAX_SIDE) { "texture ${width}x$height is over $MAX_SIDE px" }
-            return PngEncoder.encode(width, height, premultiplied)
+            return PngEncoder.encode(width, height, premultiplied, Deflate.Effort.CANONICAL)
         }
 
         /**
@@ -166,7 +167,7 @@ class TextureStore(
          */
         fun canonical(png: ByteArray): CanonicalTexture {
             val t = decode(png)
-            val canonical = PngEncoder.encode(t.width, t.height, t.premultiplied)
+            val canonical = PngEncoder.encode(t.width, t.height, t.premultiplied, Deflate.Effort.CANONICAL)
             return CanonicalTexture(sha256(canonical), canonical)
         }
 

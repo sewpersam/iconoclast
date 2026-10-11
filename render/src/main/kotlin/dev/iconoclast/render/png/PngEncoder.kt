@@ -15,25 +15,27 @@ import java.util.zip.CRC32
  */
 object PngEncoder {
 
+    /** An icon: [Deflate.Effort.FAST]. */
     fun encode(image: RgbaImage): ByteArray = encode(image.size, image.size, image.pixels)
 
-    /** [premultiplied] is [width] x [height] premultiplied RGBA, row-major. Textures use this. */
-    fun encode(width: Int, height: Int, premultiplied: ByteArray): ByteArray {
+    /**
+     * [premultiplied] is [width] x [height] premultiplied RGBA, row-major. Texture files
+     * pass [Deflate.Effort.CANONICAL], whose bytes their hashes name.
+     */
+    fun encode(width: Int, height: Int, premultiplied: ByteArray, effort: Deflate.Effort = Deflate.Effort.FAST): ByteArray {
         require(width > 0 && height > 0 && premultiplied.size == width * height * 4) { "pixels for ${width}x$height" }
         val stride = width * 4
         val straight = unpremultiply(premultiplied)
         val raw = ByteArray((stride + 1) * height)
-        val prevRow = ByteArray(stride)
+        val zeros = ByteArray(stride)
         val candidate = Array(5) { ByteArray(stride) }
         for (y in 0 until height) {
-            val row = straight.copyOfRange(y * stride, (y + 1) * stride)
-            val prior = if (y == 0) prevRow else straight.copyOfRange((y - 1) * stride, y * stride)
+            val row = y * stride
+            val prior = if (y == 0) -1 else (y - 1) * stride
             var best = 0
             var bestScore = Long.MAX_VALUE
             for (f in 0..4) {
-                filter(f, row, prior, candidate[f])
-                var score = 0L
-                for (b in candidate[f]) score += kotlin.math.abs(b.toInt())
+                val score = filter(f, straight, row, if (prior < 0) zeros else straight, if (prior < 0) 0 else prior, stride, candidate[f])
                 if (score < bestScore) { bestScore = score; best = f }
             }
             raw[y * (stride + 1)] = best.toByte()
@@ -47,7 +49,7 @@ object PngEncoder {
         ihdr[8] = 8 // bit depth
         ihdr[9] = 6 // RGBA
         chunk(out, "IHDR", ihdr)
-        chunk(out, "IDAT", Deflate.zlib(raw))
+        chunk(out, "IDAT", Deflate.zlib(raw, effort))
         chunk(out, "IEND", ByteArray(0))
         return out.toByteArray()
     }
@@ -64,20 +66,28 @@ object PngEncoder {
         return out
     }
 
-    private fun filter(type: Int, row: ByteArray, prior: ByteArray, out: ByteArray) {
-        for (i in row.indices) {
-            val x = row[i].toInt() and 0xFF
-            val a = if (i >= 4) row[i - 4].toInt() and 0xFF else 0
-            val b = prior[i].toInt() and 0xFF
-            val c = if (i >= 4) prior[i - 4].toInt() and 0xFF else 0
-            out[i] = when (type) {
+    /**
+     * Filters the row at [row] of [px] against the prior row at [prior] of [pp] into [out]
+     * and returns the sum of the filtered bytes as signed values, the selection heuristic.
+     */
+    private fun filter(type: Int, px: ByteArray, row: Int, pp: ByteArray, prior: Int, stride: Int, out: ByteArray): Long {
+        var score = 0L
+        for (i in 0 until stride) {
+            val x = px[row + i].toInt() and 0xFF
+            val a = if (i >= 4) px[row + i - 4].toInt() and 0xFF else 0
+            val b = pp[prior + i].toInt() and 0xFF
+            val c = if (i >= 4) pp[prior + i - 4].toInt() and 0xFF else 0
+            val v = when (type) {
                 0 -> x
                 1 -> x - a
                 2 -> x - b
                 3 -> x - (a + b) / 2
                 else -> x - paeth(a, b, c)
             }.toByte()
+            out[i] = v
+            score += kotlin.math.abs(v.toInt())
         }
+        return score
     }
 
     private fun paeth(a: Int, b: Int, c: Int): Int {

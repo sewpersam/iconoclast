@@ -54,6 +54,13 @@ fun main(args: Array<String>) {
         println("%-18s preview 24@128 %5.0f ms | apply 300@432 render %6.0f ms, render+png %6.0f ms, %d threads %6.0f ms | %d KB/icon"
             .format(label, previewMs, renderMs, pngMs, threads, parallelMs, bytes / 300 / 1024))
     }
+    // PNG encoding alone, per icon: the 300 renders are made once, then encoded.
+    for ((label, theme) in listOf("JADE" to JADE, "JADE_TEXTURED" to textured)) {
+        val r = IconRenderer(textures = textures)
+        val images = apply.map { r.render("icon$it", bundle.icon(it), theme, 432) }
+        val ms = best { images.forEach { PngEncoder.encode(it) } }
+        println("%-18s png encode %.1f ms per icon, 300@432".format(label, ms / images.size))
+    }
     // A paint-only change: geometry and fill come from the cache.
     val r = IconRenderer()
     val recolored = JADE.recolored
