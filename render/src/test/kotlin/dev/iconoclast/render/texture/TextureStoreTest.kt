@@ -86,4 +86,36 @@ class TextureStoreTest {
         TextureStore().put(PngEncoder.encode(2048, 1, ByteArray(2048 * 4)))
         assertFailsWith<IllegalArgumentException> { TextureStore().put(ByteArray(64)) }
     }
+
+    /** Least recently used out past the byte cap; an evicted texture loads back through the loader. */
+    @Test
+    fun evictsPastTheCapAndReloadsThroughTheLoader() {
+        val files = HashMap<String, ByteArray>()
+        val pngs = (1..3).map { TextureStore.encode(16, 16, pixels(16, 16).also { p -> p[0] = it.toByte() }) }
+        val one = 16 * 16 * 4L + pngs.maxOf { it.size }
+        val store = TextureStore(maxBytes = 2 * one, load = { files[it] }, exists = { it in files })
+        val hashes = pngs.map { png -> store.put(png).also { files[it] = store.bytes(it)!! } }
+        assertTrue(store.residentBytes <= 2 * one)
+        assertFalse(store.isResident(hashes[0]), "the eldest is evicted")
+        assertTrue(store.isResident(hashes[1]) && store.isResident(hashes[2]))
+        assertTrue(hashes[0] in store, "on disk counts as present")
+        val back = store[hashes[0]]!!
+        assertContentEquals(TextureStore().let { it[it.put(pngs[0])]!!.premultiplied }, back.premultiplied)
+        assertTrue(store.isResident(hashes[0]))
+        assertFalse(store.isResident(hashes[1]), "reloading evicts the next eldest")
+        assertContentEquals(files[hashes[1]], store.bytes(hashes[1]))
+    }
+
+    /** A file that no longer matches its hash, or is gone, reads as absent; nothing throws. */
+    @Test
+    fun damagedOrMissingFilesReadAsAbsent() {
+        val png = TextureStore.encode(4, 4, pixels(4, 4))
+        val hash = TextureStore.canonical(png).hash
+        val other = TextureStore.encode(4, 4, pixels(4, 4).also { it[0] = 99 })
+        assertNull(TextureStore(load = { other })[hash])
+        assertNull(TextureStore(load = { byteArrayOf(1, 2, 3) })[hash])
+        assertNull(TextureStore()[hash])
+        assertFalse(hash in TextureStore())
+        assertEquals(hash, TextureStore().put(png))
+    }
 }
