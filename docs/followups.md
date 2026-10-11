@@ -89,13 +89,13 @@ Extracted from the execution ledger on 2026-10-10. Triage from the whole-branch 
 - MaskCache counters now increment under the lock; only test reads are unsynchronised.
 
 ### M5 readiness, from the M4 whole-milestone review (do these first, in order)
-1. Masks become read-only at the cache boundary; cache the fill core without the geometry reference and re-attach on read (also fixes the loose 64 MB bound).
-2. The renderer gets a stable icon identity: render takes the drawable name or a name-derived seed; offset-dependent layer keys use it.
-3. Effect keys include the fallback: (FillKey, fellBack, keepLoneLines), following the LoneLinesKey pattern.
-4. Textures stay out of the mask cache: own store keyed by SHA-256, canonical PNG from the project encoder, pure-Kotlin inflate in :render.
-5. Compositor becomes a stack evaluator: source RGBA, clip mask, mask adjustments, blend(mode, opacity); Paint gains Texture and Noise; all 17 blend modes in Kotlin with W3C formulas, android.graphics only for UI names.
-6. Define the "icon" clip target as body union lines, with sub-targets or two default layers so Plain and Jade reproduce.
-7. Schema v2: bump CURRENT_SCHEMA, append a pure v1ToV2 step mapping glyph and background.paint into the base stack.
-8. StrictMath or plain arithmetic on every per-pixel path; seeded PRNG for noise.
-9. Sealing is not strictly monotone below one step: step over the distinct strokeD2 values <= r² instead of ceil(r) samples.
-10. Declare lifecycle-viewmodel-compose and lifecycle-runtime-compose in the version catalog.
+1. Masks become read-only at the cache boundary; cache the fill core without the geometry reference and re-attach on read (also fixes the loose 64 MB bound). DONE in M5 Task 7, 0a01bd5.
+2. The renderer gets a stable icon identity: render takes the drawable name or a name-derived seed; offset-dependent layer keys use it. DONE in M5 Task 7, db079f1.
+3. Effect keys include the fallback: (FillKey, fellBack, keepLoneLines), following the LoneLinesKey pattern. DONE in M5 Task 7, 0e1eeba.
+4. Textures stay out of the mask cache: own store keyed by SHA-256, canonical PNG from the project encoder, pure-Kotlin inflate in :render. DONE in M5 Task 7, e1937c6, 4b79a1f.
+5. Compositor becomes a stack evaluator: source RGBA, clip mask, mask adjustments, blend(mode, opacity); Paint gains Texture and Noise; all 17 blend modes in Kotlin with W3C formulas, android.graphics only for UI names. DONE in M5 Task 7, 60aaa55, d6ee247.
+6. Define the "icon" clip target as body union lines, with sub-targets or two default layers so Plain and Jade reproduce. DONE in M5 Task 7, d6ee247.
+7. Schema v2: bump CURRENT_SCHEMA, append a pure v1ToV2 step mapping glyph and background.paint into the base stack. DONE in M5 Task 7, d6ee247.
+8. StrictMath or plain arithmetic on every per-pixel path; seeded PRNG for noise. DONE in M5 Task 7, 52731e4.
+9. Sealing is not strictly monotone below one step: step over the distinct strokeD2 values <= r² instead of ceil(r) samples. DONE in M5 Task 7, 2ef0b37.
+10. Declare lifecycle-viewmodel-compose and lifecycle-runtime-compose in the version catalog. DONE in M5 Task 7, 01acd7b.

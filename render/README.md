@@ -13,6 +13,16 @@ val image: RgbaImage = renderer.render(name, source.icon(index), theme, 128)  //
 mask cache and seeds every per-icon choice through `IconSeed`, so it must
 always name the same icon. `IconRenderer` is thread-safe.
 
+Texture layers read `renderer.textures`, a `TextureStore`. Put every texture a
+theme uses (`theme.textureHashes()`) before rendering it; a missing texture
+throws `IllegalStateException` rather than render a different icon.
+
+```kotlin
+val png = TextureStore.encode(width, height, premultipliedRgba)  // canonical texture file
+val hash = renderer.textures.put(png)                             // lowercase hex SHA-256
+renderer.textures.put(hash, File(dir, "$hash.png").readBytes())  // reload, hash checked
+```
+
 ## Output size: 432 px
 
 Every pack PNG is 432 by 432. That is the full 108 dp adaptive-icon canvas at
@@ -42,8 +52,11 @@ anti-alias in their own way, so neither can be the reference for the other.
   source-over as an SVG renderer paints them.
 
 Determinism rules, kept throughout: single-precision IEEE arithmetic in a
-fixed order, `StrictMath` for every trig call, no fused multiply-add, no
-platform library in the pixel path. `png/Deflate` is our own compressor,
+fixed order, `StrictMath` for every non-trivial function (`math/StrictFloat`
+routes sqrt, ceil and floor through it), no fused multiply-add, no platform
+library in the pixel path, and every random choice seeded (`math/SplitMix64`,
+`IconSeed`). `DeterminismRulesTest` scans the main sources for platform
+`Math`, unseeded randomness and android imports. `png/Deflate` is our own compressor,
 because `java.util.zip.Deflater` gives bytes that depend on the zlib build
 behind it: zlib-ng on Fedora, Chromium's zlib on Android.
 
@@ -72,30 +85,89 @@ in the `verify` source set as a second reference and never ships.
    - Gap closing. Strokes are dilated by the closing radius, the remaining
      regions labelled, and each side grown back by the radius. Where both
      sides reach, the enclosed side wins. A plain closing on the pixel grid
-     reopens the gap between two thin stroke ends, so it is not used.
+     reopens the gap between two thin stroke ends, so it is not used. The
+     regions are labelled at every distinct squared stroke distance up to
+     the closing squared, and each level's inside is grown up to the next
+     level, so sealing is monotone in the closing however small the step.
    - Keep lone lines: stroke coverage beyond the reach of any fill is drawn
      on top in the line paint. The reach is `(gap + stroke / 2) * sqrt 2 +
      stroke / 2 + 1 px`, enough to clear a right-angled fill corner, ramped
      over one pixel. This keeps F-Droid's antennas. The camera's dot and
      Chrome's inner lines read as gaps in the fill.
-3. **Background.** Paint (solid, linear or radial gradient, interpolated
-   premultiplied) and a border inside the shape's edge.
-4. **Layers and effects.** In M2 the body mask is painted in
-   `GlyphPaint.body` and the line mask in `GlyphPaint.line`. The layer stack
-   replaces `drawGlyph`; it paints the same masks.
+3. **Background.** The shape's coverage and the border's, cached. The paint
+   is the stack's background layer.
+4. **Layers and effects** (`layer/StackEvaluator`), below. The border is
+   drawn at the effects layer.
 5. **Background shape alpha** clips the whole image. Shapes: circle, square,
    rounded square, squircle `|x|^n + |y|^n = 1`, and AOSP's teardrop, three
    half-size corners and the bottom right at 15%. A disabled background means
    no paint and no clip.
 
-The texture paint is not in M2. It arrives with textures and layers.
+## Layers
+
+`Theme.layers` is spec 2.3's stack, `Layers.kt`. A `PaintLayer` has a source,
+a clip target or its inverse, a blend mode, an opacity, a texture mapping and
+an optional matte. One `EffectsLayer` marks where M6's effects go; today it
+paints only the border. The JSON form and every range are in
+`docs/theme-format.md`.
+
+Per pixel, coverage = clip x matte x opacity; the source times the coverage
+is composited into the premultiplied buffer.
+
+- **Clip targets.** `ICON` is the fill body union the lines, `b + l - b l`,
+  cached under `EffectKey`. `ICON_FILL` and `ICON_LINES` are the two masks
+  alone. `BACKGROUND` is every pixel the shape touches, since step 5 applies
+  its anti-aliased edge once; empty with the background off. `EFFECTS` is
+  empty until M6. `CANVAS` is everything.
+- **Base stack.** `Theme.baseLayers(background, body, line)`: the background
+  paint on `BACKGROUND`, effects, a solid layer on `ICON_FILL`, one on
+  `ICON_LINES`. M4's glyph paint was exactly this, so all M4 goldens,
+  including Plain and Jade, come out byte-identical.
+- **Sources** (`Paint`). Solid, linear and radial gradients as before;
+  `Texture` by hash, optionally gradient-mapped by luminance; `Noise`.
+- **Blend modes** (`layer/BlendModes`). The 17 of spec 2.3, from W3C
+  Compositing and Blending Level 1 section 10.1 on unpremultiplied colours,
+  `C = c / a` (0 at a = 0): `co = cs (1 - ab) + cb (1 - as) + as ab B(Cb, Cs)`,
+  `ao = as + ab - as ab`, co clamped to [0, ao]. Hue, saturation, color and
+  luminosity use the spec's Lum, ClipColor, SetLum and SetSat. Normal is
+  plain source-over; Add is Porter-Duff plus, clamped to 1. Each mode is
+  tested against a separate double-precision transcription.
+- **Mapping** (`layer/Mapping`). A pixel centre is turned about the canvas
+  centre and scaled to texels: FIT fits the turned texture in the canvas,
+  FILL fits the turned canvas in the texture, TILE spans the short side and
+  repeats. Bilinear on premultiplied texels; FIT and FILL are transparent
+  outside the texture. The per-icon offset is the first two SplitMix64
+  outputs from `IconSeed.of(name)`; FILL moves the window within the room
+  the texture leaves, so the patch stays inside it; TILE shifts by the
+  offset times the texture; lock centres it. Noise uses the same turn and
+  scale, 8 lattice cells across the canvas (432 for grain), offset by up to
+  4096 cells.
+- **Noise** (`layer/Noise`). Value noise on a lowbias32 lattice hash with
+  Perlin's quintic fade; fBm (lacunarity 2, gain 0.5, Musgrave); ridged,
+  `(1 - |2n - 1|)^2` per octave; grain, one hashed value per cell.
+- **Matte** (`layer/Mattes`). Luminance `0.3 r + 0.59 g + 0.11 b` of the
+  premultiplied source, levels or threshold, invert, then a separable
+  Gaussian feather.
+
+## Textures
+
+`texture/TextureStore` keeps decoded textures by the SHA-256 of their PNG
+file, apart from the mask cache. A texture file is canonical: the project's
+`PngEncoder` output for the premultiplied pixels, so its hash is the same on
+every platform. It decodes through `png/Inflate`, a pure-Kotlin RFC 1950/1951
+decoder after puff.c, and `png/PngDecoder`, and refuses a side over 2048 px.
 
 ## Mask cache
 
-`MaskCache` holds geometry masks keyed by (drawable, shape params, size),
-fill masks keyed by (drawable, shape params, fill params, size), and
-background shape masks. It is an LRU bounded at 64 MB. A paint, background or
-glyph-colour change reuses all of them; `CompositorTest` asserts that.
+`MaskCache` holds geometry masks keyed by (drawable name, shape params,
+size), fill bodies keyed by (drawable, shape params, fill params, size),
+invert fill's lone lines, masks derived from the fill output keyed by
+`EffectKey` (fill key, fell back, keep lone lines), and background shape
+masks. It is an LRU bounded at 64 MB. Entries are `Mask`, read-only: one
+instance serves every render. The fill entry holds the body alone and the
+geometry is re-attached on read, so the bound is the memory held. A paint,
+layer or background-colour change reuses all of them; `CompositorTest`
+asserts that. Textures and noise never enter it.
 
 ## Premultiplied alpha
 
@@ -107,9 +179,13 @@ bytes exactly. `PngEncoderTest` checks every (c, a) pair.
 
 ## Tests
 
-`./gradlew :render:test` runs the unit tests and the goldens: 24 sample
-icons in each of the four fill modes at 432 px, under
-`src/test/resources/golden/`, compared pixel for pixel after decoding. The
+`./gradlew :render:test` runs the unit tests and the goldens at 432 px under
+`src/test/resources/golden/`, compared byte for byte as PNG files: 24 sample
+icons in each of the four fill modes, the two pocket cases, the Plain and
+Jade presets (made by the M4 renderer, reproduced by the layer stack), and
+three layer looks on six samples over the original test texture
+`textures/cracks.png`. 164 PNGs; `GoldenSet.CASES` lists them, and
+`ArtByteIdentityTest` renders the same set on ART. The
 sample icons are copied into `samples.bin` so the test does not need the
 converter. After an intended change to the output:
 
@@ -120,4 +196,6 @@ converter. After an intended change to the output:
 rewrites the goldens and the sample bundle. Look at the new PNGs before
 committing them.
 
-`./gradlew :render:benchmarkRenderer` times the spec 3.3 budgets on the JVM.
+`./gradlew :render:benchmarkRenderer` times the spec 3.3 budgets on the JVM,
+per fill mode and for the layered Jade preset, cold and with a warm cache.
+M5 numbers are in `docs/verification/m5.md`.
