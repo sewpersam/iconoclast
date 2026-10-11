@@ -28,7 +28,7 @@ class ThemeMigrationTest {
     fun version0Migrates() {
         val doc = migrate(fixture("v0.json"), now = { 1_700_000_000_000 }, newId = { "fixed-id" })
         val expected = ThemeDocument(
-            schemaVersion = 2,
+            schemaVersion = 3,
             id = "fixed-id",
             name = "Old teal",
             created = 1_700_000_000_000,
@@ -73,6 +73,39 @@ class ThemeMigrationTest {
         }
     }
 
+    /**
+     * The schema 3 migration test: the schema 2 preset files, kept as fixtures, migrate to
+     * the schema 3 presets unchanged but for the version, with no clock and no new id, and
+     * render the preset goldens byte for byte.
+     */
+    @Test
+    fun version2PresetsMigrateUnchanged() {
+        val presets = File(requireNotNull(System.getProperty("presets.dir")))
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
+        for ((file, dir) in listOf("plain-arcticons.json" to "plain", "jade.json" to "jade")) {
+            val v2 = fixture("v2-$file")
+            assertTrue("\"schemaVersion\": 2" in v2)
+            val migrated = migrate(v2, now = { error("no clock") }, newId = { error("no id") })
+            val current = migrate(File(presets, file).readText())
+            assertEquals(3, current.schemaVersion)
+            assertEquals(current, migrated, file)
+            assertEquals(v2.replace("\"schemaVersion\": 2", "\"schemaVersion\": 3").trim(), migrated.toJson().trim(), "only the version changes")
+            val renderer = IconRenderer()
+            for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
+                val png = renderer.renderPng(name, bundle.icon(i), migrated.theme, OUTPUT_SIZE)
+                assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
+            }
+        }
+    }
+
+    @Test
+    fun version2WithoutLayersIsDamaged() {
+        val v2 = fixture("v2-jade.json")
+        val noLayers = v2.substring(0, v2.indexOf(",\n        \"layers\"")) + "\n    }\n}"
+        assertFailsWith<ThemeFormatException> { migrate(noLayers) }
+    }
+
     @Test
     fun version1MissingGlyphIsDamaged() {
         val v1 = fixture("v1-jade.json")
@@ -89,7 +122,7 @@ class ThemeMigrationTest {
     @Test
     fun unreadableFilesAreRejected() {
         val newer = ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = Theme()).toJson()
-            .replace("\"schemaVersion\": 2", "\"schemaVersion\": 99")
+            .replace("\"schemaVersion\": 3", "\"schemaVersion\": 99")
         for (bad in listOf(newer, "not json", "[]", "{}", "{\"schemaVersion\": \"x\"}", "{\"title\": \"no theme\"}")) {
             assertFailsWith<ThemeFormatException>(bad) { migrate(bad) }
         }

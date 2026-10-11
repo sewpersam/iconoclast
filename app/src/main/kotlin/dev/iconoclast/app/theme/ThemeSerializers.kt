@@ -7,6 +7,11 @@ import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Border
 import dev.iconoclast.render.ColorStop
 import dev.iconoclast.render.DotMode
+import dev.iconoclast.render.BevelStyle
+import dev.iconoclast.render.Breakup
+import dev.iconoclast.render.Decay
+import dev.iconoclast.render.Effect
+import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
@@ -158,6 +163,78 @@ private sealed interface LayerJson {
 
     @Serializable @SerialName("effects")
     data class Effects(val id: String) : LayerJson
+
+    @Serializable @SerialName("effect")
+    data class Effect(
+        val id: String,
+        val enabled: Boolean,
+        val blend: BlendMode,
+        val opacity: JFloat,
+        val effect: EffectJson,
+    ) : LayerJson
+}
+
+@Serializable
+private data class BreakupJson(
+    val texture: String?, val scale: JFloat, val stretch: JFloat, val density: JFloat, val contrast: JFloat, val seed: Int,
+)
+
+/** Schema 3. Tagged by "type"; field names are the :render parameter names. */
+@Serializable
+private sealed interface EffectJson {
+    @Serializable @SerialName("streaks")
+    data class Streaks(
+        val angle: JFloat, val length: JFloat, val decay: Decay, val breakup: BreakupJson?, val paintLayer: String?, val color: Argb,
+    ) : EffectJson
+
+    @Serializable @SerialName("bevel")
+    data class Bevel(
+        val style: BevelStyle, val lightAngle: JFloat, val depth: JFloat, val size: JFloat, val softness: JFloat,
+        val highlight: Argb, val highlightBlend: BlendMode, val shadow: Argb, val shadowBlend: BlendMode,
+    ) : EffectJson
+
+    @Serializable @SerialName("dropShadow")
+    data class DropShadow(val angle: JFloat, val distance: JFloat, val blur: JFloat, val color: Argb) : EffectJson
+
+    @Serializable @SerialName("innerShadow")
+    data class InnerShadow(val angle: JFloat, val distance: JFloat, val blur: JFloat, val color: Argb) : EffectJson
+
+    @Serializable @SerialName("outerGlow")
+    data class OuterGlow(val size: JFloat, val spread: JFloat, val color: Argb) : EffectJson
+
+    @Serializable @SerialName("innerGlow")
+    data class InnerGlow(val size: JFloat, val spread: JFloat, val color: Argb) : EffectJson
+
+    @Serializable @SerialName("grain")
+    data class Grain(val amount: JFloat, val size: JFloat, val seed: Int) : EffectJson
+}
+
+private fun Effect.toJson(): EffectJson = when (this) {
+    is Effect.Streaks -> EffectJson.Streaks(
+        angle, length, decay,
+        breakup?.run { BreakupJson(texture, scale, stretch, density, contrast, seed) },
+        paintLayer, color,
+    )
+    is Effect.Bevel -> EffectJson.Bevel(style, lightAngle, depth, size, softness, highlight, highlightBlend, shadow, shadowBlend)
+    is Effect.DropShadow -> EffectJson.DropShadow(angle, distance, blur, color)
+    is Effect.InnerShadow -> EffectJson.InnerShadow(angle, distance, blur, color)
+    is Effect.OuterGlow -> EffectJson.OuterGlow(size, spread, color)
+    is Effect.InnerGlow -> EffectJson.InnerGlow(size, spread, color)
+    is Effect.Grain -> EffectJson.Grain(amount, size, seed)
+}
+
+private fun EffectJson.toEffect(): Effect = when (this) {
+    is EffectJson.Streaks -> Effect.Streaks(
+        angle, length, decay,
+        breakup?.run { Breakup(texture, scale, stretch, density, contrast, seed) },
+        paintLayer, color,
+    )
+    is EffectJson.Bevel -> Effect.Bevel(style, lightAngle, depth, size, softness, highlight, highlightBlend, shadow, shadowBlend)
+    is EffectJson.DropShadow -> Effect.DropShadow(angle, distance, blur, color)
+    is EffectJson.InnerShadow -> Effect.InnerShadow(angle, distance, blur, color)
+    is EffectJson.OuterGlow -> Effect.OuterGlow(size, spread, color)
+    is EffectJson.InnerGlow -> Effect.InnerGlow(size, spread, color)
+    is EffectJson.Grain -> Effect.Grain(amount, size, seed)
 }
 
 @Serializable
@@ -201,6 +278,7 @@ private fun PaintJson.toPaint(): Paint = when (this) {
 
 private fun Layer.toJson(): LayerJson = when (this) {
     is EffectsLayer -> LayerJson.Effects(id)
+    is EffectLayer -> LayerJson.Effect(id, enabled, blend, opacity, effect.toJson())
     is PaintLayer -> LayerJson.Paint(
         id, source, clip, clipInverse, blend, opacity,
         mapping.run { MappingJson(mode, scale, rotation, lockOffset) },
@@ -210,6 +288,7 @@ private fun Layer.toJson(): LayerJson = when (this) {
 
 private fun LayerJson.toLayer(): Layer = when (this) {
     is LayerJson.Effects -> EffectsLayer(id)
+    is LayerJson.Effect -> EffectLayer(id, effect.toEffect(), enabled, blend, opacity)
     is LayerJson.Paint -> PaintLayer(
         id, source, clip, clipInverse, blend, opacity,
         mapping.run { Mapping(mode, scale, rotation, lockOffset) },

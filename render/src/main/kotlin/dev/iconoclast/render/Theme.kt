@@ -4,8 +4,9 @@ package dev.iconoclast.render
  * The theme parameters the renderer reads, spec section 2.3. Ranges are checked on
  * construction. Data classes, so they serve directly as mask cache keys.
  *
- * [layers] is the stack, painted bottom to top. It holds exactly one [EffectsLayer], and
- * layer ids are unique. The default is the base stack `background -> effects -> icon`.
+ * [layers] is the stack, painted bottom to top: [PaintLayer]s, [EffectLayer]s, and exactly
+ * one [EffectsLayer] marker. Layer ids are unique. The default is the base stack
+ * `background -> effects -> icon`.
  */
 data class Theme(
     val shape: ShapeParams = ShapeParams(),
@@ -16,6 +17,17 @@ data class Theme(
     init {
         require(layers.count { it is EffectsLayer } == 1) { "the stack needs exactly one effects layer" }
         require(layers.map { it.id }.toSet().size == layers.size) { "duplicate layer ids" }
+    }
+
+    /**
+     * [layer] at the default insertion point: just above the [EffectsLayer] marker and
+     * the effects already stacked directly on it, so effects added one after another
+     * keep their order. Its id must be new.
+     */
+    fun withEffect(layer: EffectLayer): Theme {
+        var at = layers.indexOfFirst { it is EffectsLayer } + 1
+        while (at < layers.size && layers[at] is EffectLayer) at++
+        return copy(layers = layers.subList(0, at) + layer + layers.subList(at, layers.size))
     }
 
     /** Every texture the stack uses, by hash: what a theme export must carry. */

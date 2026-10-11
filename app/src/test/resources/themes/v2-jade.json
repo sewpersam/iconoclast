@@ -1,0 +1,98 @@
+{
+    "schemaVersion": 2,
+    "id": "preset-jade",
+    "name": "Jade",
+    "created": 0,
+    "modified": 0,
+    "theme": {
+        "shape": {
+            "strokeWeight": 1.0,
+            "cap": "ROUND",
+            "join": "ROUND",
+            "miterLimit": 4.0,
+            "iconScale": 0.8,
+            "offsetX": 0.0,
+            "offsetY": 0.0,
+            "dots": "SCALE_WITH_STROKE"
+        },
+        "fill": {
+            "mode": "INVERT",
+            "gapWidth": 1.0,
+            "gapClosing": 0.5,
+            "fallbackThreshold": 0.1,
+            "keepLoneLines": true
+        },
+        "background": {
+            "enabled": true,
+            "shape": {
+                "type": "roundedSquare",
+                "cornerRadius": 0.2
+            },
+            "size": 1.0,
+            "border": null
+        },
+        "layers": [
+            {
+                "type": "paint",
+                "id": "background",
+                "source": {
+                    "type": "solid",
+                    "color": "#FF000000"
+                },
+                "clip": "BACKGROUND",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "effects",
+                "id": "effects"
+            },
+            {
+                "type": "paint",
+                "id": "icon-fill",
+                "source": {
+                    "type": "solid",
+                    "color": "#FF00A86B"
+                },
+                "clip": "ICON_FILL",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            },
+            {
+                "type": "paint",
+                "id": "icon-lines",
+                "source": {
+                    "type": "solid",
+                    "color": "#FF00A86B"
+                },
+                "clip": "ICON_LINES",
+                "clipInverse": false,
+                "blend": "NORMAL",
+                "opacity": 1.0,
+                "mapping": {
+                    "mode": "FILL",
+                    "scale": 1.0,
+                    "rotation": 0.0,
+                    "lockOffset": false
+                },
+                "matte": null
+            }
+        ]
+    }
+}

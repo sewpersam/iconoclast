@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
+import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.Layer
 import dev.iconoclast.render.PaintLayer
@@ -69,6 +70,11 @@ private fun Glyph(glyph: String, description: String, enabled: Boolean, onClick:
 /** Blend, opacity and clip at a glance: "Multiply, 80%, clip Icon". */
 private fun summary(layer: Layer): String = when (layer) {
     is EffectsLayer -> "Border; effects arrive later"
+    is EffectLayer -> buildString {
+        append(layer.effect::class.simpleName)
+        if (!layer.enabled) append(", off")
+        append(", ").append(Math.round(layer.opacity * 100)).append('%')
+    }
     is PaintLayer -> buildString {
         append(BLEND_NAMES.getValue(layer.blend))
         append(", ").append(Math.round(layer.opacity * 100)).append('%')

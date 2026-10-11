@@ -1,6 +1,11 @@
 package dev.iconoclast.app.theme
 
 import dev.iconoclast.render.BackgroundShape
+import dev.iconoclast.render.BevelStyle
+import dev.iconoclast.render.Breakup
+import dev.iconoclast.render.Decay
+import dev.iconoclast.render.Effect
+import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.ColorStop
@@ -37,7 +42,24 @@ class ThemeSerializationTest {
         Theme(background = Theme().background.copy(shape = BackgroundShape.RoundedSquare(0.5f), enabled = false)),
         // Effects is no longer offered as a clip target; themes that use it still load.
         Theme(layers = Theme().layers + PaintLayer("fx", Paint.Solid(0x80FFFFFF.toInt()), clip = ClipTarget.EFFECTS)),
+        EVERY_EFFECT,
     )
+
+    /** Schema 3: every effect type with non-default values, one switched off. */
+    @Test
+    fun effectLayersRoundTrip() {
+        val withTexture = EVERY_EFFECT.withEffect(EffectLayer("brush", Effect.Streaks(breakup = Breakup(texture = "ab".repeat(32)))))
+        val json = doc(withTexture).toJson()
+        for (key in listOf("\"type\": \"effect\"", "\"type\": \"streaks\"", "\"type\": \"bevel\"", "\"type\": \"dropShadow\"",
+            "\"type\": \"innerShadow\"", "\"type\": \"outerGlow\"", "\"type\": \"innerGlow\"", "\"type\": \"grain\"",
+            "\"paintLayer\": \"icon-fill\"", "\"breakup\": null", "\"texture\": \"abab", "\"enabled\": false")) {
+            assertTrue(key in json, key)
+        }
+        assertEquals(withTexture, migrate(json).theme)
+        val bad = json.replace("\"stretch\": 8.0", "\"stretch\": 40.0")
+        assertTrue(bad != json)
+        assertFailsWith<ThemeFormatException> { migrate(bad) }
+    }
 
     @Test
     fun roundTripIsIdentical() {
@@ -115,6 +137,25 @@ class ThemeSerializationTest {
             json.replace("\"strokeWeight\": 1.0,", ""),
         )) {
             assertFailsWith<ThemeFormatException>(bad) { migrate(bad) }
+        }
+    }
+
+    private companion object {
+        val EVERY_EFFECT: Theme = listOf(
+            EffectLayer("streaks", Effect.Streaks(angle = 45f, length = 0.4f, decay = Decay.LINEAR,
+                breakup = Breakup(scale = 2f, stretch = 8f, density = 0.7f, contrast = 0.2f, seed = 3), paintLayer = "icon-fill"),
+                blend = BlendMode.SCREEN, opacity = 0.3f),
+            EffectLayer("plain-streaks", Effect.Streaks(breakup = null, color = 0xFF112233.toInt()), enabled = false),
+            EffectLayer("shadow", Effect.DropShadow(angle = 300f, distance = 0.02f, blur = 0.03f, color = 0x80000000.toInt()), opacity = 0.5f),
+            EffectLayer("glow", Effect.OuterGlow(size = 0.05f, spread = 0.3f, color = 0xFF00FF88.toInt()), blend = BlendMode.ADD),
+        ).fold(Theme()) { t, l -> t.withEffect(l) }.let { t ->
+            t.copy(layers = t.layers + listOf(
+                EffectLayer("bevel", Effect.Bevel(BevelStyle.EMBOSS, lightAngle = 45f, depth = 2f, size = 0.02f, softness = 0.5f,
+                    highlight = 0xFFFFEEDD.toInt(), highlightBlend = BlendMode.ADD, shadow = 0xFF001122.toInt(), shadowBlend = BlendMode.DARKEN)),
+                EffectLayer("inner-shadow", Effect.InnerShadow(angle = 10f, distance = 0.005f, blur = 0f)),
+                EffectLayer("inner-glow", Effect.InnerGlow(size = 0.001f, spread = 1f)),
+                EffectLayer("grain", Effect.Grain(amount = 0.25f, size = 2f, seed = -7), blend = BlendMode.OVERLAY, opacity = 0.8f),
+            ))
         }
     }
 }

@@ -17,9 +17,10 @@ sealed interface Layer {
 }
 
 /**
- * The effects slot of the base stack `background -> effects -> icon`. Exactly one per
- * stack. It renders nothing until M6 puts effects in it. The background border is drawn
- * here, on top of the layers below, so it frames the background however many layers it has.
+ * The effects marker of the base stack `background -> effects -> icon`. Exactly one per
+ * stack. It paints the background border, on top of the layers below, so the border
+ * frames the background however many layers it has; and it is where a new [EffectLayer]
+ * goes by default, [Theme.withEffect]. Each effect is its own [EffectLayer].
  */
 data class EffectsLayer(override val id: String = Layer.EFFECTS_ID) : Layer
 

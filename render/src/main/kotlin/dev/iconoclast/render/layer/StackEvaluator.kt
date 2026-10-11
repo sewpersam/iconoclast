@@ -2,6 +2,7 @@ package dev.iconoclast.render.layer
 
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
+import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.Layer
 import dev.iconoclast.render.Mask
@@ -38,6 +39,7 @@ internal object StackEvaluator {
         for (layer in layers) when (layer) {
             is EffectsLayer -> input.border?.let { over(buf, it, input.borderColor!!) }
             is PaintLayer -> paint(buf, layer, input)
+            is EffectLayer -> Unit
         }
     }
 
