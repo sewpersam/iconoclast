@@ -24,21 +24,23 @@ class ThemePreviews(private val container: AppContainer) {
     }
 
     /**
-     * The card's icons. A texture missing from the phone hides its layer here, and the
-     * result is not cached, so the card redraws once the texture arrives.
+     * The card's icons. A texture missing from the phone, or lost while rendering, hides
+     * its layer here, and the result is not cached, so the card redraws once the texture
+     * arrives.
      */
     suspend fun icons(theme: Theme): List<PreviewIcon> = cache.get(theme) ?: withContext(Dispatchers.Default) {
         val source = container.iconSource()
-        val absent = TexturePresence.ensure(container.textures, theme)
-        val shown = TexturePresence.without(theme, absent)
-        SAMPLES.mapNotNull { name ->
-            val index = source.indexOf(name).takeIf { it >= 0 } ?: return@mapNotNull null
-            val image = container.renderer.render(name, source.icon(index), shown, SIZE)
-            val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-            // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
-            bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))
-            PreviewIcon(name.replace('_', ' '), bitmap.asImageBitmap())
-        }.also { if (absent.isEmpty()) cache.put(theme, it) }
+        val shown = TexturePresence.render(container.textures.store, theme) { t ->
+            SAMPLES.mapNotNull { name ->
+                val index = source.indexOf(name).takeIf { it >= 0 } ?: return@mapNotNull null
+                val image = container.renderer.render(name, source.icon(index), t, SIZE)
+                val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+                // ARGB_8888 stores premultiplied RGBA bytes, the renderer's layout.
+                bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))
+                PreviewIcon(name.replace('_', ' '), bitmap.asImageBitmap())
+            }
+        }
+        shown.value.also { if (shown.complete) cache.put(theme, it) }
     }
 
     companion object {

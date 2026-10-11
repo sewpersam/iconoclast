@@ -17,6 +17,31 @@ object TexturePresence {
     /** The hashes of [theme] that are not in [store]. Cheap; no disk access. */
     fun absent(store: TextureStore, theme: Theme): Set<String> = theme.textureHashes().filterTo(LinkedHashSet()) { it !in store }
 
+    /** A render of [theme] with some layers hidden when [complete] is false; such a result is not cached. */
+    class Shown<T>(val value: T, val complete: Boolean)
+
+    /**
+     * Renders what of [theme] can show: a texture [store] cannot supply hides its layer. A
+     * texture damaged or deleted between that check and the draw makes the renderer throw
+     * mid-way; it is checked again and hidden, and as a last resort every texture is.
+     * Decodes through the store; not on the main thread.
+     */
+    fun <T> render(store: TextureStore, theme: Theme, render: (Theme) -> T): Shown<T> {
+        val all = theme.textureHashes()
+        var absent = missing(store, all)
+        while (true) {
+            try {
+                return Shown(render(without(theme, absent)), absent.isEmpty())
+            } catch (e: IllegalStateException) {
+                if (absent == all) throw e
+                val again = absent + missing(store, all)
+                absent = if (again == absent) all else again
+            }
+        }
+    }
+
+    private fun missing(store: TextureStore, hashes: Set<String>): Set<String> = hashes.filterTo(LinkedHashSet()) { store[it] == null }
+
     /** [theme] without the layers whose texture is in [absent]: what a preview can still show. */
     fun without(theme: Theme, absent: Set<String>): Theme =
         if (absent.isEmpty()) theme
