@@ -35,17 +35,57 @@ internal class StackInput(
  */
 internal object StackEvaluator {
 
-    fun paint(buf: FloatArray, layers: List<Layer>, input: StackInput) {
+    fun paint(buf: FloatArray, layers: List<Layer>, input: StackInput, pass: Pass = Pass(input.size * input.size)) {
         for (layer in layers) when (layer) {
             is EffectsLayer -> input.border?.let { over(buf, it, input.borderColor!!) }
-            is PaintLayer -> paint(buf, layer, input)
+            is PaintLayer -> paint(buf, layer, input, pass)
             is EffectLayer -> Unit
         }
     }
 
-    private fun paint(buf: FloatArray, layer: PaintLayer, input: StackInput) {
+    /**
+     * State carried up the stack. [effects] is the EFFECTS clip target: the union,
+     * `e + c - e c`, of every enabled effect output painted so far, each output's coverage
+     * times its layer's opacity. Null until an effect paints.
+     */
+    class Pass(val pixels: Int) {
+        var effects: FloatArray? = null
+    }
+
+    /**
+     * What an effect paints: per-pixel [coverage], 0 to 1, and a premultiplied colour,
+     * one ([solid]) or one per pixel ([colors]), composited with [blend].
+     */
+    class EffectOutput(val coverage: FloatArray, val solid: FloatArray?, val colors: FloatArray?, val blend: BlendMode)
+
+    /**
+     * Composites [out] at [opacity] into [buf] and adds it to the EFFECTS clip target. The
+     * colour times coverage times opacity goes through the blend, as a paint layer's does.
+     */
+    fun paintEffect(buf: FloatArray, out: EffectOutput, opacity: Float, pass: Pass) {
+        val acc = pass.effects ?: FloatArray(pass.pixels).also { pass.effects = it }
+        val scratch = FloatArray(3)
+        val cv = out.coverage
+        for (i in 0 until pass.pixels) {
+            var cov = cv[i]
+            if (opacity != 1f) cov *= opacity
+            if (cov == 0f) continue
+            val e = acc[i]
+            acc[i] = e + cov - e * cov
+            val o = 4 * i
+            val s = out.solid
+            if (s != null) {
+                BlendModes.composite(out.blend, s[0] * cov, s[1] * cov, s[2] * cov, s[3] * cov, buf, o, scratch)
+            } else {
+                val c = out.colors!!
+                BlendModes.composite(out.blend, c[o] * cov, c[o + 1] * cov, c[o + 2] * cov, c[o + 3] * cov, buf, o, scratch)
+            }
+        }
+    }
+
+    private fun paint(buf: FloatArray, layer: PaintLayer, input: StackInput, pass: Pass) {
         if (layer.opacity == 0f) return
-        val clip = clip(layer, input)
+        val clip = clip(layer, input, pass)
         if (clip.empty) return
         val n = input.size * input.size
         val src = source(layer.source, layer, input, needLuminance = layer.matte != null)
@@ -132,7 +172,7 @@ internal object StackEvaluator {
         }
     }
 
-    private fun clip(layer: PaintLayer, input: StackInput): Clip {
+    private fun clip(layer: PaintLayer, input: StackInput, pass: Pass): Clip {
         val inv = layer.clipInverse
         fun of(m: Mask?) = Clip(m?.values, false, false, inv)
         return when (layer.clip) {
@@ -142,7 +182,7 @@ internal object StackEvaluator {
             ClipTarget.ICON -> of(input.icon())
             ClipTarget.ICON_FILL -> of(input.masks.body)
             ClipTarget.ICON_LINES -> of(input.masks.lines)
-            ClipTarget.EFFECTS -> of(null)
+            ClipTarget.EFFECTS -> Clip(pass.effects, false, false, inv)
         }
     }
 

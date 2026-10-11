@@ -46,7 +46,7 @@ class LayerStackTest {
     private fun alpha(img: RgbaImage, i: Int) = img.pixels[4 * i + 3].toInt() and 0xFF
 
     @Test
-    fun effectsTargetIsEmptyUntilM6() {
+    fun effectsTargetIsEmptyWithoutEffects() {
         val base = Theme(fill = FillParams(mode = FillMode.INVERT))
         assertContentEquals(render(base).pixels, render(with(PaintLayer("e", Paint.Solid(red), clip = ClipTarget.EFFECTS), base = base)).pixels)
         // Its inverse is the whole canvas.

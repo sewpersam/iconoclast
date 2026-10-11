@@ -53,7 +53,8 @@ data class PaintLayer(
  * - [ICON_FILL], [ICON_LINES]: the fill stage's body and line masks alone.
  * - [BACKGROUND]: inside the background shape; its anti-aliased edge is applied once, by
  *   step 5, so here it is every pixel the shape touches. Empty when the background is off.
- * - [EFFECTS]: the effects' output. Empty until M6 has effects.
+ * - [EFFECTS]: the effects' output so far: the union, `e + c - e c`, of the coverage
+ *   times opacity of every enabled [EffectLayer] below this layer. Empty below the first.
  * - [CANVAS]: everything.
  */
 enum class ClipTarget { CANVAS, BACKGROUND, ICON, ICON_FILL, ICON_LINES, EFFECTS }
