@@ -199,3 +199,9 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Ruling: streaks link to icon-fill; no hidden source layer — the model already reads the linked source regardless of clip/opacity — cost: none.
 - Ruling: preset seeding by seeded-id set; never overwrite, never resurrect; a changed look ships under a new id — cost: none.
 - Ruling: preset-id rule (changed look ships under a new id) applies from the first public release; nothing is released, so preset-jade keeps its id now — cost: none today, and the ruling is written into followups.
+
+## M7 addendum (2026-10-11)
+
+- Built-in brushes are layer textures too: texture sheet Built-in section, golden `brush_background`. Evidence: `docs/verification/m7.md`, "Addendum".
+- Fixed: signing key files synced before the rename (4fab086); an empty key was found on icondesign36.
+- Deferred: a key file that exists but is empty or damaged fails every Apply with a raw keystore error. The app should say the key is damaged and offer restore from a backup. Not built here: it changes the key-loss flow, spec 6.5.
