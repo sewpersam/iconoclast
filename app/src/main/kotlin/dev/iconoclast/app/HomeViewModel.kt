@@ -9,7 +9,9 @@ import androidx.lifecycle.viewModelScope
 import dev.iconoclast.app.coverage.CoverageScan
 import dev.iconoclast.app.theme.ArchiveImport
 import dev.iconoclast.app.theme.ThemeArchive
+import dev.iconoclast.pack.DamagedKeyException
 import dev.iconoclast.pack.InvalidKeyBackupException
+import dev.iconoclast.pack.KeyState
 import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.pack.RestoreResult
@@ -61,9 +63,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** Launchable apps installed since the last Apply, spec 2.5: the home badge. */
     val newSinceApply: StateFlow<Int> = _newSinceApply
 
-    private val _keyPrompt = MutableStateFlow(false)
-    /** An archive with a signing key waits for the restore question; this phone has no key. */
-    val keyPrompt: StateFlow<Boolean> = _keyPrompt
+    private val _keyPrompt = MutableStateFlow<KeyState?>(null)
+    /**
+     * An archive with a signing key waits for the restore question: this phone has no key
+     * ([KeyState.NONE]) or a damaged one ([KeyState.DAMAGED]). Null when nothing is asked.
+     */
+    val keyPrompt: StateFlow<KeyState?> = _keyPrompt
     private var pendingImport: Pair<Uri, ThemeArchive>? = null
 
     init {
@@ -136,9 +141,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun import(uri: Uri) = act("Not imported") {
         _message.value = importing {
             val archive = read(uri, readKey = false)
-            if (archive.hasKey && !container.packKey.exists) {
+            val local = withContext(Dispatchers.IO) { container.packKey.state() }
+            if (archive.hasKey && local != KeyState.OK) {
                 pendingImport = uri to archive
-                _keyPrompt.value = true
+                _keyPrompt.value = local
                 return@act
             }
             val note = if (archive.hasKey) keyNote(uri) else ""
@@ -150,7 +156,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun answerKeyPrompt(restore: Boolean) = act("Not imported") {
         val (uri, archive) = pendingImport ?: return@act
         pendingImport = null
-        _keyPrompt.value = false
+        _keyPrompt.value = null
         _message.value = importing {
             if (restore) {
                 val result = store(read(uri, readKey = true), restoreKey = true)
@@ -199,8 +205,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: IOException) {
                 Log.w(TAG, failure, e)
                 _message.value = "$failure. Storage error: ${e.message ?: e.javaClass.simpleName}"
+            } catch (e: DamagedKeyException) {
+                Log.w(TAG, failure, e)
+                _message.value = "$failure. The pack signing key on this phone is damaged. " +
+                    "Restore it by importing a backup that includes the key, or make a new key from Apply."
             } catch (e: GeneralSecurityException) {
-                // A damaged signing key store on this phone, read by export or key restore.
+                // A signing key store this phone could not read, by export or key restore.
                 Log.w(TAG, failure, e)
                 _message.value = "$failure. The signing key on this phone could not be read: ${e.message ?: e.javaClass.simpleName}"
             } catch (e: IllegalStateException) {

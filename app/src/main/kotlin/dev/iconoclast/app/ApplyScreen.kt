@@ -23,6 +23,8 @@ fun ApplyScreen(
     state: ApplyState,
     onApply: () -> Unit,
     onFix: (Fix) -> Unit,
+    onRestoreKey: () -> Unit,
+    onNewKey: () -> Unit,
     onAppInfo: (String) -> Unit,
     onCoverage: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,6 +66,10 @@ fun ApplyScreen(
                 when (state.fix) {
                     Fix.GRANT_INSTALL_PERMISSION -> OutlinedButton(onClick = { onFix(Fix.GRANT_INSTALL_PERMISSION) }) { Text("Open settings") }
                     Fix.UNINSTALL_OLD_PACK -> OutlinedButton(onClick = { onFix(Fix.UNINSTALL_OLD_PACK) }) { Text("Uninstall old pack") }
+                    Fix.DAMAGED_KEY -> {
+                        Button(onClick = onRestoreKey) { Text("Restore from a backup") }
+                        OutlinedButton(onClick = onNewKey) { Text("Make a new key") }
+                    }
                     null -> Unit
                 }
             }

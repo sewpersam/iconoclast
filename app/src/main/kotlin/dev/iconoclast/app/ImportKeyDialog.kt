@@ -6,19 +6,21 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 
 /**
- * Spec 6.5: the imported backup carries a pack signing key and this phone has none.
- * Restoring it lets Apply update a pack installed before, instead of uninstalling it.
- * Dismissing is "theme only".
+ * Spec 6.5: the imported backup carries a pack signing key and this phone has none, or
+ * only a [damaged] one. Restoring it lets Apply update a pack installed before, instead of
+ * uninstalling it. Dismissing is "theme only".
  */
 @Composable
-fun ImportKeyDialog(onAnswer: (restore: Boolean) -> Unit) {
+fun ImportKeyDialog(damaged: Boolean, onAnswer: (restore: Boolean) -> Unit) {
     AlertDialog(
         onDismissRequest = { onAnswer(false) },
         title = { Text("Restore the signing key?") },
         text = {
             Text(
-                "This backup holds a pack signing key, and this phone has none yet. Restore it if it is your own key, " +
-                    "from your earlier install: Apply can then update the pack already installed instead of replacing it.",
+                "This backup holds a pack signing key, and " +
+                    (if (damaged) "the key on this phone is damaged. " else "this phone has none yet. ") +
+                    "Restore it if it is your own key, from your earlier install: " +
+                    "Apply can then update the pack already installed instead of replacing it.",
             )
         },
         confirmButton = { TextButton(onClick = { onAnswer(true) }) { Text("Restore key") } },

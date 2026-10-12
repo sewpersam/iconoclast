@@ -290,6 +290,23 @@ class ThemeZipTest {
         assertContentEquals(mine.p12, keys.backup()!!.p12)
     }
 
+    /** M8 Task 18: a damaged key on this phone is replaced by the backup's, and set aside. */
+    @Test
+    fun aBackupRestoresOverADamagedLocalKey() = kotlinx.coroutines.runBlocking {
+        fun tmp() = java.nio.file.Files.createTempDirectory("imp").toFile()
+        val backupKey = dev.iconoclast.pack.PackKeyStore(tmp(), "Old").apply { loadOrCreate() }.backup()!!
+        val keyDir = tmp()
+        val keys = dev.iconoclast.pack.PackKeyStore(keyDir, "Mine").apply { loadOrCreate() }
+        File(keyDir, "pack-signing.p12").writeBytes(ByteArray(0))
+        File(keyDir, "pack-signing.pass").writeBytes(ByteArray(0))
+        assertEquals(dev.iconoclast.pack.KeyState.DAMAGED, keys.state())
+        val archive = ThemeZipImport.read(ThemeZipExport.write(doc(GoldenSet.LOOKS.keys.first()), sourceStore(), backupKey), readKey = true) { false }
+        val result = ArchiveImport.store(archive, restoreKey = true, keys, dev.iconoclast.app.texture.TextureFiles(tmp()), ThemeRepository(tmp()))
+        assertEquals(dev.iconoclast.pack.RestoreResult.RESTORED, result.key)
+        assertContentEquals(backupKey.p12, keys.backup()!!.p12)
+        assertTrue(File(keyDir, "pack-signing.p12.damaged").exists())
+    }
+
     private fun zip(vararg files: Pair<String, ByteArray>): ByteArray {
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { z -> for ((n, b) in files) { z.putNextEntry(ZipEntry(n)); z.write(b); z.closeEntry() } }

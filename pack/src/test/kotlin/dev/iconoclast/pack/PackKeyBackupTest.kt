@@ -52,16 +52,15 @@ class PackKeyBackupTest {
         }
     }
 
-    /** Review fix: a damaged local store fails as an IOException or a GeneralSecurityException, what the app catches. */
+    /** A damaged local store fails as DamagedKeyException, a GeneralSecurityException the app already catches. */
     @Test
     fun aDamagedLocalStoreFailsWithACaughtType() {
-        val good = store().apply { loadOrCreate() }.backup()!!
         for (damage in listOf(byteArrayOf(1, 2, 3), ByteArray(0))) {
             val d = dir()
             store(d).loadOrCreate()
             File(d, "pack-signing.p12").writeBytes(damage)
-            val e = assertFailsWith<Exception> { store(d).restore(good) }
-            assertTrue(e is java.io.IOException || e is java.security.GeneralSecurityException, "${e.javaClass}")
+            val e = assertFailsWith<DamagedKeyException> { store(d).loadOrCreate() }
+            assertTrue(e is java.security.GeneralSecurityException, "${e.javaClass}")
         }
     }
 }

@@ -56,6 +56,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.pack.KeyState
 
 /** Mid grey: shows white line art and black backgrounds alike. */
 private val PreviewBackdrop = Color(0xFF3C4043)
@@ -151,7 +152,7 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
     exporting?.let { doc ->
         ExportDialog(doc.name, onDismiss = { exporting = null }) { includeKey -> model.export(doc.id, includeKey); exporting = null }
     }
-    if (keyPrompt) ImportKeyDialog(model::answerKeyPrompt)
+    keyPrompt?.let { ImportKeyDialog(damaged = it == KeyState.DAMAGED, onAnswer = model::answerKeyPrompt) }
     renaming?.let { doc -> RenameDialog(doc, onDismiss = { renaming = null }) { model.rename(doc.id, it); renaming = null } }
     deleting?.let { doc ->
         AlertDialog(

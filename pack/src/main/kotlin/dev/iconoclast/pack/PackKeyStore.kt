@@ -14,6 +14,22 @@ import java.util.Date
 class SigningKey(val privateKey: PrivateKey, val certificate: X509Certificate)
 
 /**
+ * The key files are there but do not open: empty, truncated, the wrong password, or the
+ * store without its password. Never replaced silently: the user restores a backup or
+ * asks for a new key, and the damaged files are set aside, not deleted.
+ */
+class DamagedKeyException(message: String, cause: Throwable? = null) : KeyStoreException(message, cause)
+
+enum class KeyState {
+    /** No key yet: the first Apply makes one. */
+    NONE,
+    OK,
+
+    /** Files present that do not open. See [DamagedKeyException]. */
+    DAMAGED,
+}
+
+/**
  * The pack signing key, spec 3.5: EC P-256, generated on first use, stored as PKCS12 in
  * [dir] with a random password kept beside it. The app passes `noBackupFilesDir`, so the
  * key never leaves the sandbox. If the designer is uninstalled the key is gone, spec 6.5.
@@ -24,17 +40,51 @@ class PackKeyStore(private val dir: File, private val commonName: String) {
 
     val exists: Boolean get() = storeFile.exists() && passwordFile.exists()
 
+    /**
+     * A store is the key. A password with no store is what a crash between the two writes
+     * of [create] leaves, so it counts as no key; a store with no password is damage.
+     */
     @Synchronized
-    fun loadOrCreate(): SigningKey = if (exists) load() else create()
+    fun state(): KeyState = when {
+        !storeFile.exists() -> KeyState.NONE
+        else -> try {
+            load()
+            KeyState.OK
+        } catch (e: DamagedKeyException) {
+            KeyState.DAMAGED
+        }
+    }
 
-    private fun load(): SigningKey {
+    /** Throws [DamagedKeyException] when the key files are there but do not open. */
+    @Synchronized
+    fun loadOrCreate(): SigningKey = if (storeFile.exists()) load() else create()
+
+    /**
+     * Moves damaged key files to `*.damaged`, replacing an older pair, so the next
+     * [loadOrCreate] or a restore starts clean. A key that opens is never touched.
+     */
+    @Synchronized
+    fun setAsideDamaged() {
+        if (state() != KeyState.DAMAGED) return
+        for (f in listOf(storeFile, passwordFile)) {
+            if (f.exists()) check(f.renameTo(File(dir, f.name + DAMAGED_SUFFIX))) { "could not set aside $f" }
+        }
+    }
+
+    private fun load(): SigningKey = try {
+        if (!passwordFile.exists()) throw DamagedKeyException("$storeFile has no password file")
         val password = passwordFile.readText().toCharArray()
         val store = KeyStore.getInstance("PKCS12")
         storeFile.inputStream().use { store.load(it, password) }
-        // A damaged store throws KeyStoreException, never a ClassCastException.
-        val key = store.getKey(ALIAS, password) as? PrivateKey ?: throw KeyStoreException("no signing key in $storeFile")
-        val cert = store.getCertificate(ALIAS) as? X509Certificate ?: throw KeyStoreException("no certificate in $storeFile")
-        return SigningKey(key, cert)
+        val key = store.getKey(ALIAS, password) as? PrivateKey ?: throw DamagedKeyException("no signing key in $storeFile")
+        val cert = store.getCertificate(ALIAS) as? X509Certificate ?: throw DamagedKeyException("no certificate in $storeFile")
+        SigningKey(key, cert)
+    } catch (e: DamagedKeyException) {
+        throw e
+    } catch (e: Exception) {
+        // Empty or truncated: IOException or EOFException; wrong password: IOException
+        // wrapping UnrecoverableKeyException; anything else from the provider likewise.
+        throw DamagedKeyException("the signing key in $storeFile does not open: ${e.message ?: e.javaClass.simpleName}", e)
     }
 
     private fun create(): SigningKey {
@@ -69,5 +119,6 @@ class PackKeyStore(private val dir: File, private val commonName: String) {
         const val ALIAS = "pack"
         const val DAY = 86_400_000L
         const val VALIDITY_YEARS = 30
+        const val DAMAGED_SUFFIX = ".damaged"
     }
 }

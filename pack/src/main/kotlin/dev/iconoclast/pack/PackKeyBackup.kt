@@ -33,9 +33,13 @@ class InvalidKeyBackupException(message: String, cause: Throwable? = null) : Exc
 /** The backup holds another key than the one on this phone. Nothing was changed. */
 class KeyMismatchException : Exception("a different signing key is already on this phone")
 
-/** The stored key's two files, or null when this install has no key yet. */
+/** The stored key's two files, or null when this install has no key yet. Throws [DamagedKeyException] rather than export a damaged key. */
 fun PackKeyStore.backup(): KeyBackup? = synchronized(this) {
-    if (!exists) null else KeyBackup(storeFile.readBytes(), passwordFile.readBytes())
+    when (state()) {
+        KeyState.NONE -> null
+        KeyState.DAMAGED -> throw DamagedKeyException("the signing key on this phone is damaged")
+        KeyState.OK -> KeyBackup(storeFile.readBytes(), passwordFile.readBytes())
+    }
 }
 
 enum class RestoreResult {
@@ -47,16 +51,21 @@ enum class RestoreResult {
 }
 
 /**
- * Restores [backup] as this install's key, spec 6.5. Only when no key exists: the same
- * key already present is [RestoreResult.ALREADY_PRESENT], a different one throws
- * [KeyMismatchException] and leaves both as they are. Never overwrites. The backup is
- * opened first, so a damaged one throws [InvalidKeyBackupException] and writes nothing.
+ * Restores [backup] as this install's key, spec 6.5. Only when no usable key exists: the
+ * same key already present is [RestoreResult.ALREADY_PRESENT], a different one throws
+ * [KeyMismatchException] and leaves both as they are. A damaged local key is set aside
+ * (`*.damaged`) and replaced. Never overwrites a key that opens. The backup is opened
+ * first, so a damaged one throws [InvalidKeyBackupException] and writes nothing.
  */
 fun PackKeyStore.restore(backup: KeyBackup): RestoreResult = synchronized(this) {
     val incoming = backup.open()
-    if (exists) {
-        if (loadOrCreate().certificate.encoded.contentEquals(incoming.certificate.encoded)) return RestoreResult.ALREADY_PRESENT
-        throw KeyMismatchException()
+    when (state()) {
+        KeyState.OK -> {
+            if (loadOrCreate().certificate.encoded.contentEquals(incoming.certificate.encoded)) return RestoreResult.ALREADY_PRESENT
+            throw KeyMismatchException()
+        }
+        KeyState.DAMAGED -> setAsideDamaged()
+        KeyState.NONE -> Unit
     }
     storeFile.parentFile?.mkdirs()
     // Password first, store second, as create() does: a crash between leaves no store.

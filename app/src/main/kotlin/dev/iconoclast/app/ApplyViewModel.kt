@@ -15,7 +15,9 @@ import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.app.theme.effectiveGeometry
 import dev.iconoclast.app.theme.effectiveTheme
 import dev.iconoclast.pack.CoverageMatcher
+import dev.iconoclast.pack.DamagedKeyException
 import dev.iconoclast.pack.InstallResult
+import dev.iconoclast.pack.KeyState
 import dev.iconoclast.pack.LauncherGuide
 import dev.iconoclast.pack.LauncherTable
 import dev.iconoclast.pack.PackInstallSession
@@ -42,7 +44,13 @@ sealed interface ApplyState {
     data class Problem(val message: String, val fix: Fix? = null) : ApplyState
 }
 
-enum class Fix { GRANT_INSTALL_PERMISSION, UNINSTALL_OLD_PACK }
+enum class Fix {
+    GRANT_INSTALL_PERMISSION,
+    UNINSTALL_OLD_PACK,
+
+    /** The signing key is damaged: restore it from a backup, or make a new one. */
+    DAMAGED_KEY,
+}
 
 /** Apply the active theme: match installed apps, render, rewrite, sign, install, then guide the restart. */
 class ApplyViewModel(app: Application) : AndroidViewModel(app) {
@@ -68,6 +76,9 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.value = try {
                 run(doc)
+            } catch (e: DamagedKeyException) {
+                Log.e(TAG, "Apply failed", e)
+                damagedKey()
             } catch (e: TooManyIconsException) {
                 ApplyState.Problem("${e.needed} apps have icons, but a pack holds at most ${e.available}. Nothing was installed.")
             } catch (e: CancellationException) {
@@ -82,6 +93,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun run(doc: ThemeDocument): ApplyState {
         val theme = doc.theme
         val app = getApplication<Application>()
+        // Before drawing anything: a damaged key would fail the pack only after the render.
+        if (withContext(Dispatchers.IO) { container.packKey.state() } == KeyState.DAMAGED) return damagedKey()
         val t0 = SystemClock.elapsedRealtime()
         val (icons, template) = withContext(Dispatchers.IO) {
             container.iconSource() to app.assets.open(PackBuilder.TEMPLATE_ASSET).use { it.readBytes() }
@@ -144,6 +157,26 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** M7 addendum, spec 6.5: the key files are there and do not open. Nothing was installed. */
+    private fun damagedKey() = ApplyState.Problem(
+        "The pack signing key on this phone is damaged, so $appName cannot sign the pack. Nothing was installed. " +
+            "Restore the key from a theme backup that includes it. Or make a new key: the pack already installed " +
+            "then has to be uninstalled once, and the launcher set to the new one.",
+        Fix.DAMAGED_KEY,
+    )
+
+    /**
+     * Sets the damaged key files aside and applies again. The new key's first Apply meets
+     * the installed pack's old key and asks to uninstall it, the spec 6.5 path.
+     */
+    fun newKey() {
+        if (_state.value is ApplyState.Working) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { container.packKey.setAsideDamaged() }
+            apply()
+        }
+    }
+
     private fun mismatch() = ApplyState.Problem(
         "A pack signed with a different key is installed, probably from an earlier install of $appName. " +
             "Uninstall the old pack, then tap Apply again.",
@@ -165,6 +198,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             when (fix) {
                 Fix.GRANT_INSTALL_PERMISSION -> Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$pkg"))
                 Fix.UNINSTALL_OLD_PACK -> Intent(Intent.ACTION_DELETE, Uri.parse("package:$PACK_PACKAGE"))
+                // The screen handles it: restore opens the import picker, the other button is newKey().
+                Fix.DAMAGED_KEY -> return
             },
         )
     }

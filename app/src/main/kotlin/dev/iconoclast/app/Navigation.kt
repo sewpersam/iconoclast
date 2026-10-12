@@ -1,5 +1,7 @@
 package dev.iconoclast.app
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -69,9 +71,19 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
         composable(Routes.APPLY) {
             val state by apply.state.collectAsState()
             val active by apply.active.collectAsState()
+            // Restoring a damaged key is a theme import: home runs it and asks about the key.
+            val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri != null) {
+                    home.import(uri)
+                    nav.popBackStack(Routes.HOME, inclusive = false)
+                }
+            }
             Scaffold(topBar = { BackBar("Apply", onBack = { nav.popBackStack() }) }) { padding ->
                 ApplyScreen(
-                    active, state, apply::apply, apply::fix, apply::openAppInfo,
+                    active, state, apply::apply, apply::fix,
+                    onRestoreKey = { restore.launch(ThemeTransfer.IMPORT_TYPES) },
+                    onNewKey = apply::newKey,
+                    onAppInfo = apply::openAppInfo,
                     onCoverage = { nav.navigate(Routes.COVERAGE) { launchSingleTop = true } },
                     modifier = Modifier.padding(padding),
                 )
