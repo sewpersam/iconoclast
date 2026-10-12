@@ -10,6 +10,7 @@ import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
+import dev.iconoclast.render.texture.BuiltInBrushes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -79,6 +80,26 @@ class LayerStackTest {
         assertEquals(Paint.Texture(b) to tex.mapping, swapped.source to swapped.mapping)
         val bg = LayerStack.backgroundTexture(LayerStack.withBackgroundTexture(Theme(), a))!!
         assertEquals(bg.mapping, defaultsOf(bg).mapping, "the reset target is where it started")
+    }
+
+    /**
+     * The editor's path for a built-in brush on the Jade background, Layers tab: the
+     * background layer takes the brush at the new-texture mapping, and its gradient map
+     * then gives exactly the golden look. The Background tab's texture layer takes it too.
+     */
+    @Test
+    fun aBuiltInBrushPaintsTheBackground() {
+        val brush = BuiltInBrushes.BRISTLE.sha256
+        val jade = GoldenSet.STARTERS.getValue("preset_jade")
+        val bg = LayerStack.layer(jade, Layer.BACKGROUND_ID) as PaintLayer
+        val brushed = LayerStack.withTexture(bg, brush)
+        assertEquals(Paint.Texture(brush) to LayerStack.NEW_TEXTURE_MAPPING, brushed.source to brushed.mapping)
+        val golden = LayerStack.layer(GoldenSet.BRUSH_BACKGROUND, Layer.BACKGROUND_ID) as PaintLayer
+        val mapped = brushed.copy(source = Paint.Texture(brush, (golden.source as Paint.Texture).stops))
+        assertEquals(GoldenSet.BRUSH_BACKGROUND, LayerStack.replace(jade, mapped))
+
+        val layer = LayerStack.backgroundTexture(LayerStack.withBackgroundTexture(jade, brush))!!
+        assertEquals(Triple(Paint.Texture(brush) as Paint, ClipTarget.BACKGROUND, LayerStack.NEW_TEXTURE_MAPPING), Triple(layer.source, layer.clip, layer.mapping))
     }
 
     @Test

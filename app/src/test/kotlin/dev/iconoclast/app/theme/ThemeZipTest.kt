@@ -84,6 +84,42 @@ class ThemeZipTest {
         assertEquals(bare, ThemeZipImport.read(bare.toByteArray()) { false }.json)
     }
 
+    /**
+     * A built-in brush on a layer, here the background, travels like a streak's breakup: the
+     * archive holds theme.json alone, the import brings no texture and writes no file, the
+     * brush is never missing, and the imported theme renders the same bytes.
+     */
+    @Test
+    fun aBuiltInBrushBackgroundRoundTripsWithoutItsFile() {
+        val original = ThemeDocument(id = "b", name = "Brush background", created = 1, modified = 2, theme = GoldenSet.BRUSH_BACKGROUND)
+        val brushes = dev.iconoclast.render.texture.BuiltInBrushes
+        // The Bristle background, and the Dry brush the Jade streaks already break up with.
+        assertEquals(setOf(brushes.BRISTLE.sha256, brushes.DRY.sha256), original.theme.textureHashes())
+        val from = TextureStore()
+        val zip = ThemeZipExport.write(original, from)
+        assertEquals(setOf("theme.json"), entries(zip).keys)
+
+        val archive = ThemeZipImport.read(zip) { false }
+        assertEquals(emptyMap(), archive.textures)
+        val dir = java.nio.file.Files.createTempDirectory("brush").toFile()
+        val files = dev.iconoclast.app.texture.TextureFiles(dir)
+        for ((hash, png) in archive.textures) files.write(hash, png)
+        val imported = migrate(archive.json)
+        assertEquals(original, imported)
+        assertEquals(emptySet(), dev.iconoclast.app.texture.TexturePresence.absent(files.store, imported.theme))
+        assertEquals(emptySet(), dev.iconoclast.app.texture.TexturePresence.ensure(files, imported.theme))
+        assertEquals(emptyList(), files.recent())
+        assertEquals(emptyList(), dir.listFiles().orEmpty().toList())
+
+        val a = IconRenderer(textures = from)
+        val b = IconRenderer(textures = files.store)
+        for (s in GoldenSet.LOOK_SAMPLES) {
+            val i = GoldenSet.SAMPLES.indexOf(s)
+            assertContentEquals(a.renderPng(s, bundle.icon(i), original.theme, 128), b.renderPng(s, bundle.icon(i), imported.theme, 128), s)
+        }
+        dir.deleteRecursively()
+    }
+
     @Test
     fun archiveWithoutThemeIsRefused() {
         val zip = zip("textures/${GoldenSet.TEXTURE}.png" to cracks)

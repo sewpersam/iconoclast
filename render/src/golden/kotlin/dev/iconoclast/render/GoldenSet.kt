@@ -298,6 +298,22 @@ object GoldenSet {
     )
 
     /**
+     * A built-in brush as a layer texture, M7 addendum: the Jade starter with its background
+     * painted by the Bristle brush through a dark jade gradient map, at the mapping a new
+     * texture layer gets (scale 2), so each icon shows its own patch. Every install has the
+     * brush, so an export carries no texture file for it.
+     */
+    val BRUSH_BACKGROUND: Theme = STARTERS.getValue("preset_jade").let { jade ->
+        jade.copy(layers = jade.layers.map { l ->
+            if (l.id != Layer.BACKGROUND_ID) l
+            else (l as PaintLayer).copy(
+                source = Paint.Texture(dev.iconoclast.render.texture.BuiltInBrushes.BRISTLE.sha256, stops(0xFF000000.toInt(), 0xFF1E5C42.toInt())),
+                mapping = Mapping(scale = 2f),
+            )
+        })
+    }
+
+    /**
      * The compact output resolution, readiness item 7: Plain and the Jade starter on every
      * sample at 324 px, rendered as a 324 px pack. Kept apart from [CASES], which are 432 px.
      */
@@ -314,5 +330,6 @@ object GoldenSet {
             BLENDS.flatMap { (dir, theme) -> BLEND_SAMPLES.map { Triple(dir, theme, it) } } +
             EFFECTS.flatMap { (dir, theme) -> EFFECT_SAMPLES.map { Triple(dir, theme, it) } } +
             LOOK_SAMPLES.map { Triple("effects_jade", JADE_LIKE, it) } +
-            STARTERS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } }
+            STARTERS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } } +
+            LOOK_SAMPLES.map { Triple("brush_background", BRUSH_BACKGROUND, it) }
 }
