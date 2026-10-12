@@ -1,6 +1,6 @@
 # Draft fdroiddata recipe, M8 Task 14. Copy to fdroiddata as metadata/dev.iconoclast.app.yml.
 # Fields per https://f-droid.org/docs/Build_Metadata_Reference/ (read 2026-10-11).
-# Builds.commit is the full hash of the release tag, filled in after the tag exists.
+# Builds.commit is the full hash of the release tag v0.1.
 Categories:
   - Icon Pack
 License: GPL-3.0-or-later
@@ -15,7 +15,7 @@ Repo: https://github.com/sewpersam/iconoclast.git
 Builds:
   - versionName: '0.1'
     versionCode: 1
-    commit: TAG_COMMIT_v0.1
+    commit: 94ef2dc50d7567c22660a479639749075853d049
     subdir: app
     submodules: true
     gradle:
