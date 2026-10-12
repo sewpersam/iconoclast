@@ -16,7 +16,7 @@ Requirements:
   `local.properties` at it: `sdk.dir=/path/to/Android/Sdk`.
 
 ```
-git clone --recurse-submodules <repo-url> iconoclast
+git clone --recurse-submodules https://github.com/sewpersam/iconoclast.git iconoclast
 cd iconoclast
 ./gradlew assembleDebug
 ```
