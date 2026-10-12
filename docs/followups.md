@@ -206,3 +206,26 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Built-in brushes are layer textures too: texture sheet Built-in section, golden `brush_background`. Evidence: `docs/verification/m7.md`, "Addendum".
 - Fixed: signing key files synced before the rename (4fab086); an empty key was found on icondesign36.
 - Deferred: a key file that exists but is empty or damaged fails every Apply with a raw keystore error. The app should say the key is damaged and offer restore from a backup. Not built here: it changes the key-loss flow, spec 6.5.
+
+## M8 additions (2026-10-11)
+
+### Done in M8
+- M7 addendum deferral: a damaged signing key is named, never overwritten, restorable from a backup, or replaced by a new key on request (Task 18).
+- Risk "M8 reproducibility assumes the same aapt2 build-tools 36.0.0 on every builder": still true across machines; on this machine the release APK is byte-identical across clones, online and offline, and CPU counts.
+
+### Deferred from M8
+- Setting a damaged key aside replaces an older `*.damaged` pair. Two damages in a row keep only the second; both were unreadable anyway.
+- No app launcher icon. The APK ships the system default; fastlane `icon.png` is the Jade render of Settings. Taste call, his.
+- No phone screenshots in fastlane. The listing works without them; they wait for his approval of the UI as public.
+- `iconoclast.sourceUrl` stays empty while the repo is private; About says so. Fill it when the repo goes public, together with the recipe's first real submission.
+- The recipe is a draft. It needs a public repo, then a merge request to fdroiddata; `fdroid lint` and `fdroid build` were not run (fdroidserver is not installed here and is not a pip-only install with its build server).
+- The template pack is built by `aapt2` and `d8` from build-tools 36.0.0 found through `sdk.dir` or `ANDROID_HOME`, not through AGP. F-Droid's build server must have that build-tools version; if it does not, the recipe needs `sdkmanager 'build-tools;36.0.0'` in a `prebuild` line.
+
+### Rulings made in M8
+- Ruling: release tags are `v<versionName>`, F-Droid `UpdateCheckMode: Tags` with the versionCode read from `app/build.gradle.kts` — cost if wrong: one recipe line.
+- Ruling: recipe `License: GPL-3.0-or-later` from the README statement and the GPLv3 text in LICENSE — cost if wrong: one recipe line.
+- Ruling: `Categories: [Icon Pack]`, the existing fdroiddata category — cost if wrong: one line.
+- Ruling: store graphics are Iconoclast renders of the approved Jade and Neon presets, credited CC BY-SA 4.0; nothing taken from the Arcticons repo directly — cost if wrong: two PNGs replaced.
+- Ruling: the SUSS list is fetched, not committed, since it is AGPL-3.0; the Gradle check carries ten group prefixes from it and the script runs the full list — cost if wrong: a new non-free group passes the Gradle check until the script is run.
+- Ruling: "Make a new key" offered beside restore, so a phone without a backup is not stuck; it sets the damaged files aside and the existing spec 6.5 mismatch flow follows — cost if wrong: one button removed.
+- Ruling: shallow submodule clone for the offline and reproducibility proofs, since the full Arcticons history is 4.1 GB on tmpfs; the checked-out tree is identical — cost if wrong: none to the result, the pinned commit is what builds.
