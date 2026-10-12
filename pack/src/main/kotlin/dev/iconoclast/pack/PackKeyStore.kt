@@ -52,9 +52,16 @@ class PackKeyStore(private val dir: File, private val commonName: String) {
         return SigningKey(keys.private, cert)
     }
 
+    /**
+     * Writes [target] through a temporary file, synced before the rename: without the sync
+     * a power loss soon after can leave the renamed file empty, and the key is lost.
+     */
     internal fun writeAtomically(target: File, write: (java.io.OutputStream) -> Unit) {
         val tmp = File(target.parentFile, target.name + ".tmp")
-        tmp.outputStream().use(write)
+        java.io.FileOutputStream(tmp).use {
+            write(it)
+            it.fd.sync()
+        }
         check(tmp.renameTo(target)) { "could not write $target" }
     }
 
