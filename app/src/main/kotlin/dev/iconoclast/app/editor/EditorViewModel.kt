@@ -334,7 +334,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         }
     }
 
-    /** Uses an imported texture for the target the chooser was opened with. */
+    /** Uses an imported texture or a built-in brush for the target the chooser was opened with. */
     fun useTexture(hash: String) {
         Log.i(TAG, "texture chosen: $hash for $textureTarget")
         _ui.value = _ui.value.copy(choosingTexture = false)

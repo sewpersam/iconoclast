@@ -1,8 +1,6 @@
 package dev.iconoclast.app.editor
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,14 +18,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -35,8 +28,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.texture.BuiltInBrushes
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -62,10 +53,10 @@ fun BreakupPicker(selected: String?, actions: BreakupActions, layerId: String, o
         ) {
             Choice("Noise", selected == null, { onSelect(null) }) { Swatch("fBm") }
             for (b in BuiltInBrushes.ALL) {
-                Choice(b.name, selected == b.sha256, { onSelect(b.sha256) }) { BrushThumbnail(b.sha256) }
+                Choice(b.name, selected == b.sha256, { onSelect(b.sha256) }) { TextureThumbnail(b.sha256, actions.file, null, THUMB) }
             }
             for (hash in imported) {
-                Choice("Imported", selected == hash, { onSelect(hash) }) { TextureThumbnail(actions.file(hash), "Imported texture ${hash.take(8)}", THUMB) }
+                Choice("Imported", selected == hash, { onSelect(hash) }) { TextureThumbnail(hash, actions.file, "Imported texture ${hash.take(8)}", THUMB) }
             }
             OutlinedButton(onClick = { actions.import(layerId) }) { Text("Import", maxLines = 1) }
         }
@@ -92,19 +83,6 @@ private fun Choice(name: String, isSelected: Boolean, onClick: () -> Unit, thumb
 private fun Swatch(text: String) {
     Box(Modifier.size(THUMB).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
         Text(text, style = MaterialTheme.typography.labelLarge)
-    }
-}
-
-/** A built-in brush has no file: its canonical PNG is generated, then decoded off the main thread. */
-@Composable
-private fun BrushThumbnail(hash: String) {
-    val image by produceState<ImageBitmap?>(null, hash) {
-        value = withContext(Dispatchers.Default) {
-            BuiltInBrushes.png(hash)?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
-        }
-    }
-    Box(Modifier.size(THUMB).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-        image?.let { Image(it, null, Modifier.size(THUMB), contentScale = ContentScale.Crop) }
     }
 }
 

@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.ColorStop
 import dev.iconoclast.render.NoiseKind
 import dev.iconoclast.render.Paint
+import dev.iconoclast.render.texture.BuiltInBrushes
 import java.io.File
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -85,8 +86,9 @@ fun PaintControl(
 @Composable
 private fun TextureSource(paint: Paint.Texture, textures: TextureActions?, onDrag: (Paint) -> Unit, onDone: () -> Unit, onCommit: (Paint) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        textures?.let { TextureThumbnail(it.file(paint.sha256), "Texture ${paint.sha256.take(8)}") }
-        Text(paint.sha256.take(8), Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+        val name = if (BuiltInBrushes.isBuiltIn(paint.sha256)) textureName(paint.sha256) else paint.sha256.take(8)
+        textures?.let { TextureThumbnail(paint.sha256, it.file, "Texture $name") }
+        Text(name, Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
         if (textures != null) TextButton(onClick = textures.choose) { Text("Change texture") }
     }
     val colours = when (paint.stops?.size) {

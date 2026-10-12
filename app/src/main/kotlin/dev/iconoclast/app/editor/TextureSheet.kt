@@ -18,14 +18,17 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.iconoclast.render.texture.BuiltInBrushes
 import java.io.File
 
 /**
  * Picks a texture, spec 2.4: the system photo picker, or the document picker for files
- * the photo picker does not show, or one already imported. Neither picker needs a storage
- * permission. Always composed, so a picker's result arrives after the sheet has closed.
+ * the photo picker does not show, a built-in brush, or one already imported. Neither
+ * picker needs a storage permission. Always composed, so a picker's result arrives after
+ * the sheet has closed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +62,18 @@ fun TextureSheet(
                     documents.launch(arrayOf("image/*"))
                 },
             )
+            Text("Built-in", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall)
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (b in BuiltInBrushes.ALL) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        TextureThumbnail(b.sha256, file, "Built-in brush ${b.name}", 64.dp, Modifier.clickable { onChosen(b.sha256) })
+                        Text(b.name, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
             if (recent.isNotEmpty()) {
                 Text("Imported", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall)
                 Row(
@@ -66,7 +81,7 @@ fun TextureSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     for (hash in recent) {
-                        TextureThumbnail(file(hash), "Imported texture ${hash.take(8)}", 64.dp, Modifier.clickable { onChosen(hash) })
+                        TextureThumbnail(hash, file, "Imported texture ${hash.take(8)}", 64.dp, Modifier.clickable { onChosen(hash) })
                     }
                 }
             }
