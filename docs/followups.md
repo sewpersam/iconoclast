@@ -181,6 +181,7 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 ### Rulings made in M6
 - Ruling: preset-id rule (a changed look ships under a new id) applies from the first public release; before that, preset-jade keeps its id.
 - Ruling: grain is not capped. The grain row states the measured cost: about 330 KB per icon at full amount.
+- Ruling: taste verdict received 2026-10-11. Jade and Neon defaults approved as shipped ("Love the defaults"); no value changes.
 
 ### M7 readiness, from the M6 whole-milestone review (do these first, in order)
 1. Split icon identity in the renderer: key geometry, fill and effects by the geometry's own drawable name and pass the seed name (the slot) separately, so a swap cannot poison the shared MaskCache. DONE in M7 Task 11, fd123fa.
