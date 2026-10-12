@@ -46,3 +46,43 @@ class LicenseListTest {
         assertFailsWith<IllegalArgumentException> { LicenseList.replaceSection("no markers", "x") }
     }
 }
+
+/** M8 Task 15: `checkDependencyLicenses` fails on what F-Droid would reject. */
+class NonFreeTest {
+    private fun dep(coordinates: String, licence: String = "Apache-2.0"): Dependency {
+        val (g, n, v) = coordinates.split(':')
+        return Dependency(g, n, v, listOf(licence))
+    }
+
+    @Test
+    fun freeArtifactsPass() {
+        val deps = listOf(dep("androidx.core:core:1.0"), dep("org.jetbrains:annotations:13.0"), dep("x:y:1", "MIT"), dep("x:z:1", "BSD-3-Clause"))
+        assertEquals(emptyList(), LicenseList.problems(deps))
+    }
+
+    @Test
+    fun aNonFreeLicenceFails() {
+        val out = LicenseList.problems(listOf(dep("com.example:sdk:1.0", "Proprietary"), dep("com.example:other:1.0", "Android Software Development Kit License")))
+        assertEquals(2, out.size, "$out")
+        assert(out.all { "licence" in it }) { "$out" }
+    }
+
+    /** Groups from F-Droid's SUSS list (https://fdroid.gitlab.io/fdroid-suss/suss.json), Apache-licensed POMs included. */
+    @Test
+    fun knownNonFreeArtifactsFailWhateverTheirPomSays() {
+        val bad = listOf(
+            "com.google.android.gms:play-services-base:18.5.0",
+            "com.google.firebase:firebase-analytics:22.0.0",
+            "com.google.firebase:firebase-crashlytics:19.0.0",
+            "com.crashlytics.sdk.android:crashlytics:2.10.1",
+            "io.fabric.sdk.android:fabric:1.4.8",
+            "com.facebook.android:facebook-android-sdk:17.0.0",
+            "com.google.android.play:core:1.10.3",
+            "com.android.billingclient:billing:7.0.0",
+            "com.android.installreferrer:installreferrer:2.2",
+            "com.google.android.ads:mediation-test-suite:3.0.0",
+        )
+        val out = LicenseList.problems(bad.map { dep(it) })
+        assertEquals(bad.size, out.size, "$out")
+    }
+}

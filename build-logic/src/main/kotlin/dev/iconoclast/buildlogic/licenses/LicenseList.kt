@@ -48,6 +48,37 @@ object LicenseList {
         }
     }
 
+    /**
+     * Free licences as [spdx] names them. Each is on the FSF, OSI or DFSG list that
+     * https://f-droid.org/docs/Inclusion_Policy/ defers to. Anything else fails the check
+     * until a person reads it and adds it here.
+     */
+    val FREE = setOf(
+        "Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "EPL-1.0", "EPL-2.0", "MPL-2.0", "ISC",
+        "LGPL-2.1-only", "LGPL-2.1-or-later", "LGPL-3.0-only", "LGPL-3.0-or-later", "CC0-1.0",
+    )
+
+    /**
+     * Group prefixes F-Droid's scanner rejects whatever the POM says, from the SUSS list
+     * https://fdroid.gitlab.io/fdroid-suss/suss.json (read 2026-10-11): Play Services,
+     * Firebase, Crashlytics and Fabric, Facebook, Play Core, Play Billing, Install Referrer,
+     * Google ads. `fdroid/check_origins.py` runs the whole list against every classpath.
+     */
+    val NON_FREE_GROUPS = listOf(
+        "com.google.android.gms", "com.google.firebase", "com.crashlytics", "io.fabric", "com.facebook",
+        "com.google.android.play", "com.android.billingclient", "com.android.installreferrer",
+        "com.google.android.ads", "com.google.ads",
+    )
+
+    /** Why [deps] cannot ship on F-Droid: a non-free licence or a known non-free artifact. */
+    fun problems(deps: List<Dependency>): List<String> = deps.flatMap { d ->
+        buildList {
+            if (NON_FREE_GROUPS.any { d.group == it || d.group.startsWith("$it.") }) add("${d.coordinates} is a known non-free artifact")
+            // An artifact under several licences may be used under any one of them.
+            if (d.licenses.none { it in FREE }) add("${d.coordinates} has no free licence: ${d.licenses.joinToString()}")
+        }
+    }
+
     /** One line per artifact, `group:name:version<TAB>licences`, sorted. */
     fun asset(deps: List<Dependency>): String =
         deps.sortedBy { it.coordinates }.joinToString("") { "${it.coordinates}\t${it.licenses.joinToString(" OR ")}\n" }

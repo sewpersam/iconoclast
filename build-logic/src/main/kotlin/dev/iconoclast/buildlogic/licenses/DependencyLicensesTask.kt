@@ -18,7 +18,8 @@ import org.gradle.maven.MavenPomArtifact
  * Resolves [configuration], reads each artifact's licence from its POM, and writes the
  * licence asset and the THIRD_PARTY_LICENSES.md section, or with [verify] fails when either
  * committed file differs from what the classpath gives. An artifact with no licence in
- * its POM or any parent POM fails both.
+ * its POM or any parent POM fails both, and so does one [LicenseList.problems] names: a
+ * licence outside [LicenseList.FREE] or a known non-free group.
  */
 abstract class DependencyLicensesTask : DefaultTask() {
     @get:Input abstract val configuration: Property<String>
@@ -38,6 +39,8 @@ abstract class DependencyLicensesTask : DefaultTask() {
     @TaskAction
     fun run() {
         val deps = resolve()
+        val problems = LicenseList.problems(deps)
+        if (problems.isNotEmpty()) throw GradleException("Not F-Droid clean:\n" + problems.joinToString("\n"))
         val list = LicenseList.asset(deps)
         val noticesFile = notices.get().asFile
         val md = LicenseList.replaceSection(noticesFile.readText(), LicenseList.markdown(deps))
