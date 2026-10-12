@@ -1,0 +1,5 @@
+First release.
+- Theme editor: shape, fill, background, layers, effects.
+- Per-icon overrides and coverage screen.
+- Apply builds, signs and installs a real icon pack.
+- Theme export and import, with optional signing key backup.

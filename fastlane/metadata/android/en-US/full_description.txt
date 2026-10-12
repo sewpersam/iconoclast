@@ -1,0 +1,23 @@
+Iconoclast is an icon pack designer. It holds the whole Arcticons line icon library, and you restyle it on the phone: stroke weight, line caps and joins, invert fill and silhouettes, background shapes, gradients, textures with Photoshop-style blend modes, and effects such as brush streaks, bevel, shadows, glows and grain.
+
+Save your looks as named themes. When you tap Apply, Iconoclast draws an icon for every installed app that Arcticons covers, builds a real icon pack app, signs it on the phone and installs it. Any launcher that supports icon packs can then use it.
+
+<b>Features</b>
+<ul>
+<li>Live preview of your installed apps or a fixed sample set</li>
+<li>Shape, Fill, Background, Layers and Effects controls, with undo and redo</li>
+<li>Per-icon overrides: stroke weight, fill mode, texture offset, or a different Arcticons drawable</li>
+<li>Import your own textures through the system picker, no storage permission</li>
+<li>Export and import themes as .zip files, optionally with the pack signing key</li>
+<li>Coverage screen: which apps are themed, overridden or not in Arcticons</li>
+<li>Guided launcher restart after an update, since launchers cache icon packs</li>
+</ul>
+
+<b>Privacy</b>
+No network access, no Google services, no analytics, no crash reporter. Everything happens on the phone.
+
+<b>Permissions</b>
+Install unknown apps: needed to install the icon pack it generates. The generated pack is signed with a key that stays on the phone; export it with a theme backup if you want to update the same pack after reinstalling Iconoclast.
+
+<b>Credits</b>
+The icons are Arcticons by the Arcticons Team and contributors, https://github.com/Arcticons-Team/Arcticons, licensed CC BY-SA 4.0. Icons restyled by Iconoclast, including every generated pack, stay under CC BY-SA 4.0 with this credit. The app code is GPL-3.0-or-later.

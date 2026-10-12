@@ -39,6 +39,16 @@ Modules:
 Arcticons is a git submodule at `third_party/arcticons`, pinned to one
 commit. Bumping the pin is a deliberate commit.
 
+## Releases
+
+A release is a git tag `v<versionName>` on `main`, for example `v0.1`, on
+the commit whose `app/build.gradle.kts` carries that `versionName` and a new
+`versionCode`. Each release adds
+`fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`. The F-Droid
+recipe draft is `fdroid/dev.iconoclast.app.yml`; F-Droid finds new releases
+by tag. The release build is `./gradlew assembleRelease`, unsigned, which
+works offline after one online build.
+
 ## Licence
 
 App code is GPL-3.0-or-later, see `LICENSE`. The Arcticons icons are

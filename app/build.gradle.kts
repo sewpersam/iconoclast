@@ -24,6 +24,11 @@ android {
         compose = true
         buildConfig = true
     }
+    // F-Droid: no encrypted dependency block in the signing block, which its scanner rejects.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     // The ART byte identity check renders the :render goldens on the device.
     sourceSets["androidTest"].assets.directories += rootProject.file("render/src/test/resources/golden").path
     sourceSets["androidTest"].kotlin.directories += rootProject.file("render/src/golden/kotlin").path
