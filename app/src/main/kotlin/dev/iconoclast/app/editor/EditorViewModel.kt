@@ -137,10 +137,29 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     /** The big preview's image, by drawable index. */
     val hero: StateFlow<PreviewFrame<ImageBitmap>> = heroPreviews.frame
 
+    /** When the newest edit was made, or the editor opened, and which of its previews were logged shown: 1 hero, 2 grid. */
+    private var editAt = 0L
+    private var shownLogged = 0
+
+    /**
+     * The screen drew [which] preview frame of [theme]. Logs, once per edit, how long after
+     * the edit the hero and then the complete grid reached the screen.
+     */
+    fun shown(which: String, theme: Theme?, complete: Boolean) {
+        val h = history ?: return
+        if (editAt == 0L || theme != h.theme) return
+        val bit = if (which == "hero") 1 else 2
+        if (which != "hero" && !complete) return
+        if (shownLogged and bit != 0) return
+        shownLogged = shownLogged or bit
+        Log.i(PERF_TAG, "$which shown ${(System.nanoTime() - editAt) / 1_000_000} ms after the edit or open")
+    }
+
     /** The newest theme not yet saved. */
     private val pending = MutableStateFlow<Theme?>(null)
 
     init {
+        editAt = System.nanoTime()
         viewModelScope.launch { load() }
         viewModelScope.launch { pending.filterNotNull().debounce(SAVE_DELAY_MS).collect { save(it) } }
         // The resolution setting sets the previews' grain cells.
@@ -421,6 +440,8 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     private fun publish() {
         val h = history ?: return
+        editAt = System.nanoTime()
+        shownLogged = 0
         _ui.value = _ui.value.copy(theme = h.theme, canUndo = h.canUndo, canRedo = h.canRedo)
         refresh()
     }
@@ -527,6 +548,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     companion object {
         private const val TAG = "IconoclastEditor"
+        private const val PERF_TAG = "IconoclastPerf"
 
         /** Never below 128 px; see [dev.iconoclast.app.ThemePreviews.SIZE]. Also while dragging. */
         const val SIZE = 128

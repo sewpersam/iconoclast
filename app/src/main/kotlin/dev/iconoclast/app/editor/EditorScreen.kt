@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +79,9 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
     val frame by vm.frame.collectAsState()
     val hero by vm.hero.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    // Edit-to-screen latency: logged once the frame showing the new images is drawn.
+    LaunchedEffect(frame) { withFrameNanos {}; vm.shown("grid", frame.theme, frame.complete) }
+    LaunchedEffect(hero) { withFrameNanos {}; vm.shown("hero", hero.theme, hero.complete) }
     // The process may be killed any time after the activity stops: save what is pending.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.flush() }
     LaunchedEffect(ui.message) {
