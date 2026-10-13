@@ -207,6 +207,11 @@ object GoldenSet {
         "effect_streaks_linear" to below(EffectLayer("streaks", Effect.Streaks(angle = 45f, length = 0.2f, decay = Decay.LINEAR,
             breakup = Breakup(scale = 2f, stretch = 12f, density = 0.5f, contrast = 0.7f, seed = 4), color = 0xFFF2CC8F.toInt()),
             blend = BlendMode.SCREEN, opacity = 0.5f)),
+        "effect_brush_strokes" to below(EffectLayer("strokes", Effect.BrushStrokes(count = 60, length = 0.18f, width = 0.03f,
+            softness = 0.3f, blur = 0.4f, bend = 0.3f, drift = 0.2f, paintLayer = Layer.ICON_FILL_ID), opacity = 0.8f)),
+        "effect_brush_strokes_colour" to below(EffectLayer("strokes", Effect.BrushStrokes(count = 120, length = 0.1f, width = 0.015f,
+            softness = 0f, blur = 0f, fade = 0f, randomness = 1f, bend = -1f, bristles = 1f, color = 0xFFF2CC8F.toInt(), seed = 9),
+            blend = BlendMode.SCREEN)),
         "effect_bevel" to above(EffectLayer("bevel", Effect.Bevel(size = 0.012f, depth = 1.5f, softness = 0.3f))),
         "effect_emboss" to above(EffectLayer("bevel", Effect.Bevel(BevelStyle.EMBOSS, lightAngle = 45f, size = 0.02f, depth = 1f,
             highlight = 0x99FFFFFF.toInt(), shadow = 0x99000000.toInt()))),
@@ -253,36 +258,81 @@ object GoldenSet {
     )
 
     /**
-     * The M6 starter presets, app/src/main/assets/presets/jade.json and neon.json, built in
+     * The M6 Jade starter, shipped until schema 5: dry-brush streaks at 35% between
+     * background and icon, painted from the jade fill. The schema 3 migration fixture
+     * migrates to it and renders its goldens, "jade_m6", byte for byte; the streaks are
+     * the effect the editor now calls Scanlines.
+     */
+    val JADE_M6: Theme = Theme(
+        shape = ShapeParams(strokeWeight = 1.75f),
+        fill = FillParams(mode = FillMode.INVERT),
+        background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+        layers = listOf(
+            PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF000000.toInt()), clip = ClipTarget.BACKGROUND),
+            EffectsLayer(),
+            EffectLayer("streaks", Effect.Streaks(angle = 300f, length = 0.35f, decay = Decay.EXPONENTIAL,
+                breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.55f, contrast = 0.4f),
+                paintLayer = Layer.ICON_FILL_ID), opacity = 0.35f),
+            PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
+            PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
+                blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
+            PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
+        ),
+    )
+
+    /** Jade's stack with [strokes] between background and icon: the Jade starter and the brush variants. */
+    private fun jadeWith(strokes: EffectLayer): List<Layer> = listOf(
+        PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF000000.toInt()), clip = ClipTarget.BACKGROUND),
+        EffectsLayer(),
+        strokes,
+        PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
+        PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
+            blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
+        PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
+    )
+
+    /** The Jade starter's strokes, schema 5: painted from the jade fill, leaning a little toward 300 degrees as the M6 streaks ran. */
+    private val JADE_STROKES = Effect.BrushStrokes(count = 45, length = 0.15f, width = 0.04f, softness = 0.2f, blur = 0.25f,
+        fade = 0.6f, randomness = 0.6f, bend = 0.35f, bristles = 0.6f, drift = 0.35f, angle = 300f, paintLayer = Layer.ICON_FILL_ID)
+
+    /**
+     * Three taste variants of the strokes on the Jade stack, shipped as the starters Brush
+     * A, B and C: A tight short flicks, B long sweeping strokes, C a soft blurred haze.
+     */
+    val BRUSH_VARIANTS: Map<String, Theme> = mapOf(
+        "preset_brush_a" to brushJade(Effect.BrushStrokes(count = 80, length = 0.08f, width = 0.022f, softness = 0.1f, blur = 0f,
+            fade = 0.5f, randomness = 0.85f, bend = 0f, bristles = 0.5f, paintLayer = Layer.ICON_FILL_ID), 0.8f),
+        "preset_brush_b" to brushJade(Effect.BrushStrokes(count = 28, length = 0.38f, width = 0.042f, softness = 0.25f, blur = 0.3f,
+            fade = 0.7f, randomness = 0.4f, bend = 0.6f, bristles = 0.75f, drift = 0.35f, angle = 300f, paintLayer = Layer.ICON_FILL_ID), 0.8f),
+        "preset_brush_c" to brushJade(Effect.BrushStrokes(count = 220, length = 0.22f, width = 0.035f, softness = 0.9f, blur = 1f,
+            fade = 0.8f, randomness = 0.8f, bend = 0f, bristles = 0.3f, paintLayer = Layer.ICON_FILL_ID), 0.7f),
+    )
+
+    /** The Jade starter with [strokes] at [opacity] in place of its own. */
+    private fun brushJade(strokes: Effect.BrushStrokes, opacity: Float) = Theme(
+        shape = ShapeParams(strokeWeight = 1.75f),
+        fill = FillParams(mode = FillMode.INVERT),
+        background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+        layers = jadeWith(EffectLayer("strokes", strokes, opacity = opacity)),
+    )
+
+    /**
+     * The starter presets, app/src/main/assets/presets/jade.json and neon.json, built in
      * code: PresetsTest checks the files equal these and render their goldens byte for byte.
      *
      * Jade, spec 2.4 and the user's words: black rounded square, jade texture, thicker icons,
-     * textured low-opacity streaks between icon and background. Stroke 1.75, invert fill;
-     * procedural jade (fBm through a jade gradient map) as the icon fill with ridged veins
-     * screened over it; dry-brush streaks at 35% between background and icon, painted from
-     * the jade fill layer. No bevel, no grain.
+     * "artsy brush strokes kind of blurring out from the main icon underneath it". Stroke
+     * 1.75, invert fill; procedural jade (fBm through a jade gradient map) as the icon fill
+     * with ridged veins screened over it; brush strokes at 70% between background and icon,
+     * each painted with the jade fill's colour where it starts. No bevel, no grain. Until
+     * schema 5 Jade had streaks instead: [JADE_M6].
      *
      * Neon, the range preset: outline only, a magenta to cyan gradient line on a near-black
      * circle with a violet outer glow. Glow instead of streaks, outline instead of invert, a
      * gradient instead of noise, a circle instead of a square.
      */
     val STARTERS: Map<String, Theme> = mapOf(
-        "preset_jade" to Theme(
-            shape = ShapeParams(strokeWeight = 1.75f),
-            fill = FillParams(mode = FillMode.INVERT),
-            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
-            layers = listOf(
-                PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF000000.toInt()), clip = ClipTarget.BACKGROUND),
-                EffectsLayer(),
-                EffectLayer("streaks", Effect.Streaks(angle = 300f, length = 0.35f, decay = Decay.EXPONENTIAL,
-                    breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.55f, contrast = 0.4f),
-                    paintLayer = Layer.ICON_FILL_ID), opacity = 0.35f),
-                PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
-                PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
-                    blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
-                PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
-            ),
-        ),
+        "preset_jade" to brushJade(JADE_STROKES, 0.7f),
         "preset_neon" to Theme(
             shape = ShapeParams(strokeWeight = 1.25f),
             background = BackgroundParams(shape = BackgroundShape.Circle),
@@ -303,7 +353,7 @@ object GoldenSet {
      * texture layer gets (scale 2), so each icon shows its own patch. Every install has the
      * brush, so an export carries no texture file for it.
      */
-    val BRUSH_BACKGROUND: Theme = STARTERS.getValue("preset_jade").let { jade ->
+    val BRUSH_BACKGROUND: Theme = JADE_M6.let { jade ->
         jade.copy(layers = jade.layers.map { l ->
             if (l.id != Layer.BACKGROUND_ID) l
             else (l as PaintLayer).copy(
@@ -331,5 +381,7 @@ object GoldenSet {
             EFFECTS.flatMap { (dir, theme) -> EFFECT_SAMPLES.map { Triple(dir, theme, it) } } +
             LOOK_SAMPLES.map { Triple("effects_jade", JADE_LIKE, it) } +
             STARTERS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } } +
-            LOOK_SAMPLES.map { Triple("brush_background", BRUSH_BACKGROUND, it) }
+            LOOK_SAMPLES.map { Triple("brush_background", BRUSH_BACKGROUND, it) } +
+            SAMPLES.map { Triple("jade_m6", JADE_M6, it) } +
+            BRUSH_VARIANTS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
 }

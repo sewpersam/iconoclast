@@ -28,8 +28,8 @@ class PresetsTest {
     @Test
     fun presetsParseWithFixedIdsAndRender() {
         val docs = Presets.FILES.map(::preset)
-        assertEquals(listOf("preset-plain-arcticons", "preset-jade", "preset-neon"), docs.map { it.id })
-        assertEquals(listOf("Plain Arcticons", "Jade", "Neon"), docs.map { it.name })
+        assertEquals(listOf("preset-plain-arcticons", "preset-jade", "preset-neon", "preset-brush-a", "preset-brush-b", "preset-brush-c"), docs.map { it.id })
+        assertEquals(listOf("Plain Arcticons", "Jade", "Neon", "Brush A", "Brush B", "Brush C"), docs.map { it.name })
         assertTrue(docs.all { it.schemaVersion == ThemeDocument.CURRENT_SCHEMA })
         for (doc in docs) {
             val png = IconRenderer().render(GoldenSet.SAMPLES[0], bundle.icon(0), doc.theme, 64)
@@ -43,16 +43,20 @@ class PresetsTest {
         assertEquals(GoldenSet.PRESETS.getValue("plain"), preset("plain-arcticons.json").theme)
         assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), preset("jade.json").theme)
         assertEquals(GoldenSet.STARTERS.getValue("preset_neon"), preset("neon.json").theme)
+        for (v in listOf("a", "b", "c")) assertEquals(GoldenSet.BRUSH_VARIANTS.getValue("preset_brush_$v"), preset("brush-$v.json").theme, v)
     }
 
-    /** Each preset file, as shipped, renders its golden set on the 24 samples byte for byte. */
+    /** Each preset file, as shipped, renders its golden set byte for byte: 24 samples, the brush variants 6. */
     @Test
     fun presetFilesRenderTheirGoldens() {
         val goldens = File(requireNotNull(System.getProperty("golden.dir")))
         val renderer = IconRenderer()
-        for ((file, dir) in listOf("plain-arcticons.json" to "plain", "jade.json" to "preset_jade", "neon.json" to "preset_neon")) {
+        val cases = listOf("plain-arcticons.json" to "plain", "jade.json" to "preset_jade", "neon.json" to "preset_neon").map { Triple(it.first, it.second, GoldenSet.SAMPLES) } +
+            listOf("a", "b", "c").map { Triple("brush-$it.json", "preset_brush_$it", GoldenSet.LOOK_SAMPLES) }
+        for ((file, dir, samples) in cases) {
             val theme = preset(file).theme
-            for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
+            for (name in samples) {
+                val i = GoldenSet.SAMPLES.indexOf(name)
                 val png = renderer.renderPng(name, bundle.icon(i), theme, OUTPUT_SIZE)
                 assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
             }
@@ -68,13 +72,13 @@ class PresetsTest {
         val jade = preset("jade.json").theme
         assertEquals(FillMode.INVERT, jade.fill.mode)
         assertTrue(jade.shape.strokeWeight in 1.5f..2f, "thicker icons")
-        val streaks = jade.layers.filterIsInstance<dev.iconoclast.render.EffectLayer>().single()
-        assertTrue(streaks.effect is dev.iconoclast.render.Effect.Streaks && streaks.opacity < 0.5f, "low-opacity streaks are its only effect")
+        val strokes = jade.layers.filterIsInstance<dev.iconoclast.render.EffectLayer>().single()
+        assertTrue(strokes.effect is dev.iconoclast.render.Effect.BrushStrokes && strokes.opacity < 1f, "translucent brush strokes are its only effect")
         val ids = jade.layers.map { it.id }
-        assertTrue(ids.indexOf(Layer.BACKGROUND_ID) < ids.indexOf(streaks.id) && ids.indexOf(streaks.id) < ids.indexOf(Layer.ICON_FILL_ID),
-            "streaks between background and icon")
-        val link = (streaks.effect as dev.iconoclast.render.Effect.Streaks).paintLayer
-        assertEquals(Layer.ICON_FILL_ID, link, "streaks paint from the jade fill")
+        assertTrue(ids.indexOf(Layer.BACKGROUND_ID) < ids.indexOf(strokes.id) && ids.indexOf(strokes.id) < ids.indexOf(Layer.ICON_FILL_ID),
+            "strokes between background and icon")
+        val link = (strokes.effect as dev.iconoclast.render.Effect.BrushStrokes).paintLayer
+        assertEquals(Layer.ICON_FILL_ID, link, "strokes paint from the jade fill")
         val source = jade.layer(Layer.ICON_FILL_ID).source
         assertTrue(source is dev.iconoclast.render.Paint.Noise || source is dev.iconoclast.render.Paint.Texture, "the fill is a texture: $source")
         assertEquals(dev.iconoclast.render.BackgroundShape.RoundedSquare(0.2f), jade.background.shape)

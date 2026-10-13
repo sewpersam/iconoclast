@@ -110,20 +110,54 @@ class ThemeMigrationTest {
     fun version3StartersMigrateToAnEmptyOverrideMap() {
         val goldens = File(requireNotNull(System.getProperty("golden.dir")))
         val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
-        for ((file, dir) in listOf("jade.json" to "preset_jade", "neon.json" to "preset_neon")) {
+        for ((file, theme, dir) in listOf(
+            Triple("jade.json", GoldenSet.JADE_M6, "jade_m6"),
+            Triple("neon.json", GoldenSet.STARTERS.getValue("preset_neon"), "preset_neon"),
+        )) {
             val v3 = fixture("v3-$file")
             assertTrue("\"schemaVersion\": 3" in v3)
             val migrated = migrate(v3, now = { error("no clock") }, newId = { error("no id") })
-            assertEquals(4, migrated.schemaVersion)
+            assertEquals(ThemeDocument.CURRENT_SCHEMA, migrated.schemaVersion)
             assertEquals(emptyMap(), migrated.overrides)
             assertEquals(withOverrides(v3), json(migrated.toJson()), file)
-            assertEquals(GoldenSet.STARTERS.getValue(dir), migrated.theme)
+            assertEquals(theme, migrated.theme)
             val renderer = IconRenderer()
             for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
                 val png = renderer.renderPng(name, bundle.icon(i), migrated.theme, OUTPUT_SIZE)
                 assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
             }
         }
+    }
+
+    /**
+     * The schema 5 migration test: the M6 Jade at schema 4, its streaks the effect now
+     * called Scanlines, changes only its version, needs no clock and no id, and renders the
+     * M6 Jade goldens byte for byte: old themes look exactly as they did.
+     */
+    @Test
+    fun version4MigratesUnchangedAndRendersTheSame() {
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
+        val v4 = fixture("v4-jade.json")
+        assertTrue("\"schemaVersion\": 4" in v4)
+        val migrated = migrate(v4, now = { error("no clock") }, newId = { error("no id") })
+        assertEquals(5, migrated.schemaVersion)
+        assertEquals(withOverrides(v4), json(migrated.toJson()), "only the version changes")
+        assertEquals(GoldenSet.JADE_M6, migrated.theme)
+        val renderer = IconRenderer()
+        for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
+            val png = renderer.renderPng(name, bundle.icon(i), migrated.theme, OUTPUT_SIZE)
+            assertContentEquals(File(goldens, "jade_m6/$name.png").readBytes(), png, "jade_m6/$name")
+        }
+    }
+
+    @Test
+    fun version4WithBrushStrokesIsDamaged() {
+        val current = ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = GoldenSet.STARTERS.getValue("preset_jade")).toJson()
+        val v4 = current.replace("\"schemaVersion\": 5", "\"schemaVersion\": 4")
+        assertTrue("brushStrokes" in v4)
+        assertFailsWith<ThemeFormatException> { migrate(v4) }
+        assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), migrate(current).theme)
     }
 
     @Test

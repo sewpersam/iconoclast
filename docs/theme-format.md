@@ -5,11 +5,11 @@ One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
 shares a `.zip` holding that JSON as `theme.json`, the textures it uses and,
 only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
-## Schema version 4
+## Schema version 5
 
 ```json
 {
-    "schemaVersion": 4,
+    "schemaVersion": 5,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -127,7 +127,7 @@ theme" removes the entry (`withOverride(name, null)`).
 | `fillMode` | `theme.fill.mode`. |
 | `gapClosing` | `theme.fill.gapClosing`, 0.0 to 2.0. |
 | `textureOffset` | The icon's one per-icon offset, `{ "x", "y" }`, each in [0, 1). Texture and noise layers, the streak breakup and grain all follow it. Locked mappings keep the centre. |
-| `hideStreaks` | `true` drops every Streaks effect layer for this icon. |
+| `hideStreaks` | `true` drops every `streaks` (Scanlines) and `brushStrokes` effect layer for this icon. |
 | `swapDrawable` | Draws another drawable's geometry in this icon's slot. The slot keeps its own seed name, so its offset does not move with the swap. |
 
 Resolution (`EffectiveTheme.kt`): `effectiveTheme(name)` is the theme with
@@ -167,7 +167,8 @@ the icon layers; bevel, inner shadow and inner glow only show above them.
 Each effect adds its coverage to the `EFFECTS` clip target.
 
 `streaks`: the icon mask smeared along an angle, broken up, painted from a
-linked layer. Code: `render/.../effect/Streaks.kt`, `Smear.kt`.
+linked layer. The editor calls it Scanlines since schema 5. Code:
+`render/.../effect/Streaks.kt`, `Smear.kt`.
 
 | Field | Values |
 |---|---|
@@ -177,6 +178,33 @@ linked layer. Code: `render/.../effect/Streaks.kt`, `Smear.kt`.
 | `breakup` | `null`: an unbroken smear. Else `{ "texture", "scale", "stretch", "density", "contrast", "seed" }`: `texture` a texture hash (a built-in brush or an imported texture) or `null` for 4-octave fBm noise; `scale` 0.25 to 4.0, above 1 zooms in; `stretch` 1.0 to 32.0 along the streak; `density` 0.0 to 1.0, how much lets the streak through; `contrast` 0.0 to 1.0; `seed` any 32-bit integer, for the noise. The breakup's luminance t becomes `clamp((t - (1 - density)) / (1 - 0.95 contrast) + 0.5)` and multiplies the smear. A texture tiles with its short side spanning the canvas over `scale`; noise has 16 / scale cells across. Each icon gets its own patch. |
 | `paintLayer` | `null` or the id of a paint layer whose source paints the streaks: under that layer's mapping and per-icon offset, gradient-mapped, but not its clip, matte or opacity. An id that names no paint layer (deleted, or not a paint layer) falls back to `color`. |
 | `color` | The paint without a link. |
+
+`brushStrokes` (schema 5): painterly strokes flicking off the icon, after
+Hertzmann, "Painterly Rendering with Curved Brush Strokes of Multiple Sizes"
+(SIGGRAPH 1998). Strokes start on the icon's edge, follow the outward flow of
+the blurred icon mask, curving under a curvature filter, taper to a point, dry
+out into bristle marks toward the tip, take one colour each from the source at
+their start, and blur with distance from the icon. A coarse pass of wider
+strokes is painted first. Nothing shows in the icon's enclosed counters. Every
+random choice comes from the per-icon offset and `seed`, so a stroke set is the
+same at every size and on every device. Code: `render/.../effect/BrushStrokes.kt`.
+
+| Field | Values |
+|---|---|
+| `count` | 1 to 400 strokes. |
+| `length` | 0.02 to 0.5 of the canvas: how far a stroke reaches. |
+| `width` | 0.002 to 0.08 of the canvas: a stroke's width at its base. |
+| `softness` | 0.0 to 1.0: crisp to soft edges and bristles. |
+| `blur` | 0.0 to 1.0: how much the strokes blur with distance from the icon. |
+| `fade` | 0.0 to 1.0: how much paint runs out along a stroke. |
+| `randomness` | 0.0 to 1.0: variation of each stroke's direction, length, width, wobble and tone. |
+| `bend` | -1.0 to 1.0: strokes curl counterclockwise (positive) or clockwise. |
+| `bristles` | 0.0 to 1.0: dry-brush bristle marks. |
+| `drift` | 0.0 to 1.0: how far strokes lean toward `angle` instead of straight off the edge. The editor calls it Lean. |
+| `angle` | 0.0 to 360.0: the direction `drift` leans toward. |
+| `paintLayer` | As for `streaks`: each stroke takes the linked source's colour at its start. |
+| `color` | The paint without a link. |
+| `seed` | Any 32-bit integer. |
 
 `bevel`: bevel and emboss from the signed sub-pixel distance to the icon
 mask's edge (anti-aliased EDT after Gustavson and Strand), light at 30
@@ -325,7 +353,17 @@ already has `overrides` is damaged. `ThemeMigrationTest` migrates the shipped
 schema 3 starters (`app/src/test/resources/themes/v3-*.json`), requires the
 JSON to equal the input plus the empty map and new version, with no clock and
 no id, and compares every render with the Jade and Neon starter goldens. The
-preset assets stay at schema 3 and migrate on every seed.
+preset assets stayed at schema 3 and migrated on every seed, until schema 5.
+
+Version 4 had no brush strokes. `v4ToV5` (`MigrationV4ToV5.kt`) only
+sets `schemaVersion` to 5; a version 4 file that already has a `brushStrokes`
+effect is damaged. The bump lets an older app refuse a theme with brush
+strokes as newer rather than damaged. `ThemeMigrationTest` migrates the M6
+Jade at schema 4 (`app/src/test/resources/themes/v4-jade.json`), requires the
+JSON to change only in its version, and renders the `jade_m6` goldens byte for
+byte. The Jade starter moved to brush strokes in the same change; its schema 3
+file stays as a fixture and migrates to `GoldenSet.JADE_M6`. Jade and the Brush
+A, B and C starters ship at schema 5; Neon and Plain stay at their old versions.
 
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture
@@ -361,7 +399,7 @@ and a test, and update this file.
 
 | Entry | When | Content |
 |---|---|---|
-| `theme.json` | always, first | The document, schema 4. |
+| `theme.json` | always, first | The document, schema 5. |
 | `textures/<sha256>.png` | one per non-built-in hash in `Theme.textureHashes()` | The canonical texture file. |
 | `key/pack.p12` | only with the key | The signing key's PKCS12 store, the stored file's bytes. |
 | `key/password` | only with the key | Its password, UTF-8, the stored file's bytes. |

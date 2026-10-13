@@ -106,11 +106,11 @@ fun OverrideSheet(vm: EditorViewModel, ui: EditorUi, item: PreviewItem, image: I
                 { vm.dragOverride(vm.ui.value.override.copy(textureOffset = at((vm.ui.value.override.textureOffset ?: own).x, it))) },
                 done, { commit(o.copy(textureOffset = null)) },
             )
-            val hasStreaks = theme.layers.any { it is EffectLayer && it.effect is Effect.Streaks }
-            SwitchControl("Hide streaks", o.hideStreaks, default = false, enabled = hasStreaks || o.hideStreaks) {
+            val hasStreaks = theme.layers.any { it is EffectLayer && (it.effect is Effect.Streaks || it.effect is Effect.BrushStrokes) }
+            SwitchControl("Hide strokes and scanlines", o.hideStreaks, default = false, enabled = hasStreaks || o.hideStreaks) {
                 commit(o.copy(hideStreaks = it))
             }
-            if (!hasStreaks) Text("This theme has no streaks.", style = MaterialTheme.typography.bodySmall)
+            if (!hasStreaks) Text("This theme has no brush strokes or scanlines.", style = MaterialTheme.typography.bodySmall)
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             SwapSearch(

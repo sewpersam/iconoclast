@@ -21,7 +21,7 @@ fun IconOverride.applyTo(theme: Theme): Theme {
     if (o.fillMode != null) t = t.copy(fill = t.fill.copy(mode = o.fillMode))
     if (o.gapClosing != null) t = t.copy(fill = t.fill.copy(gapClosing = o.gapClosing))
     if (o.textureOffset != null) t = t.copy(textureOffset = o.textureOffset)
-    if (o.hideStreaks) t = t.copy(layers = t.layers.filterNot { it is EffectLayer && it.effect is Effect.Streaks })
+    if (o.hideStreaks) t = t.copy(layers = t.layers.filterNot { it is EffectLayer && (it.effect is Effect.Streaks || it.effect is Effect.BrushStrokes) })
     return t
 }
 

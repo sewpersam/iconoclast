@@ -53,6 +53,7 @@ fun EffectControls(layer: EffectLayer, theme: Theme, drag: (Theme) -> Unit, done
             { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = 1f))) })
         when (e) {
             is Effect.Streaks -> StreakControls(e, theme, layer.id, dragE, done, commitE, breakup)
+            is Effect.BrushStrokes -> BrushStrokeControls(e, theme, dragE, done, commitE)
             is Effect.Bevel -> BevelControls(e, dragE, done, commitE)
             is Effect.DropShadow -> {
                 val d = Effect.DropShadow()
@@ -135,6 +136,57 @@ private fun StreakPaint(e: Effect.Streaks, theme: Theme, onDrag: (Effect) -> Uni
     }
     if (linked == null) {
         ColorControl("Streak colour", e.color, Effect.Streaks().color, { onDrag(e.copy(color = it)) }, onDone, { onCommit(e.copy(color = it)) })
+    }
+}
+
+/** Brush strokes: how many, how far and wide, their character, where they lean, and their paint. */
+@Composable
+private fun BrushStrokeControls(e: Effect.BrushStrokes, theme: Theme, onDrag: (Effect) -> Unit, onDone: () -> Unit, onCommit: (Effect) -> Unit) {
+    val d = Effect.BrushStrokes()
+    SliderControl("Strokes", e.count.toFloat(), 1f..400f, d.count.toFloat(), decimals(0),
+        { onDrag(e.copy(count = (it + 0.5f).toInt().coerceIn(1, 400))) }, onDone, { onCommit(e.copy(count = d.count)) })
+    SliderControl("Length", e.length, 0.02f..0.5f, d.length, canvas, { onDrag(e.copy(length = it)) }, onDone, { onCommit(e.copy(length = d.length)) })
+    SliderControl("Width", e.width, 0.002f..0.08f, d.width, canvas, { onDrag(e.copy(width = it)) }, onDone, { onCommit(e.copy(width = d.width)) })
+    SliderControl("Softness", e.softness, 0f..1f, d.softness, percent, { onDrag(e.copy(softness = it)) }, onDone, { onCommit(e.copy(softness = d.softness)) })
+    SliderControl("Blur with distance", e.blur, 0f..1f, d.blur, percent, { onDrag(e.copy(blur = it)) }, onDone, { onCommit(e.copy(blur = d.blur)) })
+    SliderControl("Fade", e.fade, 0f..1f, d.fade, percent, { onDrag(e.copy(fade = it)) }, onDone, { onCommit(e.copy(fade = d.fade)) })
+    SliderControl("Bristles", e.bristles, 0f..1f, d.bristles, percent, { onDrag(e.copy(bristles = it)) }, onDone, { onCommit(e.copy(bristles = d.bristles)) })
+    SliderControl("Randomness", e.randomness, 0f..1f, d.randomness, percent,
+        { onDrag(e.copy(randomness = it)) }, onDone, { onCommit(e.copy(randomness = d.randomness)) })
+    SliderControl("Bend", e.bend, -1f..1f, d.bend, signedPercent, { onDrag(e.copy(bend = it)) }, onDone, { onCommit(e.copy(bend = d.bend)) })
+    SliderControl("Lean", e.drift, 0f..1f, d.drift, percent, { onDrag(e.copy(drift = it)) }, onDone, { onCommit(e.copy(drift = d.drift)) })
+    if (e.drift > 0f) {
+        SliderControl("Lean angle", e.angle, 0f..360f, d.angle, degrees, { onDrag(e.copy(angle = it)) }, onDone, { onCommit(e.copy(angle = d.angle)) })
+    }
+    BrushStrokePaint(e, theme, onDrag, onDone, onCommit)
+    SeedControl("Stroke seed", e.seed, d.seed) { onCommit(e.copy(seed = it)) }
+}
+
+/** As [StreakPaint]: each stroke takes the linked layer's colour where it starts, or one colour. */
+@Composable
+private fun BrushStrokePaint(e: Effect.BrushStrokes, theme: Theme, onDrag: (Effect) -> Unit, onDone: () -> Unit, onCommit: (Effect) -> Unit) {
+    val sources = LayerStack.streakSources(theme)
+    val linked = theme.layers.firstOrNull { it.id == e.paintLayer } as? PaintLayer
+    val name = when {
+        linked != null -> LayerStack.label(theme, linked)
+        e.paintLayer != null -> "Colour (linked layer gone)"
+        else -> "Colour"
+    }
+    var open by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Paint from", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Box {
+            OutlinedButton(onClick = { open = true }, modifier = Modifier.semantics { contentDescription = "Paint from $name" }) { Text(name) }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                DropdownMenuItem(text = { Text("Colour") }, onClick = { open = false; onCommit(e.copy(paintLayer = null)) })
+                for (l in sources) {
+                    DropdownMenuItem(text = { Text(LayerStack.label(theme, l)) }, onClick = { open = false; onCommit(e.copy(paintLayer = l.id)) })
+                }
+            }
+        }
+    }
+    if (linked == null) {
+        ColorControl("Stroke colour", e.color, Effect.BrushStrokes().color, { onDrag(e.copy(color = it)) }, onDone, { onCommit(e.copy(color = it)) })
     }
 }
 

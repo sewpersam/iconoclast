@@ -1,5 +1,5 @@
 {
-    "schemaVersion": 3,
+    "schemaVersion": 5,
     "id": "preset-jade",
     "name": "Jade",
     "created": 0,
@@ -57,25 +57,26 @@
             },
             {
                 "type": "effect",
-                "id": "streaks",
+                "id": "strokes",
                 "enabled": true,
                 "blend": "NORMAL",
-                "opacity": 0.35,
+                "opacity": 0.7,
                 "effect": {
-                    "type": "streaks",
+                    "type": "brushStrokes",
+                    "count": 45,
+                    "length": 0.15,
+                    "width": 0.04,
+                    "softness": 0.2,
+                    "blur": 0.25,
+                    "fade": 0.6,
+                    "randomness": 0.6,
+                    "bend": 0.35,
+                    "bristles": 0.6,
+                    "drift": 0.35,
                     "angle": 300.0,
-                    "length": 0.35,
-                    "decay": "EXPONENTIAL",
-                    "breakup": {
-                        "texture": "529541caaef2a89958423ffa5e19474d7e8ef76a41c142e0bfcbb6834dd3bf30",
-                        "scale": 1.0,
-                        "stretch": 6.0,
-                        "density": 0.55,
-                        "contrast": 0.4,
-                        "seed": 0
-                    },
                     "paintLayer": "icon-fill",
-                    "color": "#FFFFFFFF"
+                    "color": "#FFFFFFFF",
+                    "seed": 0
                 }
             },
             {
@@ -167,5 +168,6 @@
                 "matte": null
             }
         ]
-    }
+    },
+    "overrides": {}
 }

@@ -115,7 +115,8 @@ object LayerStack {
     }
 
     fun effectName(effect: Effect): String = when (effect) {
-        is Effect.Streaks -> "Streaks"
+        is Effect.Streaks -> "Scanlines"
+        is Effect.BrushStrokes -> "Brush strokes"
         is Effect.Bevel -> "Bevel and emboss"
         is Effect.DropShadow -> "Drop shadow"
         is Effect.InnerShadow -> "Inner shadow"
@@ -129,21 +130,26 @@ object LayerStack {
         theme.layers.filterIsInstance<PaintLayer>().filter { it.source is Paint.Texture || it.source is Paint.Noise }
 
     /**
-     * A new effect layer with a fresh id. Streaks take their paint from the first texture
+     * A new effect layer with a fresh id. Streaks and brush strokes take their paint from the first texture
      * or noise layer, if any; grain overlays, as its contract asks.
      */
     fun newEffect(theme: Theme, effect: Effect): EffectLayer {
-        val e = if (effect is Effect.Streaks && effect.paintLayer == null) effect.copy(paintLayer = streakSources(theme).firstOrNull()?.id) else effect
+        val first = streakSources(theme).firstOrNull()?.id
+        val e = when {
+            effect is Effect.Streaks && effect.paintLayer == null -> effect.copy(paintLayer = first)
+            effect is Effect.BrushStrokes && effect.paintLayer == null -> effect.copy(paintLayer = first)
+            else -> effect
+        }
         return EffectLayer(UUID.randomUUID().toString(), e, blend = if (e is Effect.Grain) BlendMode.OVERLAY else BlendMode.NORMAL)
     }
 
     /**
-     * Inserts [layer] where its effect shows, Task 9's contract: streaks, drop shadow and
+     * Inserts [layer] where its effect shows, Task 9's contract: streaks, brush strokes, drop shadow and
      * outer glow just above the effects marker and the effects on it, below the icon;
      * bevel, inner shadow, inner glow and grain on top of the stack.
      */
     fun insertEffect(theme: Theme, layer: EffectLayer): Theme = when (layer.effect) {
-        is Effect.Streaks, is Effect.DropShadow, is Effect.OuterGlow -> theme.withEffect(layer)
+        is Effect.Streaks, is Effect.BrushStrokes, is Effect.DropShadow, is Effect.OuterGlow -> theme.withEffect(layer)
         else -> theme.copy(layers = theme.layers + layer)
     }
 

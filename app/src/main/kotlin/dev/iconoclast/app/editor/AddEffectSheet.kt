@@ -15,7 +15,8 @@ import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.Effect
 
 private val OPTIONS: List<Pair<Effect, String>> = listOf(
-    Effect.Streaks() to "Brush streaks trailing from the icon",
+    Effect.BrushStrokes() to "Painted strokes flicking off the icon",
+    Effect.Streaks() to "Straight textured lines trailing from the icon",
     Effect.Bevel() to "Light and shade along the icon's edges",
     Effect.DropShadow() to "The icon's shadow on the background",
     Effect.InnerShadow() to "A shadow inside the icon",
@@ -24,7 +25,7 @@ private val OPTIONS: List<Pair<Effect, String>> = listOf(
     Effect.Grain() to "Monochrome noise over everything",
 )
 
-/** Spec 2.3, Effects: the seven effects, each at its default. */
+/** Spec 2.3, Effects: the eight effects, each at its default. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEffectSheet(onDismiss: () -> Unit, onAdd: (Effect) -> Unit) {

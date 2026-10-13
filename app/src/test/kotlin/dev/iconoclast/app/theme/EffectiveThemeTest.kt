@@ -50,9 +50,13 @@ class EffectiveThemeTest {
 
     @Test
     fun hideStreaks() {
-        assertTrue(jade.layers.any { it is EffectLayer && it.effect is Effect.Streaks })
+        assertTrue(jade.layers.any { it is EffectLayer && it.effect is Effect.BrushStrokes })
         val t = with(IconOverride(hideStreaks = true)).effectiveTheme("fdroid")
-        assertEquals(jade.copy(layers = jade.layers.filterNot { it is EffectLayer && it.effect is Effect.Streaks }), t)
+        assertEquals(jade.copy(layers = jade.layers.filterNot { it is EffectLayer && it.effect is Effect.BrushStrokes }), t)
+        // The same switch hides the streaks, now Scanlines, of a theme from before schema 5.
+        val old = ThemeDocument(id = "o", name = "O", created = 1, modified = 2, theme = GoldenSet.JADE_M6)
+            .withOverride("fdroid", IconOverride(hideStreaks = true)).effectiveTheme("fdroid")
+        assertEquals(GoldenSet.JADE_M6.copy(layers = GoldenSet.JADE_M6.layers.filterNot { it is EffectLayer && it.effect is Effect.Streaks }), old)
     }
 
     @Test

@@ -35,7 +35,7 @@ fun EffectsTab(
     val layers = theme.layers
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            "Top of the stack first. Streaks, shadows and outer glows show below the icon; bevel, inner effects and grain on it.",
+            "Top of the stack first. Brush strokes, scanlines, shadows and outer glows show below the icon; bevel, inner effects and grain on it.",
             style = MaterialTheme.typography.bodySmall,
         )
         FilledTonalButton(onClick = onAdd) { Text("Add effect") }

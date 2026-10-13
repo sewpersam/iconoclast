@@ -83,14 +83,14 @@ class LayerStackTest {
     }
 
     /**
-     * The editor's path for a built-in brush on the Jade background, Layers tab: the
+     * The editor's path for a built-in brush on the M6 Jade background, Layers tab: the
      * background layer takes the brush at the new-texture mapping, and its gradient map
      * then gives exactly the golden look. The Background tab's texture layer takes it too.
      */
     @Test
     fun aBuiltInBrushPaintsTheBackground() {
         val brush = BuiltInBrushes.BRISTLE.sha256
-        val jade = GoldenSet.STARTERS.getValue("preset_jade")
+        val jade = GoldenSet.JADE_M6
         val bg = LayerStack.layer(jade, Layer.BACKGROUND_ID) as PaintLayer
         val brushed = LayerStack.withTexture(bg, brush)
         assertEquals(Paint.Texture(brush) to LayerStack.NEW_TEXTURE_MAPPING, brushed.source to brushed.mapping)
@@ -124,7 +124,7 @@ class LayerStackTest {
         assertEquals(false, LayerStack.aboveIcon(t, streaks))
         assertEquals(true, LayerStack.aboveIcon(t, bevel))
         assertEquals(BlendMode.OVERLAY, grain.blend)
-        assertEquals("Streaks", LayerStack.label(t, streaks))
+        assertEquals("Scanlines", LayerStack.label(t, streaks))
         assertEquals("Bevel and emboss", LayerStack.label(t, bevel))
         val two = LayerStack.insertEffect(t, LayerStack.newEffect(t, Effect.Grain()))
         assertEquals("Grain 1", LayerStack.label(two, grain))
@@ -138,5 +138,18 @@ class LayerStackTest {
         val t = LayerStack.insertAbove(base, noise, null)
         assertEquals(listOf(noise), LayerStack.streakSources(t))
         assertEquals(noise.id, (LayerStack.newEffect(t, Effect.Streaks()).effect as Effect.Streaks).paintLayer)
+    }
+
+    /** Brush strokes go below the icon, under their own name, and paint from the first texture or noise layer. */
+    @Test
+    fun newBrushStrokesGoBelowTheIconAndTakeTheFirstSource() {
+        val bare = LayerStack.newEffect(base, Effect.BrushStrokes())
+        assertEquals(null, (bare.effect as Effect.BrushStrokes).paintLayer)
+        val t0 = LayerStack.insertEffect(base, bare)
+        assertEquals(listOf("background", "effects", bare.id, "icon-fill", "icon-lines"), ids(t0))
+        assertEquals("Brush strokes", LayerStack.label(t0, bare))
+        val noise = LayerStack.newLayer(Paint.Noise())
+        val t = LayerStack.insertAbove(base, noise, null)
+        assertEquals(noise.id, (LayerStack.newEffect(t, Effect.BrushStrokes()).effect as Effect.BrushStrokes).paintLayer)
     }
 }

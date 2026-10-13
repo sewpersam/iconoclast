@@ -146,6 +146,9 @@ class ThemeSerializationTest {
                 breakup = Breakup(scale = 2f, stretch = 8f, density = 0.7f, contrast = 0.2f, seed = 3), paintLayer = "icon-fill"),
                 blend = BlendMode.SCREEN, opacity = 0.3f),
             EffectLayer("plain-streaks", Effect.Streaks(breakup = null, color = 0xFF112233.toInt()), enabled = false),
+            EffectLayer("strokes", Effect.BrushStrokes(count = 123, length = 0.33f, width = 0.05f, softness = 0.7f, blur = 0.9f, fade = 0.1f,
+                randomness = 0.25f, bend = -0.75f, bristles = 0.4f, drift = 0.6f, angle = 135f, paintLayer = "icon-fill", color = 0xFF445566.toInt(),
+                seed = -42), blend = BlendMode.MULTIPLY, opacity = 0.6f),
             EffectLayer("shadow", Effect.DropShadow(angle = 300f, distance = 0.02f, blur = 0.03f, color = 0x80000000.toInt()), opacity = 0.5f),
             EffectLayer("glow", Effect.OuterGlow(size = 0.05f, spread = 0.3f, color = 0xFF00FF88.toInt()), blend = BlendMode.ADD),
         ).fold(Theme()) { t, l -> t.withEffect(l) }.let { t ->

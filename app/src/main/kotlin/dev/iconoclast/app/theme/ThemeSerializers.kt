@@ -179,12 +179,20 @@ private data class BreakupJson(
     val texture: String?, val scale: JFloat, val stretch: JFloat, val density: JFloat, val contrast: JFloat, val seed: Int,
 )
 
-/** Schema 3. Tagged by "type"; field names are the :render parameter names. */
+/** Schema 3, brushStrokes schema 5. Tagged by "type"; field names are the :render parameter names. */
 @Serializable
 private sealed interface EffectJson {
     @Serializable @SerialName("streaks")
     data class Streaks(
         val angle: JFloat, val length: JFloat, val decay: Decay, val breakup: BreakupJson?, val paintLayer: String?, val color: Argb,
+    ) : EffectJson
+
+    /** Schema 5. */
+    @Serializable @SerialName("brushStrokes")
+    data class BrushStrokes(
+        val count: Int, val length: JFloat, val width: JFloat, val softness: JFloat, val blur: JFloat, val fade: JFloat,
+        val randomness: JFloat, val bend: JFloat, val bristles: JFloat, val drift: JFloat, val angle: JFloat,
+        val paintLayer: String?, val color: Argb, val seed: Int,
     ) : EffectJson
 
     @Serializable @SerialName("bevel")
@@ -215,6 +223,9 @@ private fun Effect.toJson(): EffectJson = when (this) {
         breakup?.run { BreakupJson(texture, scale, stretch, density, contrast, seed) },
         paintLayer, color,
     )
+    is Effect.BrushStrokes -> EffectJson.BrushStrokes(
+        count, length, width, softness, blur, fade, randomness, bend, bristles, drift, angle, paintLayer, color, seed,
+    )
     is Effect.Bevel -> EffectJson.Bevel(style, lightAngle, depth, size, softness, highlight, highlightBlend, shadow, shadowBlend)
     is Effect.DropShadow -> EffectJson.DropShadow(angle, distance, blur, color)
     is Effect.InnerShadow -> EffectJson.InnerShadow(angle, distance, blur, color)
@@ -228,6 +239,9 @@ private fun EffectJson.toEffect(): Effect = when (this) {
         angle, length, decay,
         breakup?.run { Breakup(texture, scale, stretch, density, contrast, seed) },
         paintLayer, color,
+    )
+    is EffectJson.BrushStrokes -> Effect.BrushStrokes(
+        count, length, width, softness, blur, fade, randomness, bend, bristles, drift, angle, paintLayer, color, seed,
     )
     is EffectJson.Bevel -> Effect.Bevel(style, lightAngle, depth, size, softness, highlight, highlightBlend, shadow, shadowBlend)
     is EffectJson.DropShadow -> Effect.DropShadow(angle, distance, blur, color)

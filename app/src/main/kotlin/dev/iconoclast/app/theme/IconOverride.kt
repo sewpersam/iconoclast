@@ -17,7 +17,7 @@ import kotlinx.serialization.encoding.Encoder
  * - [gapClosing]: the fill's gap closing, 48-grid units, 0 to 2.
  * - [textureOffset]: pins the icon's one per-icon offset, both numbers in [0, 1); texture
  *   and noise layers, streak breakup and grain all follow it.
- * - [hideStreaks]: drops every Streaks effect layer for this icon.
+ * - [hideStreaks]: drops every Streaks (Scanlines) and BrushStrokes effect layer for this icon.
  * - [swapDrawable]: draws another Arcticons drawable's geometry in this icon's slot. The
  *   slot keeps its own seed, so its offset does not change with the swap.
  */

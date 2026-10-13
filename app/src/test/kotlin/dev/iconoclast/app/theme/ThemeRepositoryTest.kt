@@ -19,7 +19,8 @@ class ThemeRepositoryTest {
     private val dir: File = Files.createTempDirectory("themes").toFile()
     private var clock = 1000L
     private var ids = 0
-    private val presets = File(requireNotNull(System.getProperty("presets.dir"))).let { d -> Presets.FILES.map { File(d, it).readText() } }
+    /** The three lasting starters; Brush A, B and C are temporary taste variants and change nothing about seeding. */
+    private val presets = File(requireNotNull(System.getProperty("presets.dir"))).let { d -> Presets.FILES.take(3).map { File(d, it).readText() } }
 
     private fun repo(presets: List<String> = this.presets) = ThemeRepository(dir, { presets }, now = { clock++ }, newId = { "id${ids++}" })
 
