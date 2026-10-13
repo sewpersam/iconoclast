@@ -235,7 +235,7 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 ### Deferred
 - Startup reads about 20 ms of disk on the main thread: `AppContainer` dirs and `AppSettings` prefs, StrictMode in debug builds. Minor.
 - The renderer allocates fresh float buffers per layer; GC ran 0.8 s of 3 s during a drag trace before the on-screen-only change. Buffer reuse would cut it, bytes unchanged. Not needed for the 16 ms drag measured after.
-- The release APK is now R8-built. M8's reproducibility proof predates it; rerun the two-clone byte compare before the first tag.
+- The release APK is now R8-built. A full `--rerun-tasks` rebuild gave the same APK bytes on this machine; the M8 two-clone compare is not rerun yet.
 
 ### Open for him
 - Invert fill with every layer hidden but Icon lines shows only lone lines (antennas, dots, stubs). The outlines in Invert are the gaps in the fill, not painted lines. Outline presets show full outlines. Pinned by `LinesOnlyTest`. Taste call: keep, or rename the row in Invert, or change what the lines layer means there.
