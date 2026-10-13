@@ -5,6 +5,7 @@ import dev.iconoclast.render.texture.BuiltInBrushes
 import dev.iconoclast.render.texture.TextureStore
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -46,7 +47,9 @@ object ThemeZipExport {
     }
 
     private fun ZipOutputStream.entry(name: String, bytes: ByteArray) {
-        putNextEntry(ZipEntry(name).apply { timeLocal = EPOCH })
+        // setTimeLocal is API 35; the app runs from 33. setTime converts through the default
+        // zone, so the zone's own instant of the local time gives the same DOS time anywhere.
+        putNextEntry(ZipEntry(name).apply { time = EPOCH.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() })
         write(bytes)
         closeEntry()
     }
