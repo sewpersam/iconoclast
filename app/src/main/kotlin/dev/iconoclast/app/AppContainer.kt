@@ -48,10 +48,10 @@ class AppContainer(private val app: Application) {
     val coverage = CoverageStore(File(app.filesDir, "coverage"))
 
     /**
-     * Preview drawing for the editor strip and the home cards: a few threads below the UI's
-     * priority, so a busy preview never takes a frame from scrolling or a drag.
+     * Preview drawing for the editor strip and the home cards: a bounded pool, so previews
+     * never take every core from the UI and its render thread.
      */
-    val previewThreads: CoroutineDispatcher = pool("preview", PREVIEW_THREADS, Process.THREAD_PRIORITY_BACKGROUND)
+    val previewThreads: CoroutineDispatcher = pool("preview", PREVIEW_THREADS, Process.THREAD_PRIORITY_DEFAULT)
 
     /** The editor's big preview: its own thread, so it never waits behind the strip. */
     val heroThread: CoroutineDispatcher = pool("preview-hero", 1, Process.THREAD_PRIORITY_DEFAULT)
@@ -65,8 +65,8 @@ class AppContainer(private val app: Application) {
     private companion object {
         const val TAG = "Iconoclast"
 
-        /** Leaves two cores to the UI and render threads; four at most, as Apply uses. */
-        val PREVIEW_THREADS = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(1, 4)
+        /** Leaves a core to the UI, another to the big preview; two at least, four at most. */
+        val PREVIEW_THREADS = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(2, 4)
 
         fun pool(name: String, threads: Int, priority: Int): CoroutineDispatcher {
             val n = AtomicInteger()

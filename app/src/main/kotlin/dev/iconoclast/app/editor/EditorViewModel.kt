@@ -439,7 +439,8 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         if (byDrawable.keys != ui.overridden) _ui.value = _ui.value.copy(overridden = byDrawable.keys.toSet())
         val resolution = container.settings.resolution.value
         val drawables = ui.items.map { it.drawable }
-        previews.request(PreviewRequest(theme, drawables, onScreen(drawables), byDrawable, resolution))
+        // While a slider moves, only the cells on screen: the drag's frames come sooner.
+        previews.request(PreviewRequest(theme, drawables, onScreen(drawables, if (h.dragging) 0 else MARGIN), byDrawable, resolution))
         val hero = ui.focused?.takeIf { f -> ui.items.any { it.drawable == f } } ?: ui.items.firstOrNull()?.drawable
         if (hero != null) {
             heroPreviews.request(PreviewRequest(theme, listOf(hero), null, byDrawable.filterKeys { it == hero }, resolution))
@@ -447,16 +448,16 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
     }
 
     /**
-     * The strip cells to draw: those on screen and [MARGIN] either side, so a short scroll
+     * The strip cells to draw: those on screen and [margin] either side, so a short scroll
      * finds them ready. Before the strip is laid out, the first screenful.
      */
-    private fun onScreen(drawables: List<Int>): Set<Int> {
+    private fun onScreen(drawables: List<Int>, margin: Int): Set<Int> {
         val seen = visible
         if (seen.isEmpty()) return drawables.take(FIRST_SCREEN).toSet()
         val first = drawables.indexOfFirst { it in seen }
         val last = drawables.indexOfLast { it in seen }
         if (first < 0) return drawables.take(FIRST_SCREEN).toSet()
-        return drawables.subList((first - MARGIN).coerceAtLeast(0), (last + MARGIN + 1).coerceAtMost(drawables.size)).toSet()
+        return drawables.subList((first - margin).coerceAtLeast(0), (last + margin + 1).coerceAtMost(drawables.size)).toSet()
     }
 
     /**
