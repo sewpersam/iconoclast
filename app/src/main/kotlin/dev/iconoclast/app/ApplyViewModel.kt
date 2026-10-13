@@ -117,7 +117,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val resolution = container.settings.resolution.value
         val dir = withContext(Dispatchers.IO) { File(app.cacheDir, "pack").apply { mkdirs() } }
         val built = BuiltPack(dir)
-        val recipe = withContext(Dispatchers.Default) { BuiltPack.key(doc, plan, resolution, template, key.certificate.encoded) }
+        val build = app.packageManager.getPackageInfo(app.packageName, PackageManager.PackageInfoFlags.of(0)).let { "${it.longVersionCode}@${it.lastUpdateTime}" }
+        val recipe = withContext(Dispatchers.Default) { BuiltPack.key(doc, plan, resolution, template, key.certificate.encoded, build) }
         val t1 = SystemClock.elapsedRealtime()
 
         // An Apply that stopped before the install left this same pack: install it as it is.

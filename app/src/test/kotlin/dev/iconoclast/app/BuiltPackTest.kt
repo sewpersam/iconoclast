@@ -18,8 +18,10 @@ class BuiltPackTest {
     private val template = byteArrayOf(1, 2, 3)
     private val cert = byteArrayOf(9)
 
-    private fun key(d: ThemeDocument = doc, p: CoveragePlan = plan, r: OutputResolution = OutputResolution.FULL, t: ByteArray = template, c: ByteArray = cert) =
-        BuiltPack.key(d, p, r, t, c)
+    private fun key(
+        d: ThemeDocument = doc, p: CoveragePlan = plan, r: OutputResolution = OutputResolution.FULL,
+        t: ByteArray = template, c: ByteArray = cert, b: String = "1@100",
+    ) = BuiltPack.key(d, p, r, t, c, b)
 
     @Test
     fun nameIdAndDatesDoNotChangeTheRecipe() {
@@ -36,6 +38,7 @@ class BuiltPackTest {
         assertNotEquals(base, key(r = OutputResolution.COMPACT))
         assertNotEquals(base, key(t = byteArrayOf(1, 2, 4)))
         assertNotEquals(base, key(c = byteArrayOf(8)))
+        assertNotEquals(base, key(b = "1@200"), "an update of the designer draws anew")
     }
 
     @Test
