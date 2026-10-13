@@ -33,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,12 +56,7 @@ private const val LAYERS_TAB = 2
 @Composable
 fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
     val ui by vm.ui.collectAsState()
-    val frame by vm.frame.collectAsState()
-    val hero by vm.hero.collectAsState()
     val snackbar = remember { SnackbarHostState() }
-    // Edit-to-screen latency: logged once the frame showing the new images is drawn.
-    LaunchedEffect(frame) { withFrameNanos {}; vm.shown("grid", frame.theme, frame.complete) }
-    LaunchedEffect(hero) { withFrameNanos {}; vm.shown("hero", hero.theme, hero.complete) }
     // The process may be killed any time after the activity stops: save what is pending.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.flush() }
     LaunchedEffect(ui.message) {
@@ -90,14 +84,14 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
             when {
                 ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 ui.missing -> Text("This theme no longer exists.", Modifier.align(Alignment.Center).padding(24.dp))
-                else -> Editor(vm, ui, frame.images, hero.images)
+                else -> Editor(vm, ui)
             }
         }
     }
 }
 
 @Composable
-private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, ImageBitmap>, heroImages: Map<Int, ImageBitmap>) {
+private fun Editor(vm: EditorViewModel, ui: EditorUi) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val textures = TextureActions({ ui.selectedLayer?.let { vm.chooseTexture(TextureTarget.Source(it)) } }, vm::textureFile)
     val stack = StackActions(
@@ -112,7 +106,7 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, ImageBitm
         remove = vm::removeLayer,
     )
     Column(Modifier.fillMaxSize()) {
-        PreviewPanel(ui.items, images, ui.focused, heroImages, ui.overridden, vm::openOverride, vm::setVisible)
+        LivePreview(vm, ui)
         if (ui.importingTexture) LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = "Importing texture" })
         PrimaryTabRow(selectedTabIndex = tab) {
             TABS.forEachIndexed { i, name ->
@@ -138,7 +132,26 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, ImageBitm
         AddLayerSheet(onDismiss = { vm.showAddLayer(false) }, onAdd = vm::addLayer, onTexture = { vm.chooseTexture(TextureTarget.NewLayer) })
     }
     if (ui.addingEffect) AddEffectSheet(onDismiss = { vm.showAddEffect(false) }, onAdd = vm::addEffect)
-    ui.overriding?.let { item -> OverrideSheet(vm, ui, item, images[item.drawable]) }
+    ui.overriding?.let { item -> LiveOverrideSheet(vm, ui, item) }
     TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
 }
 
+/**
+ * The preview panel, reading the preview images itself: a new image recomposes the panel
+ * only, never the controls below it.
+ */
+@Composable
+private fun LivePreview(vm: EditorViewModel, ui: EditorUi) {
+    val frame by vm.frame.collectAsState()
+    val hero by vm.hero.collectAsState()
+    // Edit-to-screen latency: logged once the frame showing the new images is drawn.
+    LaunchedEffect(frame) { withFrameNanos {}; vm.shown("grid", frame.theme, frame.complete) }
+    LaunchedEffect(hero) { withFrameNanos {}; vm.shown("hero", hero.theme, hero.complete) }
+    PreviewPanel(ui.items, frame.images, ui.focused, hero.images, ui.overridden, vm::openOverride, vm::setVisible)
+}
+
+@Composable
+private fun LiveOverrideSheet(vm: EditorViewModel, ui: EditorUi, item: PreviewItem) {
+    val frame by vm.frame.collectAsState()
+    OverrideSheet(vm, ui, item, frame.images[item.drawable])
+}
