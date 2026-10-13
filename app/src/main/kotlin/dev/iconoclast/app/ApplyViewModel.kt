@@ -106,31 +106,42 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             "Nothing was installed: this theme uses a texture that is not on this phone. " +
                 "Import the theme's .zip again, or remove the texture layer in the editor.",
         )
+        // Before drawing anything: without the install permission the pack could not be installed.
+        if (!app.packageManager.canRequestPackageInstalls()) return needsPermission()
         val components = withContext(Dispatchers.IO) { InstalledApps.launchableComponents(app) }
         val plan = CoverageMatcher.match(components, PackBuilder.slotCount(template), icons::resolve)
-        val t1 = SystemClock.elapsedRealtime()
-
-        _state.value = ApplyState.Working("Drawing icons", 0, plan.drawables.size + 1)
-        val dir = withContext(Dispatchers.IO) { File(app.cacheDir, "pack").apply { mkdirs() } }
-        val unsigned = dir.resolve("unsigned.apk")
-        val look = { name: String -> SlotLook(doc.effectiveGeometry(name), doc.effectiveTheme(name)) }
-        val resolution = container.settings.resolution.value
-        PackBuilder(icons, container.renderer).build(template, plan, look, dir.resolve("icons"), unsigned, resolution) { done, total ->
-            _state.value = ApplyState.Working("Drawing icons", done, total)
-        }
-        val t2 = SystemClock.elapsedRealtime()
-
-        _state.value = ApplyState.Working("Signing the pack")
         val key = withContext(Dispatchers.IO) { container.packKey.loadOrCreate() }
         // Spec 6.5: a pack from an earlier install of the designer has another key. Say so
-        // before the system offers an update that can only fail.
+        // before drawing, and before the system offers an update that can only fail.
         if (installedPackSigner()?.let { !it.contentEquals(key.certificate.encoded) } == true) return mismatch()
-        val apk = withContext(Dispatchers.IO) {
-            dir.resolve("pack.apk").also { PackSigner.sign(unsigned, key, it); unsigned.delete() }
+        val resolution = container.settings.resolution.value
+        val dir = withContext(Dispatchers.IO) { File(app.cacheDir, "pack").apply { mkdirs() } }
+        val built = BuiltPack(dir)
+        val recipe = withContext(Dispatchers.Default) { BuiltPack.key(doc, plan, resolution, template, key.certificate.encoded) }
+        val t1 = SystemClock.elapsedRealtime()
+
+        // An Apply that stopped before the install left this same pack: install it as it is.
+        var drawn = false
+        val apk = withContext(Dispatchers.IO) { built.find(recipe) } ?: run {
+            drawn = true
+            _state.value = ApplyState.Working("Drawing icons", 0, plan.drawables.size + 1)
+            val unsigned = dir.resolve("unsigned.apk")
+            val look = { name: String -> SlotLook(doc.effectiveGeometry(name), doc.effectiveTheme(name)) }
+            PackBuilder(icons, container.renderer).build(template, plan, look, dir.resolve("icons"), unsigned, resolution) { done, total ->
+                _state.value = ApplyState.Working("Drawing icons", done, total)
+            }
+            _state.value = ApplyState.Working("Signing the pack")
+            withContext(Dispatchers.IO) {
+                val signed = dir.resolve("pack.apk")
+                PackSigner.sign(unsigned, key, signed)
+                unsigned.delete()
+                built.keep(recipe, signed)
+            }
         }
         val t3 = SystemClock.elapsedRealtime()
         Log.i(TAG, "apply: ${resolution.px} px, ${components.size} activities, ${plan.items.size} themed, ${plan.drawables.size} slots; " +
-            "load ${t1 - t0} ms, render+rewrite ${t2 - t1} ms, sign ${t3 - t2} ms, ${apk.length()} bytes")
+            "load ${t1 - t0} ms, " +
+            (if (drawn) "render+rewrite+sign ${t3 - t1} ms" else "built pack reused in ${t3 - t1} ms") + ", ${apk.length()} bytes")
 
         val firstInstall = !isPackInstalled()
         _state.value = ApplyState.Working("Installing")
@@ -139,14 +150,16 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         if (result == InstallResult.Success) recordCoverage(doc, components)
         return when (result) {
             InstallResult.Success -> ApplyState.Installed(firstInstall, currentLauncher(), plan.items.size, plan.unmatched.size)
-            InstallResult.NeedsPermission -> ApplyState.Problem(
-                "To install the pack, allow $appName to install apps. Turn on the switch, come back, and tap Apply again.",
-                Fix.GRANT_INSTALL_PERMISSION,
-            )
+            InstallResult.NeedsPermission -> needsPermission()
             is InstallResult.SignatureMismatch -> mismatch()
             is InstallResult.Failed -> ApplyState.Problem(result.message)
         }
     }
+
+    private fun needsPermission() = ApplyState.Problem(
+        "To install the pack, allow $appName to install apps. Turn on the switch, come back, and tap Apply again.",
+        Fix.GRANT_INSTALL_PERMISSION,
+    )
 
     /** The pack is installed whatever happens here; a failed write only loses the next diff. */
     private suspend fun recordCoverage(doc: ThemeDocument, components: Set<String>) = withContext(Dispatchers.IO) {
