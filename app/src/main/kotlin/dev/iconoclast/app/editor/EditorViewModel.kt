@@ -113,20 +113,16 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
     private var overrides: Map<String, IconOverride> = emptyMap()
 
 
-    private val renderThreads = Dispatchers.Default.limitedParallelism(RENDER_THREADS)
-    /** The big preview's own thread: it never waits behind the strip. */
-    private val heroThread = Dispatchers.Default.limitedParallelism(1)
-
     private val previews = PreviewRenderer(
         viewModelScope,
-        renderThreads,
+        container.previewThreads,
         SIZE,
         render = { d, look -> draw(d, look, SIZE) },
         log = { Log.i(TAG, it) },
     )
 
     /** The big preview: one icon at [HERO_SIZE], its own single-flight pass beside the grid's. */
-    private val heroPreviews = PreviewRenderer(viewModelScope, heroThread, HERO_SIZE, render = { d, look -> draw(d, look, HERO_SIZE) }, cacheEntries = 32)
+    private val heroPreviews = PreviewRenderer(viewModelScope, container.heroThread, HERO_SIZE, render = { d, look -> draw(d, look, HERO_SIZE) }, cacheEntries = 32)
 
     /** The preview images by drawable index. */
     val frame: StateFlow<PreviewFrame<ImageBitmap>> = previews.frame
@@ -550,7 +546,6 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         const val SIZE = 128
         /** The big preview: 256 px, close to one to one at its 104 dp on a 420 dpi screen. */
         const val HERO_SIZE = 256
-        const val RENDER_THREADS = 4
         const val SAVE_DELAY_MS = 300L
         const val SEARCH_LIMIT = 30
         /** Strip cells drawn beyond each side of the screen: two columns of three. */

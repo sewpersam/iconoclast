@@ -1,6 +1,7 @@
 package dev.iconoclast.app
 
 import android.app.Application
+import android.os.Process
 import android.util.Log
 import dev.iconoclast.app.coverage.CoverageStore
 import dev.iconoclast.app.settings.AppSettings
@@ -10,14 +11,18 @@ import dev.iconoclast.app.theme.ThemeRepository
 import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.PackKeyStore
 import dev.iconoclast.render.IconRenderer
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /** The app-scoped objects, created once in [IconoclastApp] and passed down. No DI framework. */
 class AppContainer(private val app: Application) {
@@ -42,6 +47,15 @@ class AppContainer(private val app: Application) {
     /** What the last successful Apply installed, for the coverage diff on open. */
     val coverage = CoverageStore(File(app.filesDir, "coverage"))
 
+    /**
+     * Preview drawing for the editor strip and the home cards: a few threads below the UI's
+     * priority, so a busy preview never takes a frame from scrolling or a drag.
+     */
+    val previewThreads: CoroutineDispatcher = pool("preview", PREVIEW_THREADS, Process.THREAD_PRIORITY_BACKGROUND)
+
+    /** The editor's big preview: its own thread, so it never waits behind the strip. */
+    val heroThread: CoroutineDispatcher = pool("preview-hero", 1, Process.THREAD_PRIORITY_DEFAULT)
+
     /** The output resolution, read by Apply and the previews. */
     val settings = AppSettings(app)
 
@@ -50,6 +64,16 @@ class AppContainer(private val app: Application) {
 
     private companion object {
         const val TAG = "Iconoclast"
+
+        /** Leaves two cores to the UI and render threads; four at most, as Apply uses. */
+        val PREVIEW_THREADS = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(1, 4)
+
+        fun pool(name: String, threads: Int, priority: Int): CoroutineDispatcher {
+            val n = AtomicInteger()
+            return Executors.newFixedThreadPool(threads) { r ->
+                Thread({ Process.setThreadPriority(priority); r.run() }, "$name-${n.incrementAndGet()}").apply { isDaemon = true }
+            }.asCoroutineDispatcher()
+        }
     }
 
     init {

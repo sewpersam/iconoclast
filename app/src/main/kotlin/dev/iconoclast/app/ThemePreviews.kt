@@ -8,7 +8,6 @@ import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.app.theme.applyTo
 import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.render.Theme
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** One preview icon. [label] is its content description. */
@@ -36,7 +35,7 @@ class ThemePreviews(private val container: AppContainer) {
     suspend fun icons(doc: ThemeDocument): List<PreviewIcon> {
         val resolution = container.settings.resolution.value
         val key = Key(doc.theme, doc.overrides.filterKeys { it in SAMPLES }, resolution)
-        return cache.get(key) ?: withContext(Dispatchers.Default) {
+        return cache.get(key) ?: withContext(container.previewThreads) {
             val source = container.iconSource()
             val shown = TexturePresence.render(container.textures.store, doc.theme) { t ->
                 SAMPLES.mapNotNull { name ->
