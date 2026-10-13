@@ -1,5 +1,7 @@
 package dev.iconoclast.pack
 
+import android.annotation.SuppressLint
+import android.annotation.TargetApi
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -50,7 +52,7 @@ class PackInstallSession(private val context: Context) {
                     // API 36 emulator. From API 34 update ownership is enforced, so the designer
                     // must also own the pack's updates; see docs/verification/m3.md.
                     setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) setRequestUpdateOwnership(true)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) requestUpdateOwnership()
                 }
                 val id = installer.createSession(params)
                 try {
@@ -86,6 +88,11 @@ class PackInstallSession(private val context: Context) {
             context.unregisterReceiver(receiver)
         }
     }
+
+    /** The app's manifest declares ENFORCE_UPDATE_OWNERSHIP; this library's has none. */
+    @SuppressLint("MissingPermission")
+    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private fun PackageInstaller.SessionParams.requestUpdateOwnership() = setRequestUpdateOwnership(true)
 
     private fun result(status: Int, message: String?): InstallResult = when (status) {
         PackageInstaller.STATUS_SUCCESS -> InstallResult.Success
