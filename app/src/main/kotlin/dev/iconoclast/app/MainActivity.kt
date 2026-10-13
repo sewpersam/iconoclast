@@ -5,12 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.LaunchedEffect
+import dev.iconoclast.app.ui.theme.IconoclastTheme
 import kotlinx.coroutines.flow.merge
 
 class MainActivity : ComponentActivity() {
@@ -21,8 +19,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
-                Surface {
+            IconoclastTheme {
+                Surface(color = MaterialTheme.colorScheme.background) {
                     LaunchedEffect(Unit) { merge(home.intents, apply.intents).collect { startActivity(it) } }
                     IconoclastNavHost(home, apply)
                 }
