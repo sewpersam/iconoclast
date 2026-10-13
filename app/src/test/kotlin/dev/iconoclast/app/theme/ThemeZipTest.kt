@@ -55,6 +55,21 @@ class ThemeZipTest {
         }
     }
 
+    /** A hidden paint layer comes back hidden, its opacity kept, and still paints nothing. */
+    @Test
+    fun hiddenLayerRoundTrips() {
+        val base = GoldenSet.STARTERS.getValue("preset_jade")
+        val hidden = base.copy(layers = base.layers + PaintLayer("x", Paint.Solid(0xFFFF0000.toInt()), opacity = 0.6f, visible = false))
+        val original = ThemeDocument(id = "t-hidden", name = "Hidden", created = 1, modified = 2, theme = hidden)
+        val zip = ThemeZipExport.write(original, sourceStore())
+        val json = ThemeZipImport.read(zip) { false }.json
+        assertTrue("\"visible\": false" in json)
+        val imported = migrate(json)
+        assertEquals(original, imported)
+        val r = IconRenderer()
+        assertContentEquals(r.renderPng(GoldenSet.SAMPLES[0], bundle.icon(0), base, 128), r.renderPng(GoldenSet.SAMPLES[0], bundle.icon(0), imported.theme, 128))
+    }
+
     @Test
     fun exportIsDeterministicAndHoldsOnlyWhatTheThemeUses() {
         val d = doc(GoldenSet.LOOKS.keys.first())

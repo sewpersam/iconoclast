@@ -159,6 +159,8 @@ private sealed interface LayerJson {
         val opacity: JFloat,
         val mapping: MappingJson,
         val matte: MatteJson?,
+        /** Schema 6. */
+        val visible: Boolean,
     ) : LayerJson
 
     @Serializable @SerialName("effects")
@@ -301,6 +303,7 @@ private fun Layer.toJson(): LayerJson = when (this) {
         id, source, clip, clipInverse, blend, opacity,
         mapping.run { MappingJson(mode, scale, rotation, lockOffset) },
         matte?.run { MatteJson(mode, black, white, threshold, invert, feather) },
+        visible,
     )
 }
 
@@ -311,6 +314,7 @@ private fun LayerJson.toLayer(): Layer = when (this) {
         id, source, clip, clipInverse, blend, opacity,
         mapping.run { Mapping(mode, scale, rotation, lockOffset) },
         matte?.run { Matte(mode, black, white, threshold, invert, feather) },
+        visible,
     )
 }
 

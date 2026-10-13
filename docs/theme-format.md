@@ -9,7 +9,7 @@ only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/
 
 ```json
 {
-    "schemaVersion": 5,
+    "schemaVersion": 6,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -34,7 +34,7 @@ only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/
               "source": { "type": "solid", "color": "#FF000000" },
               "clip": "BACKGROUND", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
               "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "lockOffset": false },
-              "matte": null },
+              "matte": null, "visible": true },
             { "type": "effects", "id": "effects" },
             { "type": "effect", "id": "streaks", "enabled": true, "blend": "NORMAL", "opacity": 0.35,
               "effect": { "type": "streaks", "angle": 300.0, "length": 0.35, "decay": "EXPONENTIAL",
@@ -45,12 +45,12 @@ only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/
               "source": { "type": "solid", "color": "#FF00A86B" },
               "clip": "ICON_FILL", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
               "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "lockOffset": false },
-              "matte": null },
+              "matte": null, "visible": true },
             { "type": "paint", "id": "icon-lines",
               "source": { "type": "solid", "color": "#FF00A86B" },
               "clip": "ICON_LINES", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
               "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "lockOffset": false },
-              "matte": null }
+              "matte": null, "visible": true }
         ]
     },
     "overrides": {
@@ -110,9 +110,10 @@ it). Each effect is its own `effect` layer, below.
 | `opacity` | 0.0 to 1.0. |
 | `mapping` | Texture and noise placement; ignored by solid and gradient sources. `mode`: `FIT` (all of the texture shows), `FILL` (covers the canvas, crops), `TILE` (short side spans the canvas, repeats). `scale` 0.25 to 4.0, above 1 zooms in. `rotation` -180.0 to 180.0 degrees about the canvas centre. `lockOffset`: `false` gives each icon its own patch, seeded by its drawable name; `true` gives every icon the centred patch. The per-icon offset: `TILE` translates the texture plane by the offset times the texture size, wrapped; `FIT` and `FILL` move the canvas window within the room between it and the texture, `FILL` only where the texture is larger so the patch never leaves it, `FIT` either way so a smaller texture moves inside the canvas and stays whole. A square texture at scale 1 under `FILL` leaves no room, so the editor starts every new texture layer at `scale` 2.0. Noise shifts its field by the offset. |
 | `matte` | `null`, or mask adjustments that turn the source's luminance into alpha: `{ "mode", "black", "white", "threshold", "invert", "feather" }`. `mode` `LEVELS` maps `black` to 0 and `white` to 1 (both 0.0 to 1.0, black below white); `THRESHOLD` gives 1 where luminance reaches `threshold` (0.0 to 1.0). `invert` flips it. `feather` 0.0 to 0.05 of the canvas is a Gaussian blur radius. Luminance is read before any gradient map: `0.3 r + 0.59 g + 0.11 b` of the premultiplied texels for a texture (transparent reads as black), the raw noise value for noise, the colour's for solids and gradients. So a black-and-white texture with single-colour `stops` paints that colour wherever the texture is light. |
+| `visible` | Schema 6. `false` paints nothing, whatever the opacity: the editor's eye. An effect linked to the layer still reads its source. |
 
 Per pixel, coverage = clip x matte x opacity, and the source scaled by the
-coverage is blended into the stack.
+coverage is blended into the stack. A layer that is not `visible` is skipped.
 
 ### Overrides (schema 4)
 
@@ -365,6 +366,15 @@ byte. The Jade starter moved to brush strokes in the same change; its schema 3
 file stays as a fixture and migrates to `GoldenSet.JADE_M6`. Jade and the Brush
 A, B and C starters ship at schema 5; Neon and Plain stay at their old versions.
 
+Version 5 had no layer eye: the editor hid a paint layer by setting its
+opacity to 0, which a restart could not undo. `v5ToV6` (`MigrationV5ToV6.kt`)
+writes `"visible": true` on every paint layer and sets `schemaVersion` to 6;
+opacity is untouched. A version 5 paint layer that already has `visible` is
+damaged. `ThemeMigrationTest` migrates the shipped Jade at schema 5
+(`app/src/test/resources/themes/v5-jade.json`), requires the JSON to change
+only in its version and those flags, and renders the `preset_jade` goldens
+byte for byte. The preset assets stay at schema 5 and migrate on every seed.
+
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture
 and a test, and update this file.
@@ -399,7 +409,7 @@ and a test, and update this file.
 
 | Entry | When | Content |
 |---|---|---|
-| `theme.json` | always, first | The document, schema 5. |
+| `theme.json` | always, first | The document, schema 6. |
 | `textures/<sha256>.png` | one per non-built-in hash in `Theme.textureHashes()` | The canonical texture file. |
 | `key/pack.p12` | only with the key | The signing key's PKCS12 store, the stored file's bytes. |
 | `key/password` | only with the key | Its password, UTF-8, the stored file's bytes. |

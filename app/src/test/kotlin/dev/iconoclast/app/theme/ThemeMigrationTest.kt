@@ -7,6 +7,7 @@ import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
 import dev.iconoclast.render.LineJoin
 import dev.iconoclast.render.Paint
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.ShapeParams
 import dev.iconoclast.render.Theme
 import kotlin.test.Test
@@ -19,6 +20,7 @@ import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OUTPUT_SIZE
 import dev.iconoclast.render.format.IconBundle
 import java.io.File
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.nio.ByteBuffer
@@ -141,8 +143,8 @@ class ThemeMigrationTest {
         val v4 = fixture("v4-jade.json")
         assertTrue("\"schemaVersion\": 4" in v4)
         val migrated = migrate(v4, now = { error("no clock") }, newId = { error("no id") })
-        assertEquals(5, migrated.schemaVersion)
-        assertEquals(withOverrides(v4), json(migrated.toJson()), "only the version changes")
+        assertEquals(ThemeDocument.CURRENT_SCHEMA, migrated.schemaVersion)
+        assertEquals(withOverrides(v4), json(migrated.toJson()), "only the version and the eyes change")
         assertEquals(GoldenSet.JADE_M6, migrated.theme)
         val renderer = IconRenderer()
         for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
@@ -151,10 +153,51 @@ class ThemeMigrationTest {
         }
     }
 
+    /**
+     * The schema 6 migration test: the shipped Jade at schema 5, kept as a fixture, gains
+     * `"visible": true` on each paint layer and nothing else, needs no clock and no id, keeps
+     * every opacity, and renders the Jade starter goldens byte for byte.
+     */
+    @Test
+    fun version5GainsVisibleLayersAndRendersTheSame() {
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
+        val v5 = fixture("v5-jade.json")
+        assertTrue("\"schemaVersion\": 5" in v5)
+        assertTrue("\"visible\"" !in v5)
+        val migrated = migrate(v5, now = { error("no clock") }, newId = { error("no id") })
+        assertEquals(6, migrated.schemaVersion)
+        val old = json(v5) as JsonObject
+        assertEquals(JsonObject(withVisible(old) + ("schemaVersion" to JsonPrimitive(6))), json(migrated.toJson()))
+        assertTrue(migrated.theme.layers.filterIsInstance<PaintLayer>().all { it.visible })
+        assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), migrated.theme)
+        val renderer = IconRenderer()
+        for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
+            val png = renderer.renderPng(name, bundle.icon(i), migrated.theme, OUTPUT_SIZE)
+            assertContentEquals(File(goldens, "preset_jade/$name.png").readBytes(), png, "preset_jade/$name")
+        }
+    }
+
+    @Test
+    fun version5WithVisibleIsDamaged() {
+        val v5 = fixture("v5-jade.json").replaceFirst("\"type\": \"paint\",", "\"type\": \"paint\", \"visible\": true,")
+        assertTrue("\"visible\"" in v5)
+        assertFailsWith<ThemeFormatException> { migrate(v5) }
+    }
+
+    @Test
+    fun aHiddenLayerKeepsItsOpacityThroughASave() {
+        val base = Theme()
+        val hidden = base.copy(layers = base.layers + PaintLayer("x", Paint.Solid(-1), opacity = 0.3f, visible = false))
+        val doc = ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = hidden)
+        assertTrue("\"visible\": false" in doc.toJson())
+        assertEquals(doc, migrate(doc.toJson(), now = { error("no clock") }, newId = { error("no id") }))
+    }
+
     @Test
     fun version4WithBrushStrokesIsDamaged() {
         val current = ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = GoldenSet.STARTERS.getValue("preset_jade")).toJson()
-        val v4 = current.replace("\"schemaVersion\": 5", "\"schemaVersion\": 4")
+        val v4 = current.replace("\"schemaVersion\": ${ThemeDocument.CURRENT_SCHEMA}", "\"schemaVersion\": 4")
         assertTrue("brushStrokes" in v4)
         assertFailsWith<ThemeFormatException> { migrate(v4) }
         assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), migrate(current).theme)
@@ -168,10 +211,23 @@ class ThemeMigrationTest {
 
     private fun json(text: String) = ThemeDocument.JSON.parseToJsonElement(text)
 
-    /** [old] at the current version with an empty overrides map: what migration must make of it. */
+    /**
+     * [old] at the current version with an empty overrides map and every paint layer
+     * visible: what migration must make of it.
+     */
     private fun withOverrides(old: String): JsonObject {
         val o = json(old) as JsonObject
-        return JsonObject(o + mapOf("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA), "overrides" to JsonObject(emptyMap())))
+        return JsonObject(withVisible(o) + mapOf("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA), "overrides" to JsonObject(emptyMap())))
+    }
+
+    /** [doc] with `"visible": true` on each paint layer, the schema 6 step. */
+    private fun withVisible(doc: JsonObject): JsonObject {
+        val theme = doc["theme"] as JsonObject
+        val layers = (theme["layers"] as JsonArray).map { l ->
+            l as JsonObject
+            if ((l["type"] as JsonPrimitive).content == "paint") JsonObject(l + ("visible" to JsonPrimitive(true))) else l
+        }
+        return JsonObject(doc + ("theme" to JsonObject(theme + ("layers" to JsonArray(layers)))))
     }
 
     @Test

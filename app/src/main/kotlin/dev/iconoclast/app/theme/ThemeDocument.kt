@@ -30,7 +30,7 @@ data class ThemeDocument(
     fun toJson(): String = JSON.encodeToString(serializer(), copy(schemaVersion = CURRENT_SCHEMA, overrides = overrides.toSortedMap()))
 
     companion object {
-        const val CURRENT_SCHEMA = 5
+        const val CURRENT_SCHEMA = 6
 
         /** Strict: unknown keys fail, every field is written. */
         val JSON = Json {
