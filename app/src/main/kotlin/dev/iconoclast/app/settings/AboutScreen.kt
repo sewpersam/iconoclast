@@ -23,6 +23,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -70,7 +71,7 @@ fun AboutScreen(settings: AppSettings, modifier: Modifier = Modifier) {
             }
         }
     }
-    val app = context.getString(R.string.app_name)
+    val app = stringResource(R.string.app_name)
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Header("Output icon resolution")

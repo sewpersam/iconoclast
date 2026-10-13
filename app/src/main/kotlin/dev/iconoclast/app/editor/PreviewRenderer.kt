@@ -16,9 +16,9 @@ import kotlinx.coroutines.launch
 
 /**
  * What to show: [theme] over [drawables], in grid order. [first], when set, limits this
- * pass to those drawables, the visible ones during a drag; the rest keep their last image
- * until a full request. [overrides] are the per-icon overrides by drawable, and
- * [resolution] the pack size the previews stand for, which sets their grain cells.
+ * pass to those drawables, the ones on screen; the rest keep their last image until they
+ * are asked for. [overrides] are the per-icon overrides by drawable, and [resolution] the
+ * pack size the previews stand for, which sets their grain cells.
  */
 data class PreviewRequest(
     val theme: Theme,
@@ -31,7 +31,7 @@ data class PreviewRequest(
 /** One icon's look: the theme, its override if any, and the resolution. Part of the cache key. */
 data class PreviewLook(val theme: Theme, val override: IconOverride? = null, val resolution: OutputResolution = OutputResolution.FULL)
 
-/** The images on screen. [complete] when every drawable shows [theme]. */
+/** The images on screen. [complete] when every drawable the pass was asked for shows [theme]. */
 class PreviewFrame<T>(val theme: Theme?, val images: Map<Int, T>, val complete: Boolean)
 
 /**
@@ -96,17 +96,14 @@ class PreviewRenderer<T : Any>(
             return
         }
         val shown = _frame.value.images
-        var complete = true
         val images = synchronized(cache) {
-            r.drawables.mapNotNull { d ->
-                val img = cache[key(d)] ?: shown[d].also { complete = false }
-                img?.let { d to it }
-            }.toMap()
+            r.drawables.mapNotNull { d -> (cache[key(d)] ?: shown[d])?.let { d to it } }.toMap()
         }
+        val complete = synchronized(cache) { wanted.all { cache[key(it)] != null } }
         passes++
         _frame.value = PreviewFrame(r.theme, images, complete)
         val ms = (System.nanoTime() - t0) / 1_000_000
         log("preview pass: ${missing.size} drawn, ${wanted.size - missing.size} cached, ${r.drawables.size} shown at $size px in $ms ms" +
-            if (r.first != null) ", visible first" else "")
+            if (r.first != null) ", on screen only" else "")
     }
 }

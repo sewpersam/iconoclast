@@ -47,7 +47,7 @@ class PreviewRendererTest {
     }
 
     @Test
-    fun visibleFirstKeepsTheOtherImagesUntilAFullPass() = runBlocking {
+    fun onScreenOnlyKeepsTheOtherImagesUntilAsked() = runBlocking {
         val scope = CoroutineScope(Dispatchers.Default)
         val calls = Collections.synchronizedList(mutableListOf<String>())
         val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, l -> val t = l.theme; "$d@${t.shape.strokeWeight}".also { calls += it } })
@@ -56,9 +56,10 @@ class PreviewRendererTest {
         r.request(PreviewRequest(weight(2f), listOf(0, 1, 2), first = setOf(1)))
         val partial = withTimeout(5000) { r.frame.first { it.theme == weight(2f) } }
         assertEquals(mapOf(0 to "0@1.0", 1 to "1@2.0", 2 to "2@1.0"), partial.images)
-        assertTrue(!partial.complete)
+        // Complete: every drawable asked for shows the theme; the others are not on screen.
+        assertTrue(partial.complete)
         r.request(PreviewRequest(weight(2f), listOf(0, 1, 2)))
-        val full = withTimeout(5000) { r.frame.first { it.theme == weight(2f) && it.complete } }
+        val full = withTimeout(5000) { r.frame.first { it.theme == weight(2f) && it.complete && it.images[0] == "0@2.0" } }
         assertEquals(mapOf(0 to "0@2.0", 1 to "1@2.0", 2 to "2@2.0"), full.images)
         // 1 at weight 2 came from the cache.
         assertEquals(1, calls.count { it == "1@2.0" })

@@ -229,3 +229,13 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Ruling: the SUSS list is fetched, not committed, since it is AGPL-3.0; the Gradle check carries ten group prefixes from it and the script runs the full list — cost if wrong: a new non-free group passes the Gradle check until the script is run.
 - Ruling: "Make a new key" offered beside restore, so a phone without a backup is not stuck; it sets the damaged files aside and the existing spec 6.5 mismatch flow follows — cost if wrong: one button removed.
 - Ruling: shallow submodule clone for the offline and reproducibility proofs, since the full Arcticons history is 4.1 GB on tmpfs; the checked-out tree is identical — cost if wrong: none to the result, the pinned commit is what builds.
+
+## Perf pass (2026-10-13)
+
+### Deferred
+- Startup reads about 20 ms of disk on the main thread: `AppContainer` dirs and `AppSettings` prefs, StrictMode in debug builds. Minor.
+- The renderer allocates fresh float buffers per layer; GC ran 0.8 s of 3 s during a drag trace before the on-screen-only change. Buffer reuse would cut it, bytes unchanged. Not needed for the 16 ms drag measured after.
+- The release APK is now R8-built. A full `--rerun-tasks` rebuild gave the same APK bytes on this machine; the M8 two-clone compare is not rerun yet.
+
+### Open for him
+- Invert fill with every layer hidden but Icon lines shows only lone lines (antennas, dots, stubs). The outlines in Invert are the gaps in the fill, not painted lines. Outline presets show full outlines. Pinned by `LinesOnlyTest`. Taste call: keep, or rename the row in Invert, or change what the lines layer means there.

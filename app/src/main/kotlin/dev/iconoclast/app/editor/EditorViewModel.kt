@@ -6,8 +6,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -19,11 +17,9 @@ import dev.iconoclast.app.texture.TextureImport
 import dev.iconoclast.app.texture.TextureImportException
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.IconOverride
-import dev.iconoclast.app.theme.Presets
 import dev.iconoclast.app.theme.applyTo
 import dev.iconoclast.render.TextureOffset
 import kotlinx.coroutines.CoroutineStart
-import dev.iconoclast.app.theme.migrate
 import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.CoverageMatcher
 import dev.iconoclast.render.Effect
@@ -42,8 +38,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
-
-enum class PreviewSource { INSTALLED, SAMPLES }
 
 /** Where a chosen texture goes. */
 sealed interface TextureTarget {
@@ -68,8 +62,7 @@ data class EditorUi(
     val theme: Theme = Theme(),
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
-    val comparing: Boolean = false,
-    val source: PreviewSource = PreviewSource.INSTALLED,
+    /** The user's apps that Arcticons covers; the sample set when none is installed. */
     val items: List<PreviewItem> = emptyList(),
     val message: String? = null,
     /** The snackbar offers Undo for [message]. */
@@ -98,7 +91,7 @@ data class EditorUi(
  * calls [commit].
  */
 @OptIn(FlowPreview::class)
-class EditorViewModel(app: Application, private val saved: SavedStateHandle, private val id: String) : AndroidViewModel(app) {
+class EditorViewModel(app: Application, private val id: String) : AndroidViewModel(app) {
     private val container = app.container
     private val repo = container.themes
 
@@ -107,10 +100,11 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     private var history: EditorHistory? = null
     private var source: IconSource? = null
-    private var plain: Theme? = null
-    private var installed: List<PreviewItem> = emptyList()
-    private var samples: List<PreviewItem> = emptyList()
+    /** Drawable index by drawable name, for the preview items: overrides are keyed by name. */
+    private var itemByName: Map<String, Int> = emptyMap()
+    /** The strip cells on screen. Only they, and the big one, are drawn. */
     private var visible: Set<Int> = emptySet()
+    private val visibleChanges = MutableStateFlow<Set<Int>>(emptySet())
     private var reportedAbsent: Set<String> = emptySet()
     /** History depth and theme right after the last layer removal, for its snackbar Undo. */
     private var removal: EditorHistory.Mark? = null
@@ -118,18 +112,17 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     /** The overrides as shown; each change is written through the repository at once. */
     private var overrides: Map<String, IconOverride> = emptyMap()
 
-    private val renderThreads = Dispatchers.Default.limitedParallelism(RENDER_THREADS)
 
     private val previews = PreviewRenderer(
         viewModelScope,
-        renderThreads,
+        container.previewThreads,
         SIZE,
         render = { d, look -> draw(d, look, SIZE) },
         log = { Log.i(TAG, it) },
     )
 
     /** The big preview: one icon at [HERO_SIZE], its own single-flight pass beside the grid's. */
-    private val heroPreviews = PreviewRenderer(viewModelScope, renderThreads, HERO_SIZE, render = { d, look -> draw(d, look, HERO_SIZE) }, cacheEntries = 32)
+    private val heroPreviews = PreviewRenderer(viewModelScope, container.heroThread, HERO_SIZE, render = { d, look -> draw(d, look, HERO_SIZE) }, cacheEntries = 32)
 
     /** The preview images by drawable index. */
     val frame: StateFlow<PreviewFrame<ImageBitmap>> = previews.frame
@@ -137,14 +130,35 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     /** The big preview's image, by drawable index. */
     val hero: StateFlow<PreviewFrame<ImageBitmap>> = heroPreviews.frame
 
+    /** When the newest edit was made, or the editor opened, and which of its previews were logged shown: 1 hero, 2 grid. */
+    private var editAt = 0L
+    private var shownLogged = 0
+
+    /**
+     * The screen drew [which] preview frame of [theme]. Logs, once per edit, how long after
+     * the edit the hero and then the complete grid reached the screen.
+     */
+    fun shown(which: String, theme: Theme?, complete: Boolean) {
+        val h = history ?: return
+        if (editAt == 0L || theme != h.theme) return
+        val bit = if (which == "hero") 1 else 2
+        if (which != "hero" && !complete) return
+        if (shownLogged and bit != 0) return
+        shownLogged = shownLogged or bit
+        Log.i(PERF_TAG, "$which shown ${(System.nanoTime() - editAt) / 1_000_000} ms after the edit or open")
+    }
+
     /** The newest theme not yet saved. */
     private val pending = MutableStateFlow<Theme?>(null)
 
     init {
+        editAt = System.nanoTime()
         viewModelScope.launch { load() }
         viewModelScope.launch { pending.filterNotNull().debounce(SAVE_DELAY_MS).collect { save(it) } }
         // The resolution setting sets the previews' grain cells.
         viewModelScope.launch { container.settings.resolution.collect { refresh() } }
+        // Strip cells scrolling into view are drawn as they arrive.
+        viewModelScope.launch { visibleChanges.collect { refresh() } }
     }
 
     private suspend fun load() {
@@ -161,17 +175,16 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         val app = getApplication<Application>()
         val icons = container.iconSource()
         source = icons
-        plain = withContext(Dispatchers.IO) { migrate(Presets.read(app.assets).first()).theme }
-        samples = SampleIcons.NAMES.mapNotNull { name -> icons.indexOf(name).takeIf { it >= 0 }?.let { PreviewItem(it, name.replace('_', ' ')) } }
-        installed = withContext(Dispatchers.IO) { installedItems(app, icons) }
+        // Your apps, styled. A phone with none of them covered shows the sample set instead.
+        val items = withContext(Dispatchers.IO) { installedItems(app, icons) }.ifEmpty {
+            SampleIcons.NAMES.mapNotNull { name -> icons.indexOf(name).takeIf { it >= 0 }?.let { PreviewItem(it, name.replace('_', ' ')) } }
+        }
+        itemByName = items.associate { icons.names.name(it.drawable) to it.drawable }
         withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, doc.theme) }
         history = EditorHistory(doc.theme)
         overrides = doc.overrides
-        // The toggle survives process death; the first visit shows installed apps when there are any.
-        val start = saved.get<String>(SOURCE_KEY)?.let(PreviewSource::valueOf)
-            ?: if (installed.isEmpty()) PreviewSource.SAMPLES else PreviewSource.INSTALLED
         val recent = withContext(Dispatchers.IO) { container.textures.recent() }
-        _ui.value = EditorUi(loading = false, name = doc.name, theme = doc.theme, source = start, items = itemsFor(start), recentTextures = recent)
+        _ui.value = EditorUi(loading = false, name = doc.name, theme = doc.theme, items = items, recentTextures = recent)
         refresh()
     }
 
@@ -192,8 +205,6 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         }
         return plan.drawables.map { PreviewItem(it, labels.getValue(it)) }.sortedBy { it.label.lowercase() }
     }
-
-    private fun itemsFor(s: PreviewSource) = if (s == PreviewSource.INSTALLED) installed else samples
 
     fun commit(theme: Theme) = edit { it.commit(theme) }
 
@@ -245,23 +256,11 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         }
     }
 
-    /** Press and hold: the preview shows plain Arcticons while [on]. */
-    fun compare(on: Boolean) {
-        if (_ui.value.comparing == on) return
-        _ui.value = _ui.value.copy(comparing = on)
-        refresh()
-    }
-
-    fun setSource(s: PreviewSource) {
-        if (_ui.value.source == s) return
-        saved[SOURCE_KEY] = s.name
-        _ui.value = _ui.value.copy(source = s, items = itemsFor(s), focused = null)
-        refresh()
-    }
-
-    /** The drawables on screen, which a drag renders first. */
+    /** The strip's drawables on screen: only they are drawn. */
     fun setVisible(drawables: Set<Int>) {
+        if (drawables == visible) return
         visible = drawables
+        visibleChanges.value = drawables
     }
 
     fun messageShown() {
@@ -421,6 +420,8 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     private fun publish() {
         val h = history ?: return
+        editAt = System.nanoTime()
+        shownLogged = 0
         _ui.value = _ui.value.copy(theme = h.theme, canUndo = h.canUndo, canRedo = h.canRedo)
         refresh()
     }
@@ -432,18 +433,31 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         if (absent.isNotEmpty() && absent != reportedAbsent) say(TexturePresence.message(absent.size))
         reportedAbsent = absent
         // The renderer throws on a texture it does not hold; the preview hides that layer instead.
-        val theme = if (ui.comparing) plain ?: return else TexturePresence.without(h.theme, absent)
-        val first = visible.takeIf { h.dragging && !ui.comparing && it.isNotEmpty() }
-        val names = source?.names ?: return
-        val byDrawable = ui.items.mapNotNull { item -> overrides[names.name(item.drawable)]?.let { item.drawable to it } }.toMap()
-        if (byDrawable.keys != ui.overridden) _ui.value = _ui.value.copy(overridden = byDrawable.keys)
-        // Compare shows plain Arcticons: no override, no swap.
-        val shown = if (ui.comparing) emptyMap() else byDrawable
-        previews.request(PreviewRequest(theme, ui.items.map { it.drawable }, first, shown, container.settings.resolution.value))
+        val theme = TexturePresence.without(h.theme, absent)
+        val byDrawable = HashMap<Int, IconOverride>()
+        for ((name, o) in overrides) itemByName[name]?.let { byDrawable[it] = o }
+        if (byDrawable.keys != ui.overridden) _ui.value = _ui.value.copy(overridden = byDrawable.keys.toSet())
+        val resolution = container.settings.resolution.value
+        val drawables = ui.items.map { it.drawable }
+        // While a slider moves, only the cells on screen: the drag's frames come sooner.
+        previews.request(PreviewRequest(theme, drawables, onScreen(drawables, if (h.dragging) 0 else MARGIN), byDrawable, resolution))
         val hero = ui.focused?.takeIf { f -> ui.items.any { it.drawable == f } } ?: ui.items.firstOrNull()?.drawable
         if (hero != null) {
-            heroPreviews.request(PreviewRequest(theme, listOf(hero), null, shown.filterKeys { it == hero }, container.settings.resolution.value))
+            heroPreviews.request(PreviewRequest(theme, listOf(hero), null, byDrawable.filterKeys { it == hero }, resolution))
         }
+    }
+
+    /**
+     * The strip cells to draw: those on screen and [margin] either side, so a short scroll
+     * finds them ready. Before the strip is laid out, the first screenful.
+     */
+    private fun onScreen(drawables: List<Int>, margin: Int): Set<Int> {
+        val seen = visible
+        if (seen.isEmpty()) return drawables.take(FIRST_SCREEN).toSet()
+        val first = drawables.indexOfFirst { it in seen }
+        val last = drawables.indexOfLast { it in seen }
+        if (first < 0) return drawables.take(FIRST_SCREEN).toSet()
+        return drawables.subList((first - margin).coerceAtLeast(0), (last + margin + 1).coerceAtMost(drawables.size)).toSet()
     }
 
     /**
@@ -527,18 +541,21 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
     companion object {
         private const val TAG = "IconoclastEditor"
+        private const val PERF_TAG = "IconoclastPerf"
 
         /** Never below 128 px; see [dev.iconoclast.app.ThemePreviews.SIZE]. Also while dragging. */
         const val SIZE = 128
         /** The big preview: 256 px, close to one to one at its 104 dp on a 420 dpi screen. */
         const val HERO_SIZE = 256
-        const val RENDER_THREADS = 4
         const val SAVE_DELAY_MS = 300L
         const val SEARCH_LIMIT = 30
-        private const val SOURCE_KEY = "previewSource"
+        /** Strip cells drawn beyond each side of the screen: two columns of three. */
+        private const val MARGIN = 6
+        /** Strip cells drawn before the strip reports what it shows: about one screen. */
+        private const val FIRST_SCREEN = 18
 
         fun factory(id: String): ViewModelProvider.Factory = viewModelFactory {
-            initializer { EditorViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!, createSavedStateHandle(), id) }
+            initializer { EditorViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!, id) }
         }
     }
 }

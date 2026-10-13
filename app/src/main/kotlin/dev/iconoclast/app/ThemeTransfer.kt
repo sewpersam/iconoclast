@@ -1,5 +1,6 @@
 package dev.iconoclast.app
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -41,6 +42,8 @@ object ThemeTransfer {
             .putExtra(Intent.EXTRA_STREAM, uri)
             .putExtra(Intent.EXTRA_TITLE, doc.name)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // The clip carries the read grant to the share sheet too, which reads the file for its preview.
+        send.clipData = ClipData.newRawUri(doc.name, uri)
         return Intent.createChooser(send, "Export ${doc.name}")
     }
 
