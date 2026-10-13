@@ -37,28 +37,33 @@ fun BackgroundTab(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit:
             Text("Off: the icons have a transparent background.", style = MaterialTheme.typography.bodySmall)
             return@Column
         }
-        Text(
-            "The shape is drawn into each icon. If your launcher also masks icons to a shape, turn its icon shape off.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Section("Shape")
         ShapeControl(b.shape, d.shape, { drag(with(b.copy(shape = it))) }, done, { commit(with(b.copy(shape = it))) })
+        Text(
+            "The shape is drawn into each icon. If your launcher also crops icons to a shape, turn that off.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         SliderControl("Size", b.size, 0.7f..1f, d.size, percent,
             { drag(with(b.copy(size = it))) }, done, { commit(with(b.copy(size = d.size))) })
+        Section("Colour")
         backgroundPaint(theme)?.let { paint ->
-            PaintControl(paint, DEFAULT_PAINT, { drag(withBackgroundPaint(theme, it)) }, done, { commit(withBackgroundPaint(theme, it)) })
-        }
+            PaintControl(paint, DEFAULT_PAINT, { drag(withBackgroundPaint(theme, it)) }, done, { commit(withBackgroundPaint(theme, it)) },
+                swatches = true)
+        } ?: Text("The background is painted by a texture or noise. Change it in Layers.", style = MaterialTheme.typography.bodySmall)
         val texture = LayerStack.backgroundTexture(theme)
-        SwitchControl("Texture layer", texture != null, false) { on ->
+        SwitchControl("Texture on top", texture != null, false) { on ->
             if (on) textures.choose() else commit(LayerStack.remove(theme, LayerStack.BACKGROUND_TEXTURE_ID))
         }
         if (texture != null) {
             Column(Modifier.padding(start = 8.dp)) { LayerControls(texture, theme, drag, done, commit, textures) }
         }
+        Section("Border")
         SliderControl("Border width", border.width, 0f..0.1f, 0f, percent,
             { drag(withBorder(border.copy(width = it))) }, done, { commit(with(b.copy(border = d.border))) })
         if (border.width > 0f) {
             ColorControl("Border colour", border.argb, NO_BORDER.argb,
-                { drag(withBorder(border.copy(argb = it))) }, done, { commit(withBorder(border.copy(argb = it))) })
+                { drag(withBorder(border.copy(argb = it))) }, done, { commit(withBorder(border.copy(argb = it))) }, swatches = true)
             SliderControl("Border opacity", border.opacity, 0f..1f, NO_BORDER.opacity, percent,
                 { drag(withBorder(border.copy(opacity = it))) }, done, { commit(withBorder(border.copy(opacity = NO_BORDER.opacity))) })
         }

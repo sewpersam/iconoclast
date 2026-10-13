@@ -44,7 +44,7 @@ val BLEND_NAMES: Map<BlendMode, String> = linkedMapOf(
 /** The clip targets a user can pick. Effects: what the enabled effects below the layer paint, M6. */
 val CLIP_NAMES: Map<ClipTarget, String> = linkedMapOf(
     ClipTarget.ICON to "Icon", ClipTarget.ICON_FILL to "Icon fill", ClipTarget.ICON_LINES to "Icon lines",
-    ClipTarget.BACKGROUND to "Background", ClipTarget.CANVAS to "Whole canvas", ClipTarget.EFFECTS to "Effects",
+    ClipTarget.BACKGROUND to "Background", ClipTarget.CANVAS to "Everywhere", ClipTarget.EFFECTS to "Effects",
 )
 
 fun clipName(clip: ClipTarget): String = CLIP_NAMES.getValue(clip)
@@ -59,14 +59,14 @@ fun LayerControls(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: 
     fun with(l: PaintLayer) = LayerStack.replace(theme, l)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         PaintControl(layer.source, d.source, { drag(with(layer.copy(source = it))) }, done, { commit(with(layer.copy(source = it))) }, textures)
-        ChoiceControl("Clip to", CLIP_NAMES.toList(), layer.clip, d.clip, { commit(with(LayerStack.withClip(layer, it))) })
-        // Outside the whole canvas is nothing; the switch only turns such an inverse off.
-        SwitchControl("Inverse clip", layer.clipInverse, d.clipInverse, enabled = layer.clip != ClipTarget.CANVAS || layer.clipInverse) {
-            commit(with(layer.copy(clipInverse = it)))
-        }
-        BlendControl(layer.blend, d.blend) { commit(with(layer.copy(blend = it))) }
         SliderControl("Opacity", layer.opacity, 0f..1f, d.opacity, percent,
             { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = d.opacity))) })
+        BlendControl(layer.blend, d.blend) { commit(with(layer.copy(blend = it))) }
+        ChoiceControl("Show on", CLIP_NAMES.toList(), layer.clip, d.clip, { commit(with(LayerStack.withClip(layer, it))) })
+        // Outside everything is nothing; the switch only turns such an inverse off.
+        SwitchControl("Outside it instead", layer.clipInverse, d.clipInverse, enabled = layer.clip != ClipTarget.CANVAS || layer.clipInverse) {
+            commit(with(layer.copy(clipInverse = it)))
+        }
         if (layer.source is Paint.Texture || layer.source is Paint.Noise) {
             val dm = if (layer.source is Paint.Texture) LayerStack.NEW_TEXTURE_MAPPING else Mapping()
             MappingControls(layer.mapping, dm, { drag(with(layer.copy(mapping = it))) }, done, { commit(with(layer.copy(mapping = it))) })
@@ -83,7 +83,7 @@ internal fun defaultsOf(layer: PaintLayer): PaintLayer =
         else LayerStack.newLayer(Paint.Solid(0xFFFFFFFF.toInt())).copy(id = layer.id)
 
 @Composable
-fun BlendControl(blend: BlendMode, default: BlendMode, label: String = "Blend mode", onSelect: (BlendMode) -> Unit) {
+fun BlendControl(blend: BlendMode, default: BlendMode, label: String = "Blend", onSelect: (BlendMode) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
@@ -112,10 +112,10 @@ private fun MappingControls(m: Mapping, d: Mapping, onDrag: (Mapping) -> Unit, o
 /** Levels keep black below white by at least [GAP], so a drag cannot make an invalid matte. */
 @Composable
 private fun MatteControls(m: Matte?, onDrag: (Matte?) -> Unit, onDone: () -> Unit, onCommit: (Matte?) -> Unit) {
-    SwitchControl("Mask from luminance", m != null, false) { onCommit(if (it) Matte() else null) }
+    SwitchControl("Use brightness as a mask", m != null, false) { onCommit(if (it) Matte() else null) }
     if (m == null) return
     val d = Matte()
-    ChoiceControl("Mask mode", listOf(MatteMode.LEVELS to "Levels", MatteMode.THRESHOLD to "Threshold"), m.mode, d.mode, { onCommit(m.copy(mode = it)) })
+    ChoiceControl("Mask style", listOf(MatteMode.LEVELS to "Smooth (levels)", MatteMode.THRESHOLD to "Hard (threshold)"), m.mode, d.mode, { onCommit(m.copy(mode = it)) })
     if (m.mode == MatteMode.LEVELS) {
         SliderControl("Black point", m.black, 0f..1f, d.black, percent,
             { onDrag(m.copy(black = it.coerceAtMost(m.white - GAP).coerceAtLeast(0f))) }, onDone,

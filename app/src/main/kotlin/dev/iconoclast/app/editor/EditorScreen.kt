@@ -3,17 +3,6 @@ package dev.iconoclast.app.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.onLongClick
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.stateDescription
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,18 +12,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,27 +37,46 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 
-private val TABS = listOf("Shape", "Fill", "Background", "Layers", "Effects")
+/**
+ * Spec 2.3's Shape and Fill are one Icon tab, everything about the line art; Layers holds
+ * the effects too, since they are layers of the same stack. Three tabs fit a phone.
+ */
+private val TABS = listOf("Icon", "Background", "Layers")
+private const val LAYERS_TAB = 2
 
 /**
  * The theme editor, spec 2.2 screen 2: the live preview on top, the tabbed controls
- * below, undo and redo in the bar, and a press-and-hold compare.
+ * below, undo, redo and Apply in the bar, and a press-and-hold compare. [onApply] makes
+ * this theme the active one and goes to Apply.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
+fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
     val ui by vm.ui.collectAsState()
     val frame by vm.frame.collectAsState()
+    val hero by vm.hero.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     // The process may be killed any time after the activity stops: save what is pending.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.flush() }
@@ -77,11 +90,12 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(ui.name.ifEmpty { "Theme" }, maxLines = 1) },
+                title = { Text(ui.name.ifEmpty { "Theme" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
                 actions = {
-                    TextButton(onClick = vm::undo, enabled = ui.canUndo) { Text("Undo") }
-                    TextButton(onClick = vm::redo, enabled = ui.canRedo) { Text("Redo") }
+                    IconButton(onClick = vm::undo, enabled = ui.canUndo) { Icon(EditorIcons.Undo, contentDescription = "Undo") }
+                    IconButton(onClick = vm::redo, enabled = ui.canRedo) { Icon(EditorIcons.Redo, contentDescription = "Redo") }
+                    TextButton(onClick = { vm.flush(); onApply() }, enabled = !ui.loading && !ui.missing) { Text("Apply") }
                 },
             )
         },
@@ -91,26 +105,34 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit) {
             when {
                 ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 ui.missing -> Text("This theme no longer exists.", Modifier.align(Alignment.Center).padding(24.dp))
-                else -> Editor(vm, ui, frame.images)
+                else -> Editor(vm, ui, frame.images, hero.images)
             }
         }
     }
 }
 
 @Composable
-private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.compose.ui.graphics.ImageBitmap>) {
+private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, ImageBitmap>, heroImages: Map<Int, ImageBitmap>) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val textures = TextureActions({ ui.selectedLayer?.let { vm.chooseTexture(TextureTarget.Source(it)) } }, vm::textureFile)
+    val stack = StackActions(
+        select = vm::selectLayer,
+        addLayer = { vm.showAddLayer(true) },
+        addEffect = { vm.showAddEffect(true) },
+        moveOnto = vm::moveLayerOnto,
+        dragOnto = vm::dragLayerOnto,
+        dragDone = vm::endDrag,
+        setVisible = vm::setLayerVisible,
+        placeEffect = vm::placeEffect,
+        remove = vm::removeLayer,
+    )
     Column(Modifier.fillMaxSize()) {
-        PreviewGrid(ui.items, images, ui.overridden, vm::openOverride, vm::setVisible, Modifier.fillMaxWidth().height(232.dp))
+        PreviewPanel(ui.items, images, ui.focused, heroImages, ui.overridden, vm::openOverride, vm::setVisible)
         PreviewBar(vm, ui)
         if (ui.importingTexture) LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = "Importing texture" })
-        PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
+        PrimaryTabRow(selectedTabIndex = tab) {
             TABS.forEachIndexed { i, name ->
-                Tab(
-                    selected = tab == i,
-                    onClick = { tab = i },
-                    text = { Text(name) },
-                )
+                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(name, maxLines = 1) })
             }
         }
         Column(
@@ -118,18 +140,11 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.
         ) {
             val theme = ui.theme
             when (tab) {
-                0 -> ShapeTab(theme, vm::drag, vm::endDrag, vm::commit)
-                1 -> FillTab(theme, vm::drag, vm::endDrag, vm::commit)
-                2 -> BackgroundTab(theme, vm::drag, vm::endDrag, vm::commit,
+                0 -> IconTab(theme, vm::drag, vm::endDrag, vm::commit) { id -> vm.selectLayer(id); tab = LAYERS_TAB }
+                1 -> BackgroundTab(theme, vm::drag, vm::endDrag, vm::commit,
                     TextureActions({ vm.chooseTexture(TextureTarget.Background) }, vm::textureFile))
-                3 -> LayersTab(
-                    theme, ui.selectedLayer, vm::selectLayer, { vm.showAddLayer(true) }, vm::moveLayer, vm::removeLayer,
-                    vm::drag, vm::endDrag, vm::commit,
-                    TextureActions({ ui.selectedLayer?.let { vm.chooseTexture(TextureTarget.Source(it)) } }, vm::textureFile),
-                )
-                4 -> EffectsTab(
-                    theme, ui.selectedLayer, vm::selectLayer, { vm.showAddEffect(true) }, vm::moveLayer, vm::removeLayer,
-                    vm::drag, vm::endDrag, vm::commit,
+                else -> LayersTab(
+                    theme, ui.selectedLayer, stack, vm::drag, vm::endDrag, vm::commit, textures,
                     BreakupActions(ui.recentTextures, vm::textureFile) { vm.chooseTexture(TextureTarget.Breakup(it)) },
                 )
             }
@@ -143,17 +158,26 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi, images: Map<Int, androidx.
     TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
 }
 
-/** The installed or sample toggle, and compare: plain Arcticons while held. */
+/** Your apps or the sample set, and compare: plain Arcticons while held. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PreviewBar(vm: EditorViewModel, ui: EditorUi) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FilterChip(ui.source == PreviewSource.INSTALLED, { vm.setSource(PreviewSource.INSTALLED) }, { Text("Installed apps") })
-        FilterChip(ui.source == PreviewSource.SAMPLES, { vm.setSource(PreviewSource.SAMPLES) }, { Text("Samples") })
-        Box(Modifier.weight(1f))
+        val sources = listOf(PreviewSource.INSTALLED to "Your apps", PreviewSource.SAMPLES to "Samples")
+        SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
+            sources.forEachIndexed { i, (s, name) ->
+                SegmentedButton(
+                    selected = ui.source == s,
+                    onClick = { vm.setSource(s) },
+                    shape = SegmentedButtonDefaults.itemShape(i, sources.size),
+                    icon = {},
+                ) { Text(name, maxLines = 1) }
+            }
+        }
         CompareButton(ui.comparing, vm::compare)
     }
 }
@@ -185,7 +209,7 @@ private fun CompareButton(comparing: Boolean, compare: (Boolean) -> Unit) {
                 onClick(label = if (comparing) "Show this theme" else "Show plain Arcticons") { compare(!comparing); true }
                 onLongClick(label = if (comparing) "Show this theme" else "Show plain Arcticons") { compare(!comparing); true }
             }
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(if (comparing) "Plain" else "Compare", style = MaterialTheme.typography.labelLarge) }
+    ) { Text(if (comparing) "Plain" else "Hold to compare", style = MaterialTheme.typography.labelLarge, maxLines = 1) }
 }

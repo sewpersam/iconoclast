@@ -84,6 +84,8 @@ data class EditorUi(
     val importingTexture: Boolean = false,
     /** Drawables with an override in this theme: the preview badges them. */
     val overridden: Set<Int> = emptySet(),
+    /** The drawable the big preview shows: the last icon tapped, else the first. */
+    val focused: Int? = null,
     /** The icon whose override sheet is open, and its override as edited. */
     val overriding: PreviewItem? = null,
     val override: IconOverride = IconOverride.NONE,
@@ -116,16 +118,27 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     /** The overrides as shown; each change is written through the repository at once. */
     private var overrides: Map<String, IconOverride> = emptyMap()
 
+    private val renderThreads = Dispatchers.Default.limitedParallelism(RENDER_THREADS)
+
     private val previews = PreviewRenderer(
         viewModelScope,
-        Dispatchers.Default.limitedParallelism(RENDER_THREADS),
+        renderThreads,
         SIZE,
-        render = { d, look -> draw(d, look) },
+        render = { d, look -> draw(d, look, SIZE) },
         log = { Log.i(TAG, it) },
     )
 
+    /** The big preview: one icon at [HERO_SIZE], its own single-flight pass beside the grid's. */
+    private val heroPreviews = PreviewRenderer(viewModelScope, renderThreads, HERO_SIZE, render = { d, look -> draw(d, look, HERO_SIZE) }, cacheEntries = 32)
+
     /** The preview images by drawable index. */
     val frame: StateFlow<PreviewFrame<ImageBitmap>> = previews.frame
+
+    /** The big preview's image, by drawable index. */
+    val hero: StateFlow<PreviewFrame<ImageBitmap>> = heroPreviews.frame
+
+    /** Opacities of paint layers hidden this session, so showing one again restores it. */
+    private val hiddenOpacity = HashMap<String, Float>()
 
     /** The newest theme not yet saved. */
     private val pending = MutableStateFlow<Theme?>(null)
@@ -222,7 +235,7 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     fun setSource(s: PreviewSource) {
         if (_ui.value.source == s) return
         saved[SOURCE_KEY] = s.name
-        _ui.value = _ui.value.copy(source = s, items = itemsFor(s))
+        _ui.value = _ui.value.copy(source = s, items = itemsFor(s), focused = null)
         refresh()
     }
 
@@ -269,9 +282,30 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         selectLayer(layer.id)
     }
 
-    fun moveLayer(id: String, up: Boolean) {
+    /** Layer [id] into the place of [targetId], one undo step. */
+    fun moveLayerOnto(id: String, targetId: String) {
         val h = history ?: return
-        commit(LayerStack.move(h.theme, id, up))
+        commit(LayerStack.moveOnto(h.theme, id, targetId))
+    }
+
+    /** The same while a row is dragged; [endDrag] on release makes the drag one undo step. */
+    fun dragLayerOnto(id: String, targetId: String) {
+        val h = history ?: return
+        drag(LayerStack.moveOnto(h.theme, id, targetId))
+    }
+
+    /** The eye: hides or shows a layer, one undo step. A paint layer gets its opacity back. */
+    fun setLayerVisible(id: String, visible: Boolean) {
+        val h = history ?: return
+        val layer = LayerStack.layer(h.theme, id)
+        if (!visible && layer is PaintLayer && layer.opacity > 0f) hiddenOpacity[id] = layer.opacity
+        commit(LayerStack.withVisible(h.theme, id, visible, hiddenOpacity.remove(id) ?: 1f))
+    }
+
+    /** Effect [id] behind the icon or on top of it. */
+    fun placeEffect(id: String, onTop: Boolean) {
+        val h = history ?: return
+        commit(LayerStack.placeEffect(h.theme, id, onTop))
     }
 
     /** One undo step; the snackbar offers it right away. */
@@ -388,24 +422,29 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         // Compare shows plain Arcticons: no override, no swap.
         val shown = if (ui.comparing) emptyMap() else byDrawable
         previews.request(PreviewRequest(theme, ui.items.map { it.drawable }, first, shown, container.settings.resolution.value))
+        val hero = ui.focused?.takeIf { f -> ui.items.any { it.drawable == f } } ?: ui.items.firstOrNull()?.drawable
+        if (hero != null) {
+            heroPreviews.request(PreviewRequest(theme, listOf(hero), null, shown.filterKeys { it == hero }, container.settings.resolution.value))
+        }
     }
 
     /**
      * One preview icon: the effective theme and geometry, as Apply draws its slot. A swap
      * target missing from the icon set draws the icon's own geometry, as PackBuilder does.
      */
-    private fun draw(drawable: Int, look: PreviewLook): ImageBitmap {
+    private fun draw(drawable: Int, look: PreviewLook, size: Int): ImageBitmap {
         val icons = requireNotNull(source)
         val name = icons.names.name(drawable)
         val theme = look.override?.applyTo(look.theme) ?: look.theme
         val geometry = look.override?.swapDrawable?.let(icons::indexOf)?.takeIf { it >= 0 } ?: drawable
-        return container.renderer.render(icons.names.name(geometry), icons.icon(geometry), name, theme, SIZE, look.resolution).toImageBitmap()
+        return container.renderer.render(icons.names.name(geometry), icons.icon(geometry), name, theme, size, look.resolution).toImageBitmap()
     }
 
     /** Opens the override sheet for [item], spec 2.2 screen 3. */
     fun openOverride(item: PreviewItem) {
         val name = source?.names?.name(item.drawable) ?: return
-        _ui.value = _ui.value.copy(overriding = item, override = overrides[name] ?: IconOverride.NONE)
+        _ui.value = _ui.value.copy(overriding = item, override = overrides[name] ?: IconOverride.NONE, focused = item.drawable)
+        refresh()
     }
 
     fun closeOverride() {
@@ -473,6 +512,8 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
 
         /** Never below 128 px; see [dev.iconoclast.app.ThemePreviews.SIZE]. Also while dragging. */
         const val SIZE = 128
+        /** The big preview: 256 px, close to one to one at its 104 dp on a 420 dpi screen. */
+        const val HERO_SIZE = 256
         const val RENDER_THREADS = 4
         const val SAVE_DELAY_MS = 300L
         const val SEARCH_LIMIT = 30

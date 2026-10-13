@@ -152,4 +152,61 @@ class LayerStackTest {
         val t = LayerStack.insertAbove(base, noise, null)
         assertEquals(noise.id, (LayerStack.newEffect(t, Effect.BrushStrokes()).effect as Effect.BrushStrokes).paintLayer)
     }
+
+    @Test
+    fun dragMovesOntoTheNeighbourAndSkipsTheHiddenMarker() {
+        // Rows, top first, leave the effects marker out.
+        assertEquals(listOf("icon-lines", "icon-fill", "background"), LayerStack.rows(base).map { it.id })
+        // Down from icon fill onto the background: past the marker, which stays put.
+        assertEquals(listOf("icon-fill", "background", "effects", "icon-lines"), ids(LayerStack.moveOnto(base, "icon-fill", "background")))
+        // Up: lands just above the target.
+        assertEquals(listOf("effects", "icon-fill", "background", "icon-lines"), ids(LayerStack.moveOnto(base, "background", "icon-fill")))
+        assertEquals(listOf("background", "effects", "icon-lines", "icon-fill"), ids(LayerStack.moveOnto(base, "icon-fill", "icon-lines")))
+        assertSame(base, LayerStack.moveOnto(base, "icon-fill", "icon-fill"))
+        assertSame(base, LayerStack.moveOnto(base, "gone", "icon-fill"))
+    }
+
+    @Test
+    fun theEyeHidesAndRestores() {
+        val l = LayerStack.newLayer(Paint.Solid(-1)).copy(opacity = 0.4f)
+        val t = LayerStack.insertAbove(base, l, null)
+        val hidden = LayerStack.withVisible(t, l.id, visible = false)
+        assertEquals(0f, (LayerStack.layer(hidden, l.id) as PaintLayer).opacity)
+        assertEquals(false, LayerStack.isVisible(LayerStack.layer(hidden, l.id)!!))
+        assertEquals("Hidden", layerSummary(LayerStack.layer(hidden, l.id)!!, aboveIcon = true))
+        assertEquals(0.4f, (LayerStack.layer(LayerStack.withVisible(hidden, l.id, true, restore = 0.4f), l.id) as PaintLayer).opacity)
+        assertEquals(1f, (LayerStack.layer(LayerStack.withVisible(hidden, l.id, true), l.id) as PaintLayer).opacity)
+        assertSame(t, LayerStack.withVisible(t, l.id, visible = true))
+        val shadow = LayerStack.newEffect(base, Effect.DropShadow())
+        val e = LayerStack.insertEffect(base, shadow)
+        val off = LayerStack.withVisible(e, shadow.id, visible = false)
+        assertEquals(false, (LayerStack.layer(off, shadow.id) as dev.iconoclast.render.EffectLayer).enabled)
+        assertEquals(e, LayerStack.withVisible(off, shadow.id, visible = true))
+        assertSame(base, LayerStack.withVisible(base, Layer.EFFECTS_ID, visible = false))
+    }
+
+    @Test
+    fun effectsMoveBehindOrOnTopOfTheIcon() {
+        val shadow = LayerStack.newEffect(base, Effect.DropShadow())
+        val t = LayerStack.insertEffect(base, shadow)
+        val top = LayerStack.placeEffect(t, shadow.id, onTop = true)
+        assertEquals(listOf("background", "effects", "icon-fill", "icon-lines", shadow.id), ids(top))
+        assertEquals(true, LayerStack.aboveIcon(top, LayerStack.layer(top, shadow.id)!!))
+        assertEquals(ids(t), ids(LayerStack.placeEffect(top, shadow.id, onTop = false)))
+        assertSame(t, LayerStack.placeEffect(t, shadow.id, onTop = false))
+        assertSame(t, LayerStack.placeEffect(t, "icon-fill", onTop = true))
+    }
+
+    @Test
+    fun summariesArePlainWords() {
+        val fill = base.layers.first { it.id == "icon-fill" } as PaintLayer
+        assertEquals("On the icon fill", layerSummary(fill, aboveIcon = false))
+        val tex = PaintLayer("t", Paint.Texture(GoldenSet.TEXTURE), clip = ClipTarget.ICON, clipInverse = true,
+            blend = BlendMode.SCREEN, opacity = 0.5f, matte = dev.iconoclast.render.Matte())
+        assertEquals("Outside the icon, masked by brightness, Screen blend, 50% opacity", layerSummary(tex, aboveIcon = false))
+        assertEquals("Everywhere", layerSummary(PaintLayer("c", Paint.Solid(-1)), aboveIcon = false))
+        val shadow = LayerStack.newEffect(base, Effect.DropShadow())
+        assertEquals("Behind the icon", layerSummary(shadow, aboveIcon = false))
+        assertEquals("On top of the icon, 35% opacity", layerSummary(shadow.copy(opacity = 0.35f), aboveIcon = true))
+    }
 }

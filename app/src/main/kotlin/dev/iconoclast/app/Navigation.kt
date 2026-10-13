@@ -66,7 +66,11 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
         }
         composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
             val id = requireNotNull(entry.arguments?.getString("id"))
-            EditorScreen(viewModel(factory = EditorViewModel.factory(id)), onBack = { nav.popBackStack() })
+            // Apply from the editor: this theme becomes the active one, then the Apply screen.
+            EditorScreen(viewModel(factory = EditorViewModel.factory(id)), onBack = { nav.popBackStack() }, onApply = {
+                home.setActive(id)
+                nav.navigate(Routes.APPLY) { launchSingleTop = true }
+            })
         }
         composable(Routes.APPLY) {
             val state by apply.state.collectAsState()

@@ -41,6 +41,53 @@ object LayerStack {
         return theme.copy(layers = l)
     }
 
+    /**
+     * Moves layer [id] into the place of [targetId], the drag-to-reorder step: moving up
+     * it lands just above the target, moving down just below. Layers between the two,
+     * such as the effects marker the list hides, keep their order. Unknown ids: unchanged.
+     */
+    fun moveOnto(theme: Theme, id: String, targetId: String): Theme {
+        val from = theme.layers.indexOfFirst { it.id == id }
+        val to = theme.layers.indexOfFirst { it.id == targetId }
+        if (from < 0 || to < 0 || from == to) return theme
+        val l = theme.layers.toMutableList()
+        l.add(to, l.removeAt(from))
+        return theme.copy(layers = l)
+    }
+
+    /** The rows the layer list shows, top of the stack first. The effects marker is not one. */
+    fun rows(theme: Theme): List<Layer> = theme.layers.asReversed().filter { it !is EffectsLayer }
+
+    /** A paint layer at zero opacity is hidden; an effect is hidden when switched off. */
+    fun isVisible(layer: Layer): Boolean = when (layer) {
+        is PaintLayer -> layer.opacity > 0f
+        is EffectLayer -> layer.enabled
+        is EffectsLayer -> true
+    }
+
+    /**
+     * Shows or hides layer [id]. An effect switches on or off. A paint layer has no switch
+     * in the theme, so hiding sets its opacity to 0, which renders it nowhere, Apply
+     * included; showing it again restores [restore], the opacity it had.
+     */
+    fun withVisible(theme: Theme, id: String, visible: Boolean, restore: Float = 1f): Theme = when (val l = layer(theme, id)) {
+        is PaintLayer -> if (isVisible(l) == visible) theme
+            else replace(theme, l.copy(opacity = if (visible) restore.takeIf { it > 0f }?.coerceAtMost(1f) ?: 1f else 0f))
+        is EffectLayer -> if (l.enabled == visible) theme else replace(theme, l.copy(enabled = visible))
+        else -> theme
+    }
+
+    /**
+     * Puts effect [id] behind the icon, at the default slot [Theme.withEffect] uses, or on
+     * top of the stack, over the icon. Already there: unchanged.
+     */
+    fun placeEffect(theme: Theme, id: String, onTop: Boolean): Theme {
+        val l = layer(theme, id) as? EffectLayer ?: return theme
+        if (aboveIcon(theme, l) == onTop) return theme
+        val rest = theme.copy(layers = theme.layers.filterNot { it.id == id })
+        return if (onTop) rest.copy(layers = rest.layers + l) else rest.withEffect(l)
+    }
+
     /** Removes a paint or effect layer. The effects marker stays: a stack holds exactly one. */
     fun remove(theme: Theme, id: String): Theme =
         if (layer(theme, id) is EffectsLayer) theme else theme.copy(layers = theme.layers.filterNot { it.id == id })

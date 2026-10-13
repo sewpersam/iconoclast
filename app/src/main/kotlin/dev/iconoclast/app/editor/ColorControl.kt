@@ -3,6 +3,7 @@ package dev.iconoclast.app.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -38,7 +42,7 @@ import java.util.Locale
  * A colour as hue, saturation and value sliders plus a hex field, no picker library.
  * [argb] is straight 0xAARRGGBB. The sliders keep the alpha; the hex field takes
  * RRGGBB, which keeps it too, or AARRGGBB. Collapsed it is a swatch and the hex value;
- * a tap opens the sliders.
+ * a tap opens the sliders. With [swatches] a row of one-tap colours shows even collapsed.
  */
 @Composable
 fun ColorControl(
@@ -48,6 +52,7 @@ fun ColorControl(
     onDrag: (Int) -> Unit,
     onDone: () -> Unit,
     onCommit: (Int) -> Unit,
+    swatches: Boolean = false,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     // Hue and saturation survive a trip through grey or black, where the colour forgets them.
@@ -69,6 +74,7 @@ fun ColorControl(
             Text(hex, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
             ResetButton(label, enabled = argb != default) { onCommit(default) }
         }
+        if (swatches || open) Swatches(label, argb, onCommit)
         if (open) Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             fun set(h: FloatArray) {
                 hsv = h
@@ -85,6 +91,37 @@ fun ColorControl(
         }
     }
 }
+
+/** One tap colours, the common picks; the sliders and hex field remain for the rest. */
+@Composable
+private fun Swatches(label: String, argb: Int, onCommit: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for ((c, name) in SWATCHES) {
+            // The picked swatch keeps the alpha the colour has.
+            val value = (argb and 0xFF000000.toInt()) or (c and 0xFFFFFF)
+            val picked = value == argb
+            Box(
+                Modifier.size(36.dp)
+                    .border(if (picked) 3.dp else 1.dp, if (picked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape)
+                    .padding(if (picked) 4.dp else 0.dp)
+                    .background(Color(c), CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = "$label $name") { onCommit(value) }
+                    .semantics { contentDescription = "$label $name"; selected = picked },
+            )
+        }
+    }
+}
+
+private val SWATCHES: List<Pair<Int, String>> = listOf(
+    0xFFFFFFFF.toInt() to "white", 0xFFBDC1C6.toInt() to "light grey", 0xFF5F6368.toInt() to "grey",
+    0xFF202124.toInt() to "charcoal", 0xFF000000.toInt() to "black", 0xFFE57373.toInt() to "red",
+    0xFFFFB74D.toInt() to "orange", 0xFFFFF176.toInt() to "yellow", 0xFF81C784.toInt() to "green",
+    0xFF3E8E73.toInt() to "jade", 0xFF4DD0E1.toInt() to "teal", 0xFF64B5F6.toInt() to "blue",
+    0xFF9575CD.toInt() to "purple", 0xFFF06292.toInt() to "pink",
+)
 
 @Composable
 private fun HexField(label: String, argb: Int, onCommit: (Int) -> Unit) {

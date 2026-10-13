@@ -45,13 +45,14 @@ fun PaintControl(
     onDone: () -> Unit,
     onCommit: (Paint) -> Unit,
     textures: TextureActions? = null,
+    swatches: Boolean = false,
 ) {
     val kind = kindOf(paint)
-    val kinds = listOf(PaintKind.SOLID to "Solid", PaintKind.LINEAR to "Linear", PaintKind.RADIAL to "Radial") +
+    val kinds = listOf(PaintKind.SOLID to "Colour", PaintKind.LINEAR to "Gradient", PaintKind.RADIAL to "Radial gradient") +
         if (textures != null) listOf(PaintKind.TEXTURE to "Texture", PaintKind.NOISE to "Noise") else emptyList()
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ChoiceControl(
-            "Paint", kinds, selected = kind, default = kindOf(default),
+            "Fill with", kinds, selected = kind, default = kindOf(default),
             onSelect = {
                 when {
                     it == kind -> Unit
@@ -63,7 +64,7 @@ fun PaintControl(
         )
         when (paint) {
             is Paint.Solid -> ColorControl("Colour", paint.argb, (default as? Paint.Solid)?.argb ?: DEFAULT_COLOR,
-                { onDrag(Paint.Solid(it)) }, onDone, { onCommit(Paint.Solid(it)) })
+                { onDrag(Paint.Solid(it)) }, onDone, { onCommit(Paint.Solid(it)) }, swatches)
             is Paint.LinearGradient -> {
                 val angle = angleOf(paint)
                 SliderControl("Angle", angle, 0f..360f, DEFAULT_ANGLE, decimals(0, "°"),
