@@ -140,7 +140,7 @@ internal object StackEvaluator {
     }
 
     private fun paint(buf: FloatArray, layer: PaintLayer, input: StackInput, pass: Pass) {
-        if (layer.opacity == 0f) return
+        if (!layer.visible || layer.opacity == 0f) return
         val clip = clip(layer, input, pass)
         if (clip.empty) return
         val n = input.size * input.size

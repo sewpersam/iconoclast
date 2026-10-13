@@ -73,6 +73,13 @@ class LayerStackTest {
     }
 
     @Test
+    fun hiddenLayerPaintsNothingAtAnyOpacity() {
+        val base = Theme(background = clear)
+        val hidden = render(with(PaintLayer("x", Paint.Solid(red), opacity = 0.7f, visible = false), base = base))
+        assertContentEquals(render(base).pixels, hidden.pixels)
+    }
+
+    @Test
     fun opacityScalesCoverage() {
         val half = render(Theme(background = clear, layers = listOf(Theme().layers[1], PaintLayer("x", Paint.Solid(red), opacity = 0.5f))))
         assertTrue((0 until size * size).all { alpha(half, it) == 128 })

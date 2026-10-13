@@ -26,7 +26,8 @@ data class EffectsLayer(override val id: String = Layer.EFFECTS_ID) : Layer
 
 /**
  * A painted layer: [source] through the [clip] target (or its inverse), times the matte
- * from [matte] if any, times [opacity], composited with [blend].
+ * from [matte] if any, times [opacity], composited with [blend]. A layer that is not
+ * [visible] paints nothing; an effect linked to it still reads its source.
  */
 data class PaintLayer(
     override val id: String,
@@ -40,6 +41,8 @@ data class PaintLayer(
     val mapping: Mapping = Mapping(),
     /** Turns the source's luminance into an alpha matte. Null: no matte. */
     val matte: Matte? = null,
+    /** False: the layer paints nothing, whatever its [opacity]. The editor's eye. */
+    val visible: Boolean = true,
 ) : Layer {
     init {
         require(id.isNotBlank()) { "blank layer id" }
