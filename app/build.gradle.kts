@@ -24,6 +24,14 @@ android {
         compose = true
         buildConfig = true
     }
+    buildTypes {
+        release {
+            // R8 shrinks and optimizes the release build: Compose runs much faster. Names
+            // are kept (proguard-rules.pro), so messages and crash reports stay readable.
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
     // F-Droid: no encrypted dependency block in the signing block, which its scanner rejects.
     dependenciesInfo {
         includeInApk = false
