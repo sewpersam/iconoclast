@@ -85,3 +85,19 @@ tasks.register<JavaExec>("benchmarkRenderer") {
         listOf(iconAssets.get().file("icons.bin").asFile.path, "4")
     }
 }
+
+// ./gradlew :render:brushContactSheet [-Ptile=216] writes the brush strokes contact sheet.
+tasks.register<JavaExec>("brushContactSheet") {
+    group = "verification"
+    description = "Renders 12 sample glyphs under Jade, Brush A, B, C and the old streaks to docs/verification/brush-strokes."
+    classpath = verify.runtimeClasspath
+    mainClass = "dev.iconoclast.render.verify.BrushContactSheetKt"
+    maxHeapSize = "1g"
+    systemProperty("java.awt.headless", "true")
+    val out = rootProject.layout.projectDirectory.file("docs/verification/brush-strokes/contact-sheet.png")
+    args(
+        layout.projectDirectory.file("src/test/resources/golden/samples.bin").asFile.path,
+        out.asFile.path,
+        providers.gradleProperty("tile").getOrElse("216"),
+    )
+}
