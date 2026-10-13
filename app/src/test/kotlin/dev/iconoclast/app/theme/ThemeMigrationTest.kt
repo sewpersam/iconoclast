@@ -166,9 +166,9 @@ class ThemeMigrationTest {
         assertTrue("\"schemaVersion\": 5" in v5)
         assertTrue("\"visible\"" !in v5)
         val migrated = migrate(v5, now = { error("no clock") }, newId = { error("no id") })
-        assertEquals(6, migrated.schemaVersion)
+        assertEquals(ThemeDocument.CURRENT_SCHEMA, migrated.schemaVersion)
         val old = json(v5) as JsonObject
-        assertEquals(JsonObject(withVisible(old) + ("schemaVersion" to JsonPrimitive(6))), json(migrated.toJson()))
+        assertEquals(JsonObject(iconTogether(withVisible(old)) + ("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA))), json(migrated.toJson()))
         assertTrue(migrated.theme.layers.filterIsInstance<PaintLayer>().all { it.visible })
         assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), migrated.theme)
         val renderer = IconRenderer()
@@ -217,7 +217,53 @@ class ThemeMigrationTest {
      */
     private fun withOverrides(old: String): JsonObject {
         val o = json(old) as JsonObject
-        return JsonObject(withVisible(o) + mapOf("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA), "overrides" to JsonObject(emptyMap())))
+        return JsonObject(iconTogether(withVisible(o)) + mapOf("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA), "overrides" to JsonObject(emptyMap())))
+    }
+
+    /** [doc] with its layers in schema 7's order, nothing between the icon's fill and lines. */
+    private fun iconTogether(doc: JsonObject): JsonObject {
+        val theme = doc["theme"] as JsonObject
+        val layers = JsonArray(iconTogether((theme["layers"] as JsonArray).toList()))
+        return JsonObject(doc + ("theme" to JsonObject(theme + ("layers" to layers))))
+    }
+
+    /**
+     * The schema 7 migration test, ruling 1: the Icon is one row, so the shipped Jade at
+     * schema 6, whose veins sit between the icon fill and the icon lines, gets the veins
+     * directly above the lines and nothing else changes. It renders the Jade starter
+     * goldens byte for byte: the veins are clipped to the fill, which never meets the
+     * cut-out lines.
+     */
+    @Test
+    fun version6MovesLayersFromInsideTheIconToAboveIt() {
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
+        val v6 = JsonObject(withVisible(json(fixture("v5-jade.json")) as JsonObject) + ("schemaVersion" to JsonPrimitive(6))).toString()
+        fun order(doc: JsonObject) = ((doc["theme"] as JsonObject)["layers"] as JsonArray).map { ((it as JsonObject)["id"] as JsonPrimitive).content }
+        assertEquals(listOf("background", "effects", "strokes", "icon-fill", "veins", "icon-lines"), order(json(v6) as JsonObject))
+        val migrated = migrate(v6, now = { error("no clock") }, newId = { error("no id") })
+        assertEquals(ThemeDocument.CURRENT_SCHEMA, migrated.schemaVersion)
+        val out = json(migrated.toJson()) as JsonObject
+        assertEquals(listOf("background", "effects", "strokes", "icon-fill", "icon-lines", "veins"), order(out))
+        assertEquals(JsonObject(iconTogether(json(v6) as JsonObject) + ("schemaVersion" to JsonPrimitive(7))), out, "only the order and the version change")
+        assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), migrated.theme)
+        val renderer = IconRenderer()
+        for ((i, name) in GoldenSet.SAMPLES.withIndex()) {
+            val png = renderer.renderPng(name, bundle.icon(i), migrated.theme, OUTPUT_SIZE)
+            assertContentEquals(File(goldens, "preset_jade/$name.png").readBytes(), png, "preset_jade/$name")
+        }
+    }
+
+    /** The step on its own: several layers keep their order, either icon layer may be on top, and a theme missing one is left alone. */
+    @Test
+    fun iconTogetherMovesOnlyWhatIsBetween() {
+        fun ids(vararg id: String) = id.map { JsonObject(mapOf("id" to JsonPrimitive(it))) }
+        fun names(l: List<kotlinx.serialization.json.JsonElement>) = l.map { ((it as JsonObject)["id"] as JsonPrimitive).content }
+        assertEquals(listOf("background", "icon-lines", "icon-fill", "a", "b", "top"),
+            names(iconTogether(ids("background", "icon-lines", "a", "b", "icon-fill", "top"))))
+        assertEquals(listOf("icon-fill", "icon-lines", "a"), names(iconTogether(ids("icon-fill", "icon-lines", "a"))))
+        assertEquals(listOf("icon-fill", "a", "b"), names(iconTogether(ids("icon-fill", "a", "b"))))
+        assertEquals(listOf("a", "b"), names(iconTogether(ids("a", "b"))))
     }
 
     /** [doc] with `"visible": true` on each paint layer, the schema 6 step. */

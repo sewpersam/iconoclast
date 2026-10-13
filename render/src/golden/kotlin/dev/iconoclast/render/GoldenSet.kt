@@ -274,21 +274,26 @@ object GoldenSet {
                 breakup = Breakup(texture = dev.iconoclast.render.texture.BuiltInBrushes.DRY.sha256, stretch = 6f, density = 0.55f, contrast = 0.4f),
                 paintLayer = Layer.ICON_FILL_ID), opacity = 0.35f),
             PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
+            PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
             PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
                 blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
-            PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
         ),
     )
 
-    /** Jade's stack with [strokes] between background and icon: the Jade starter and the brush variants. */
+    /**
+     * Jade's stack with [strokes] between background and icon: the Jade starter and the brush
+     * variants. The veins sit directly above the icon, as schema 7 keeps every layer: their
+     * fill clip never meets the cut-out lines, so the goldens are the same bytes as when they
+     * sat between fill and lines.
+     */
     private fun jadeWith(strokes: EffectLayer): List<Layer> = listOf(
         PaintLayer(Layer.BACKGROUND_ID, Paint.Solid(0xFF000000.toInt()), clip = ClipTarget.BACKGROUND),
         EffectsLayer(),
         strokes,
         PaintLayer(Layer.ICON_FILL_ID, JADE_NOISE, clip = ClipTarget.ICON_FILL, mapping = Mapping(scale = 1.5f)),
+        PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
         PaintLayer("veins", Paint.Noise(NoiseKind.RIDGED, 4, 23, listOf(ColorStop(0f, 0xFFD8FFEC.toInt()))), clip = ClipTarget.ICON_FILL,
             blend = BlendMode.SCREEN, opacity = 0.5f, mapping = Mapping(scale = 0.75f, rotation = 30f), matte = Matte(black = 0.7f, white = 1f)),
-        PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(0xFF2E9E6E.toInt()), clip = ClipTarget.ICON_LINES),
     )
 
     /** The Jade starter's strokes, schema 5: painted from the jade fill, leaning a little toward 300 degrees as the M6 streaks ran. */

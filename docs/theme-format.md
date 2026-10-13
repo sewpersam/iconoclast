@@ -5,11 +5,11 @@ One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
 shares a `.zip` holding that JSON as `theme.json`, the textures it uses and,
 only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
-## Schema version 5
+## Schema version 7
 
 ```json
 {
-    "schemaVersion": 6,
+    "schemaVersion": 7,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -85,6 +85,11 @@ Rules:
   `exponent`, `roundedSquare` with `cornerRadius`.
 - `background.border`: `null` or `{ "width", "color", "opacity" }`. The border
   is drawn at the effects layer, on top of the layers below it.
+- `shape.iconScale` is the 48-unit drawing box as a fraction of the adaptive-icon
+  safe zone, 0.5 to 108/66 (`MAX_ICON_SCALE`), where the box spans the whole
+  canvas. The editor shows it as the fraction of the canvas, `iconScale x 66/108`,
+  so 100% touches the edges. Older files used 0.5 to 1 in the same unit and read
+  unchanged.
 - Out-of-range values fail the whole file. Import shows the reason.
 
 ### Layers
@@ -374,6 +379,16 @@ damaged. `ThemeMigrationTest` migrates the shipped Jade at schema 5
 (`app/src/test/resources/themes/v5-jade.json`), requires the JSON to change
 only in its version and those flags, and renders the `preset_jade` goldens
 byte for byte. The preset assets stay at schema 5 and migrate on every seed.
+
+Version 7 shows the icon as one row in the editor: its fill and lines layers
+move and hide together, and nothing may sit between them. `v6ToV7`
+(`MigrationV6ToV7.kt`) moves every layer a version 6 stack has between
+`icon-fill` and `icon-lines` to directly above the upper of the two, in its
+order, and sets `schemaVersion` to 7. Nothing else changes. The shipped Jade and
+Brush starters have their `veins` layer there; it is clipped to the icon fill,
+which never meets the cut-out lines, so `ThemeMigrationTest` and `PresetsTest`
+render their goldens byte for byte after the move. The preset assets stay at
+schema 5 and migrate on every seed.
 
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture
