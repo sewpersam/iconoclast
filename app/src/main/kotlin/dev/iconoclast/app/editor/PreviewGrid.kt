@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.dp
  * cells show their 128 px image at 48 dp; the big one shows its image from [heroImages], drawn larger.
  * Tapping any icon opens its override sheet, [onTap], and makes it the big one. An icon in
  * [overridden] wears a badge, and TalkBack says so. The strip's drawables on screen go to
- * [onVisible], for drags.
+ * [onVisible]: only they are drawn.
  */
 @Composable
 fun PreviewPanel(
