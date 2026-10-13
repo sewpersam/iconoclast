@@ -68,8 +68,8 @@ private const val LAYERS_TAB = 2
 
 /**
  * The theme editor, spec 2.2 screen 2: the live preview on top, the tabbed controls
- * below, undo, redo and Apply in the bar, and a press-and-hold compare. [onApply] makes
- * this theme the active one and goes to Apply.
+ * below, undo, redo and Apply in the bar, and a press-and-hold compare. Apply saves this
+ * theme and makes it the active one, then [onApply] goes to the Apply screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,7 +95,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
                 actions = {
                     IconButton(onClick = vm::undo, enabled = ui.canUndo) { Icon(EditorIcons.Undo, contentDescription = "Undo") }
                     IconButton(onClick = vm::redo, enabled = ui.canRedo) { Icon(EditorIcons.Redo, contentDescription = "Redo") }
-                    TextButton(onClick = { vm.flush(); onApply() }, enabled = !ui.loading && !ui.missing) { Text("Apply") }
+                    TextButton(onClick = { vm.apply(onApply) }, enabled = !ui.loading && !ui.missing) { Text("Apply") }
                 },
             )
         },

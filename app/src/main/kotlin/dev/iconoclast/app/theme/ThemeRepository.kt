@@ -115,6 +115,18 @@ class ThemeRepository(
     }
 
     /**
+     * Editor Apply: writes [theme], if any, as [updateTheme] does, then makes [id] active,
+     * both under one lock. Returns once both are on disk, so whatever reads the active
+     * theme next sees this one as saved. Null when [id] is gone.
+     */
+    suspend fun saveAndActivate(id: String, theme: Theme?): ThemeDocument? = locked {
+        val doc = get(id) ?: return@locked null
+        val saved = if (theme == null || doc.theme == theme) doc else doc.copy(theme = theme, modified = now()).also(::write)
+        writeActive(id)
+        saved
+    }
+
+    /**
      * Adds a theme from exported JSON of any known schema version, under a new id.
      * Throws [ThemeFormatException] with a message for the user when it cannot be read.
      */

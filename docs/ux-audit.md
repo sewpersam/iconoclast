@@ -52,5 +52,6 @@ Counted from the editor as it opens. A drag counts as one action.
 - Every spec 2.3 parameter, undo and redo, compare, overrides, coverage.
 - Delete stays one tap with snackbar undo.
 - TalkBack reorders through each row's move up and move down actions.
-- A hidden paint layer is stored as opacity 0. The theme schema has no
-  layer switch, and Apply then renders what the preview shows.
+- A hidden paint layer is stored as `"visible": false`, schema 6. Its
+  opacity is kept, so showing it after a restart brings it back as it was.
+- Editor Apply saves the theme and makes it active before it opens Apply.

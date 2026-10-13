@@ -158,4 +158,25 @@ class ThemeRepositoryTest {
         assertEquals(weights.indices.drop(2).map { "app_$it" }.toSet(), r.get(id)!!.overrides.keys)
         assertNull(r.updateTheme("gone", Theme()))
     }
+
+    /** Editor Apply: when the call returns, the theme is both saved and active, on disk too. */
+    @Test
+    fun saveAndActivateLandsBothBeforeReturning() = runBlocking {
+        val r = repo().apply { load() }
+        val made = r.create("Mine", Theme())
+        assertEquals("preset-plain-arcticons", r.activeId.value)
+        val edited = Theme(shape = ShapeParams(strokeWeight = 2.5f))
+        r.saveAndActivate(made.id, edited)
+        assertEquals(made.id, r.activeId.value)
+        assertEquals("Mine", r.active()!!.name)
+        assertEquals(edited, r.active()!!.theme)
+        val reread = repo().apply { load() }
+        assertEquals(made.id, reread.activeId.value)
+        assertEquals(edited, reread.active()!!.theme)
+        // Nothing pending: only the switch.
+        r.saveAndActivate("preset-jade", null)
+        assertEquals("preset-jade", r.activeId.value)
+        assertNull(r.saveAndActivate("gone", edited))
+        assertEquals("preset-jade", r.activeId.value)
+    }
 }

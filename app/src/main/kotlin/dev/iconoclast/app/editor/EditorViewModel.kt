@@ -222,6 +222,29 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         container.scope.launch { save(theme) }
     }
 
+    private var applying = false
+
+    /**
+     * Apply: saves the newest change and makes this theme the active one, then calls
+     * [then], which opens the Apply screen. Waits for both writes, so Apply never shows
+     * the theme that was active before. A second tap meanwhile does nothing.
+     */
+    fun apply(then: () -> Unit) {
+        if (applying) return
+        applying = true
+        viewModelScope.launch {
+            try {
+                repo.saveAndActivate(id, pending.value) ?: return@launch say("This theme is gone.")
+                then()
+            } catch (e: IOException) {
+                Log.w(TAG, "Not applied", e)
+                say("Not applied. Storage error: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                applying = false
+            }
+        }
+    }
+
     /** Press and hold: the preview shows plain Arcticons while [on]. */
     fun compare(on: Boolean) {
         if (_ui.value.comparing == on) return
