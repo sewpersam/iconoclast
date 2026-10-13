@@ -58,21 +58,19 @@ object LayerStack {
     /** The rows the layer list shows, top of the stack first. The effects marker is not one. */
     fun rows(theme: Theme): List<Layer> = theme.layers.asReversed().filter { it !is EffectsLayer }
 
-    /** A paint layer at zero opacity is hidden; an effect is hidden when switched off. */
+    /** A paint layer is hidden by its eye; an effect when switched off. Opacity plays no part. */
     fun isVisible(layer: Layer): Boolean = when (layer) {
-        is PaintLayer -> layer.opacity > 0f
+        is PaintLayer -> layer.visible
         is EffectLayer -> layer.enabled
         is EffectsLayer -> true
     }
 
     /**
-     * Shows or hides layer [id]. An effect switches on or off. A paint layer has no switch
-     * in the theme, so hiding sets its opacity to 0, which renders it nowhere, Apply
-     * included; showing it again restores [restore], the opacity it had.
+     * Shows or hides layer [id]: a paint layer's eye, an effect's switch. Opacity is never
+     * touched, so a layer shown again, after a restart too, has the opacity it had.
      */
-    fun withVisible(theme: Theme, id: String, visible: Boolean, restore: Float = 1f): Theme = when (val l = layer(theme, id)) {
-        is PaintLayer -> if (isVisible(l) == visible) theme
-            else replace(theme, l.copy(opacity = if (visible) restore.takeIf { it > 0f }?.coerceAtMost(1f) ?: 1f else 0f))
+    fun withVisible(theme: Theme, id: String, visible: Boolean): Theme = when (val l = layer(theme, id)) {
+        is PaintLayer -> if (l.visible == visible) theme else replace(theme, l.copy(visible = visible))
         is EffectLayer -> if (l.enabled == visible) theme else replace(theme, l.copy(enabled = visible))
         else -> theme
     }

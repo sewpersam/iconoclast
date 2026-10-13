@@ -1,5 +1,7 @@
 package dev.iconoclast.app.editor
 
+import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.app.theme.migrate
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Effect
@@ -167,16 +169,25 @@ class LayerStackTest {
     }
 
     @Test
-    fun theEyeHidesAndRestores() {
+    fun theEyeHidesAndShowsWithoutTouchingOpacity() {
         val l = LayerStack.newLayer(Paint.Solid(-1)).copy(opacity = 0.4f)
         val t = LayerStack.insertAbove(base, l, null)
         val hidden = LayerStack.withVisible(t, l.id, visible = false)
-        assertEquals(0f, (LayerStack.layer(hidden, l.id) as PaintLayer).opacity)
-        assertEquals(false, LayerStack.isVisible(LayerStack.layer(hidden, l.id)!!))
-        assertEquals("Hidden", layerSummary(LayerStack.layer(hidden, l.id)!!, aboveIcon = true))
-        assertEquals(0.4f, (LayerStack.layer(LayerStack.withVisible(hidden, l.id, true, restore = 0.4f), l.id) as PaintLayer).opacity)
-        assertEquals(1f, (LayerStack.layer(LayerStack.withVisible(hidden, l.id, true), l.id) as PaintLayer).opacity)
+        val h = LayerStack.layer(hidden, l.id) as PaintLayer
+        assertEquals(false, h.visible)
+        assertEquals(0.4f, h.opacity)
+        assertEquals(false, LayerStack.isVisible(h))
+        assertEquals("Hidden", layerSummary(h, aboveIcon = true))
+        // A save and a reload, an app restart, keep both the flag and the opacity.
+        val doc = ThemeDocument(id = "a", name = "A", created = 1, modified = 2, theme = hidden)
+        val reloaded = migrate(doc.toJson()).theme
+        assertEquals(hidden, reloaded)
+        val shown = LayerStack.withVisible(reloaded, l.id, visible = true)
+        assertEquals(t, shown)
+        assertEquals(0.4f, (LayerStack.layer(shown, l.id) as PaintLayer).opacity)
         assertSame(t, LayerStack.withVisible(t, l.id, visible = true))
+        // Zero opacity is a value, not hidden.
+        assertEquals(true, LayerStack.isVisible(l.copy(opacity = 0f)))
         val shadow = LayerStack.newEffect(base, Effect.DropShadow())
         val e = LayerStack.insertEffect(base, shadow)
         val off = LayerStack.withVisible(e, shadow.id, visible = false)

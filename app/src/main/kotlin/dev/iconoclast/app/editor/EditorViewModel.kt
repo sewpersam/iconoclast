@@ -137,9 +137,6 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
     /** The big preview's image, by drawable index. */
     val hero: StateFlow<PreviewFrame<ImageBitmap>> = heroPreviews.frame
 
-    /** Opacities of paint layers hidden this session, so showing one again restores it. */
-    private val hiddenOpacity = HashMap<String, Float>()
-
     /** The newest theme not yet saved. */
     private val pending = MutableStateFlow<Theme?>(null)
 
@@ -294,12 +291,10 @@ class EditorViewModel(app: Application, private val saved: SavedStateHandle, pri
         drag(LayerStack.moveOnto(h.theme, id, targetId))
     }
 
-    /** The eye: hides or shows a layer, one undo step. A paint layer gets its opacity back. */
+    /** The eye: hides or shows a layer, one undo step. Opacity stays as it is. */
     fun setLayerVisible(id: String, visible: Boolean) {
         val h = history ?: return
-        val layer = LayerStack.layer(h.theme, id)
-        if (!visible && layer is PaintLayer && layer.opacity > 0f) hiddenOpacity[id] = layer.opacity
-        commit(LayerStack.withVisible(h.theme, id, visible, hiddenOpacity.remove(id) ?: 1f))
+        commit(LayerStack.withVisible(h.theme, id, visible))
     }
 
     /** Effect [id] behind the icon or on top of it. */
