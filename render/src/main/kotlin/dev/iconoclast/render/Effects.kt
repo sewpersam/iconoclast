@@ -83,6 +83,62 @@ sealed interface Effect {
     }
 
     /**
+     * Painterly brush strokes flicking off the icon, schema 5: [count] tapered, bristled
+     * strokes that start on the icon's edge and travel outward along the flow of the
+     * blurred icon mask, curving as they go, fading and blurring with distance. After
+     * Hertzmann, "Painterly Rendering with Curved Brush Strokes of Multiple Sizes",
+     * SIGGRAPH 1998: each stroke is a curve that follows a direction field, takes one
+     * colour from the source at its start point, and is painted over the strokes before
+     * it. Code: effect/BrushStrokes.
+     *
+     * Every random choice derives from the icon's one per-icon offset and [seed], so an
+     * icon's strokes are the same at every size and on every device.
+     */
+    data class BrushStrokes(
+        /** 1 to 400 strokes. */
+        val count: Int = 90,
+        /** 0.02 to 0.5 of the canvas: how far a stroke reaches. */
+        val length: Float = 0.2f,
+        /** 0.002 to 0.08 of the canvas: a stroke's width at its base. */
+        val width: Float = 0.02f,
+        /** 0 to 1: from crisp edges and bristles to soft ones. */
+        val softness: Float = 0.3f,
+        /** 0 to 1: how much the strokes blur with distance from the icon. */
+        val blur: Float = 0.3f,
+        /** 0 to 1: how much a stroke's paint runs out along its length. */
+        val fade: Float = 0.6f,
+        /** 0 to 1: variation of each stroke's direction, length, width, wobble and tone. */
+        val randomness: Float = 0.5f,
+        /** -1 to 1: strokes curl counterclockwise (positive) or clockwise as they travel. */
+        val bend: Float = 0f,
+        /** 0 to 1: dry-brush bristle marks, which thin out toward the tip. */
+        val bristles: Float = 0.6f,
+        /** 0 to 1: how far the strokes lean toward [angle] instead of straight off the edge. */
+        val drift: Float = 0f,
+        /** 0 to 360 degrees: the direction [drift] leans toward. */
+        val angle: Float = 300f,
+        /** As [Streaks.paintLayer]: the source paints each stroke with its colour at the stroke's start. */
+        val paintLayer: String? = null,
+        /** Straight ARGB. */
+        val color: Int = 0xFFFFFFFF.toInt(),
+        val seed: Int = 0,
+    ) : Effect {
+        init {
+            require(count in 1..400) { "brush stroke count $count" }
+            require(length in 0.02f..0.5f) { "brush stroke length $length" }
+            require(width in 0.002f..0.08f) { "brush stroke width $width" }
+            require(softness in 0f..1f) { "brush stroke softness $softness" }
+            require(blur in 0f..1f) { "brush stroke blur $blur" }
+            require(fade in 0f..1f) { "brush stroke fade $fade" }
+            require(randomness in 0f..1f) { "brush stroke randomness $randomness" }
+            require(bend in -1f..1f) { "brush stroke bend $bend" }
+            require(bristles in 0f..1f) { "brush stroke bristles $bristles" }
+            require(drift in 0f..1f) { "brush stroke drift $drift" }
+            require(angle in 0f..360f) { "brush stroke angle $angle" }
+        }
+    }
+
+    /**
      * Bevel and emboss from a signed sub-pixel distance field of the icon mask. The light
      * comes from [lightAngle] at a fixed 30 degree altitude.
      */
