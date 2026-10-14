@@ -16,6 +16,13 @@ import dev.iconoclast.render.Matte
 import dev.iconoclast.render.MatteMode
 import dev.iconoclast.render.NoiseKind
 import dev.iconoclast.render.Paint
+import dev.iconoclast.render.Pattern
+import dev.iconoclast.render.CellFeature
+import dev.iconoclast.render.WaveKind
+import dev.iconoclast.render.Finish
+import dev.iconoclast.render.Adjust
+import dev.iconoclast.render.StrokeDirection
+import dev.iconoclast.render.StrokeStyle
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Border
 import dev.iconoclast.render.GoldenSet
@@ -96,6 +103,14 @@ class ThemeSerializationTest {
         layers.add(PaintLayer("sweep", Paint.AngularGradient(0.3f, 0.6f, 45f, stops + ColorStop(1f, 0x80FF0000.toInt()))))
         layers.add(EffectLayer("blur", Effect.Blur(0.05f, ClipTarget.ICON_FILL, clipInverse = true), opacity = 0.7f))
         layers.add(PaintLayer("tex2", Paint.Texture("cd".repeat(32)), clip = ClipTarget.EFFECTS, matte = Matte(black = 0.1f, white = 0.9f)))
+        // Schema 9: patterns, image adjust, a fill's finish, clip to the layer below, stroke direction and style.
+        layers.add(PaintLayer("cells", Paint.Noise(Pattern.Cells(0.2f, 0.4f, 0.05f, CellFeature.EDGES), 3, stops), clip = ClipTarget.BELOW,
+            finish = Finish(frost = 0.02f, grain = 0.3f, rim = 0.5f, cut = 0.75f)))
+        layers.add(PaintLayer("waves", Paint.Noise(Pattern.Waves(WaveKind.RINGS, 0.3f, 4f, 2.5f), 1, stops)))
+        layers.add(PaintLayer("noise2", Paint.Noise(Pattern.Noise(0.4f, 2.5f, 0.7f, 1.5f, 3f, 120f, false), 1, stops)))
+        layers.add(PaintLayer("adj", Paint.Texture("cd".repeat(32), null, Adjust(0.1f, -0.2f, 0.3f, -0.4f))))
+        layers.add(EffectLayer("swipe", Effect.BrushStrokes(count = 3, length = 1f, width = 0.1f, direction = StrokeDirection.PARALLEL,
+            originX = 0.2f, originY = 0.7f, style = StrokeStyle.PAINTED)))
         val original = doc(Theme(layers = layers))
         val parsed = migrate(original.toJson())
         assertEquals(original, parsed)
@@ -105,7 +120,8 @@ class ThemeSerializationTest {
             original.toJson().replace("\"SOFT_LIGHT\"", "\"VIVID_LIGHT\""),
             original.toJson().replace("\"id\": \"tex2\"", "\"id\": \"tex\""),
             original.toJson().replace("\"type\": \"effects\"", "\"type\": \"effects\", \"extra\": 1"),
-            original.toJson().replace("\"octaves\": 6", "\"octaves\": 9"),
+            original.toJson().replace("\"detail\": 5.0", "\"detail\": 9.0"),
+            original.toJson().replace("\"cut\": 0.75", "\"cut\": 1.5"),
             original.toJson().replace("ab".repeat(32), "AB".repeat(32)),
         )) {
             assertFailsWith<ThemeFormatException>(bad) { migrate(bad) }

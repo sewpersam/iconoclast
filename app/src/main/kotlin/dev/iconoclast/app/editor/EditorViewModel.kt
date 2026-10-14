@@ -468,12 +468,13 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
     /** The canonical PNG of [hash], for the crop step's picture. Slow; off the main thread. */
     fun texturePng(hash: String): ByteArray? = container.textures.store.bytes(hash)
 
-    /** The Glass look over the whole theme, one undo step. */
-    fun addGlass() {
+    /** The Add sheet's Overlay: a wash on top of everything, its page opened to pick its kind. */
+    fun addOverlay() {
         val h = history ?: return
+        val layer = LayerStack.newOverlay()
         _ui.value = _ui.value.copy(adding = false)
-        commit(LayerStack.withGlass(h.theme))
-        say("Glass added: see-through tile, blur, bright edge and grain. Undo takes it back.")
+        commit(LayerStack.insertAbove(h.theme, layer, null))
+        openPage(layer.id)
     }
 
     /** Applies a history operation; if it changed the theme, publishes and queues a save. */
@@ -505,12 +506,15 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         val resolution = container.settings.resolution.value
         val drawables = ui.items.map { it.drawable }
         // While a slider moves, only the cells on screen: the drag's frames come sooner.
-        previews.request(PreviewRequest(theme, drawables, onScreen(drawables, if (h.dragging) 0 else MARGIN), byDrawable, resolution))
+        previews.request(PreviewRequest(theme, drawables, onScreen(drawables, if (h.dragging) 0 else MARGIN), visibleNow(drawables), byDrawable, resolution))
         val hero = ui.focused?.takeIf { f -> ui.items.any { it.drawable == f } } ?: ui.items.firstOrNull()?.drawable
         if (hero != null) {
-            heroPreviews.request(PreviewRequest(theme, listOf(hero), null, byDrawable.filterKeys { it == hero }, resolution))
+            heroPreviews.request(PreviewRequest(theme, listOf(hero), overrides = byDrawable.filterKeys { it == hero }, resolution = resolution))
         }
     }
+
+    /** The strip cells on screen now, drawn first; null before the strip reports them. */
+    private fun visibleNow(drawables: List<Int>): Set<Int>? = visible.takeIf { it.isNotEmpty() }?.let { v -> drawables.filter { it in v }.toSet() }
 
     /**
      * The strip cells to draw: those on screen and [margin] either side, so a short scroll

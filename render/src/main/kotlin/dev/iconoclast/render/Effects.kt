@@ -41,6 +41,27 @@ enum class Decay {
     EXPONENTIAL,
 }
 
+/** Which way [Effect.BrushStrokes] run. */
+enum class StrokeDirection {
+    /** Out from the icon's edge, along the flow of its outline, as schema 8 drew them. */
+    OUTWARD,
+
+    /** Parallel, along the effect's angle, in a band across the tile: paint swipes behind the icon. */
+    PARALLEL,
+}
+
+/** How each [Effect.BrushStrokes] mark is drawn. */
+enum class StrokeStyle {
+    /** Schema 8's procedural mark. */
+    CLASSIC,
+
+    /**
+     * Real paint: pressure at the start and lift at the end, a wobbling width, ragged
+     * edges, uneven bristle streaks that run dry toward the tail, darker where strokes overlap.
+     */
+    PAINTED,
+}
+
 /** [Effect.Bevel]'s profile. */
 enum class BevelStyle {
     /** Rises inside the icon from its edge over [Effect.Bevel.size]. */
@@ -49,6 +70,9 @@ enum class BevelStyle {
     /** Rises across the edge, half outside and half inside, the icon standing out of the background. */
     EMBOSS,
 }
+
+/** The farthest a shadow sits from its icon, a fraction of the canvas, schema 9. */
+const val MAX_SHADOW_DISTANCE = 0.25f
 
 /** The effects of spec 2.3, each with its parameters and ranges. */
 sealed interface Effect {
@@ -97,9 +121,9 @@ sealed interface Effect {
     data class BrushStrokes(
         /** 1 to 400 strokes. */
         val count: Int = 90,
-        /** 0.02 to 0.5 of the canvas: how far a stroke reaches. */
+        /** 0.02 to 1.2 of the canvas, schema 8 up to 0.5: how far a stroke reaches. */
         val length: Float = 0.2f,
-        /** 0.002 to 0.08 of the canvas: a stroke's width at its base. */
+        /** 0.002 to 0.2 of the canvas, schema 8 up to 0.08: a stroke's width at its base. */
         val width: Float = 0.02f,
         /** 0 to 1: from crisp edges and bristles to soft ones. */
         val softness: Float = 0.3f,
@@ -122,11 +146,23 @@ sealed interface Effect {
         /** Straight ARGB. */
         val color: Int = 0xFFFFFFFF.toInt(),
         val seed: Int = 0,
+        /** Schema 9: outward from the icon at [originX], [originY], or all one way along [angle]. */
+        val direction: StrokeDirection = StrokeDirection.OUTWARD,
+        /**
+         * 0 to 1 of the canvas, y down. Outward: where the burst sits; the icon's own outline
+         * moved there, so the centre is schema 8's strokes. All one way: the point the band
+         * of strokes crosses.
+         */
+        val originX: Float = 0.5f,
+        val originY: Float = 0.5f,
+        /** Schema 9: how a stroke is drawn. Classic is schema 8's mark; Painted reads as real paint. */
+        val style: StrokeStyle = StrokeStyle.CLASSIC,
     ) : Effect {
         init {
+            require(originX in 0f..1f && originY in 0f..1f) { "brush stroke origin $originX,$originY" }
             require(count in 1..400) { "brush stroke count $count" }
-            require(length in 0.02f..0.5f) { "brush stroke length $length" }
-            require(width in 0.002f..0.08f) { "brush stroke width $width" }
+            require(length in 0.02f..1.2f) { "brush stroke length $length" }
+            require(width in 0.002f..0.2f) { "brush stroke width $width" }
             require(softness in 0f..1f) { "brush stroke softness $softness" }
             require(blur in 0f..1f) { "brush stroke blur $blur" }
             require(fade in 0f..1f) { "brush stroke fade $fade" }
@@ -174,7 +210,7 @@ sealed interface Effect {
     data class DropShadow(
         /** 0 to 360 degrees: where the light comes from; the shadow falls the other way. */
         val angle: Float = 120f,
-        /** 0 to 0.1 of the canvas. */
+        /** 0 to [MAX_SHADOW_DISTANCE] of the canvas; schema 8 allowed 0.1. */
         val distance: Float = 0.01f,
         /** 0 to 0.1 of the canvas: Gaussian radius, sigma half of it. */
         val blur: Float = 0.01f,
@@ -183,7 +219,7 @@ sealed interface Effect {
     ) : Effect {
         init {
             require(angle in 0f..360f) { "shadow angle $angle" }
-            require(distance in 0f..0.1f) { "shadow distance $distance" }
+            require(distance in 0f..MAX_SHADOW_DISTANCE) { "shadow distance $distance" }
             require(blur in 0f..0.1f) { "shadow blur $blur" }
         }
     }
@@ -197,7 +233,7 @@ sealed interface Effect {
     ) : Effect {
         init {
             require(angle in 0f..360f) { "shadow angle $angle" }
-            require(distance in 0f..0.1f) { "shadow distance $distance" }
+            require(distance in 0f..MAX_SHADOW_DISTANCE) { "shadow distance $distance" }
             require(blur in 0f..0.1f) { "shadow blur $blur" }
         }
     }

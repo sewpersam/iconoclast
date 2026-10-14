@@ -5,12 +5,13 @@ import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Effect
 import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
-import dev.iconoclast.render.Glass
 import dev.iconoclast.render.Layer
 import dev.iconoclast.render.Mapping
-import dev.iconoclast.render.NoiseKind
+import dev.iconoclast.render.ColorStop
+import dev.iconoclast.render.Pattern
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
+import dev.iconoclast.render.StrokeStyle
 import dev.iconoclast.render.Theme
 import java.util.UUID
 
@@ -150,10 +151,24 @@ object LayerStack {
      */
     val NEW_TEXTURE_MAPPING = Mapping(scale = 2f)
 
-    /** A new layer with a fresh id over the icon, normal and opaque; a texture at [NEW_TEXTURE_MAPPING]. */
+    /**
+     * A new layer with a fresh id, normal and opaque, staying inside the layer below it,
+     * schema 9; a texture at [NEW_TEXTURE_MAPPING].
+     */
     fun newLayer(source: Paint): PaintLayer = PaintLayer(
-        UUID.randomUUID().toString(), source, clip = ClipTarget.ICON,
+        UUID.randomUUID().toString(), source, clip = ClipTarget.BELOW,
         mapping = if (source is Paint.Texture) NEW_TEXTURE_MAPPING else Mapping(),
+    )
+
+    /**
+     * The Add sheet's Overlay: a gradient wash, white fading to clear, from the top left
+     * across the whole tile. It goes on top of the stack with Stay inside off, so it
+     * covers everything, as its description says; its kind is then picked like any fill.
+     */
+    fun newOverlay(): PaintLayer = PaintLayer(
+        UUID.randomUUID().toString(),
+        Paint.LinearGradient(0f, 0f, 1f, 1f, listOf(ColorStop(0f, 0x99FFFFFF.toInt()), ColorStop(1f, 0x00FFFFFF))),
+        clip = ClipTarget.CANVAS,
     )
 
     /**
@@ -170,9 +185,6 @@ object LayerStack {
         }
         return layer.copy(source = Paint.Texture(hash, old?.stops), mapping = mapping)
     }
-
-    /** The Glass look over [theme], one change: dev.iconoclast.render.Glass. */
-    fun withGlass(theme: Theme): Theme = Glass.apply(theme) { UUID.randomUUID().toString() }
 
     /** [layer] clipped to [clip]. The whole canvas has no outside, so its inverse is dropped. */
     fun withClip(layer: PaintLayer, clip: ClipTarget): PaintLayer =
@@ -201,7 +213,7 @@ object LayerStack {
             is Paint.Solid -> "Colour"
             is Paint.LinearGradient, is Paint.RadialGradient, is Paint.AngularGradient -> "Gradient"
             is Paint.Texture -> "Image"
-            is Paint.Noise -> patternName(source.kind)
+            is Paint.Noise -> patternName(source.pattern)
         }
         else -> "Effects"
     }
@@ -218,11 +230,9 @@ object LayerStack {
         is Effect.Blur -> "Blur"
     }
 
-    fun patternName(kind: NoiseKind): String = when (kind) {
-        NoiseKind.FBM -> "Clouds"
-        NoiseKind.RIDGED -> "Veins"
-        NoiseKind.GRAIN -> "Speckle"
-    }
+    /** A starting point's name while the pattern is still exactly it, else "Pattern". */
+    fun patternName(pattern: Pattern): String = PATTERN_PRESETS.firstOrNull { it.second == pattern }?.first ?: "Pattern"
+
 
     /** Effects that draw only on the icon: below the Icon row they are hidden behind it. */
     fun drawsOnIconOnly(effect: Effect): Boolean = effect is Effect.Bevel || effect is Effect.InnerShadow || effect is Effect.InnerGlow
@@ -239,7 +249,9 @@ object LayerStack {
         val first = streakSources(theme).firstOrNull()?.id
         val e = when {
             effect is Effect.Streaks && effect.paintLayer == null -> effect.copy(paintLayer = first)
-            effect is Effect.BrushStrokes && effect.paintLayer == null -> effect.copy(paintLayer = first)
+            // New strokes are Painted, schema 9; Classic stays for themes that had it.
+            effect is Effect.BrushStrokes && effect.paintLayer == null -> effect.copy(paintLayer = first, style = StrokeStyle.PAINTED)
+            effect is Effect.BrushStrokes -> effect.copy(style = StrokeStyle.PAINTED)
             else -> effect
         }
         return EffectLayer(UUID.randomUUID().toString(), e, blend = if (e is Effect.Grain) BlendMode.OVERLAY else BlendMode.NORMAL)

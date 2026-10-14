@@ -229,7 +229,7 @@ class LayerStackTest {
         val t = base.copy(layers = base.layers + tex + fillTint + PaintLayer("c", Paint.Solid(-1)))
         assertEquals("Outside whole icon · cut out by brightness · Screen · 50%", summary(t, "t"))
         assertEquals("Inside icon fill", summary(t, "f"))
-        assertEquals("Everywhere", summary(t, "c"))
+        assertEquals("Whole tile", summary(t, "c"))
         assertEquals("Soft square", summary(t, "background"))
         val shadow = LayerStack.newEffect(base, Effect.DropShadow())
         val s = LayerStack.insertEffect(base, shadow)

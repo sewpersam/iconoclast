@@ -435,6 +435,70 @@ object GoldenSet {
         )
     }
 
+    /** Paint layer [id] of [layers] changed by [f]. */
+    private fun List<Layer>.edit(id: String, f: (PaintLayer) -> PaintLayer): List<Layer> =
+        map { if (it.id == id) f(it as PaintLayer) else it }
+
+    /** The Glass starting point of a fill, schema 9: see-through, frosted, grained, with a light rim. */
+    private val GLASS_FINISH = Glass.FILL_FINISH
+    private const val GLASS_OPACITY = Glass.FILL_OPACITY
+
+    /**
+     * Phone feedback round 1, schema 9: the three pattern generators and their features, an
+     * image's colour adjustments, a fill's finish (Glass, and lines cut through to the
+     * wallpaper), clipping to the layer below, a large shadow offset, Cover kept covering
+     * under random size, and brush strokes all one way, from a corner, and painted.
+     */
+    val FEEDBACK: Map<String, Theme> by lazy {
+        val marble = Marble.HASH
+        val dark = Paint.Solid(0xFF15181C.toInt())
+        val base = Theme(
+            shape = ShapeParams(strokeWeight = 1.5f),
+            fill = FillParams(mode = FillMode.INVERT),
+            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.22f)),
+            layers = Theme.baseLayers(dark, body = WHITE, line = WHITE),
+        )
+        fun fill(p: Paint, scale: Float = 1f) = base.copy(layers = base.layers.edit(Layer.ICON_FILL_ID) { it.copy(source = p, mapping = Mapping(scale = scale)) })
+        fun backdrop(p: Paint, scale: Float = 1f) = base.copy(layers = base.layers.edit(Layer.BACKGROUND_ID) { it.copy(source = p, mapping = Mapping(scale = scale)) })
+        val warm = listOf(ColorStop(0f, 0xFF2B1B12.toInt()), ColorStop(0.5f, 0xFF8A5A3B.toInt()), ColorStop(1f, 0xFFE8C9A0.toInt()))
+        val cool = listOf(ColorStop(0f, 0xFF0B1D2E.toInt()), ColorStop(1f, 0xFF7FD1E8.toInt()))
+        val sunset = Paint.LinearGradient(0f, 0f, 1f, 1f, listOf(ColorStop(0f, 0xFF6A8CFF.toInt()), ColorStop(0.5f, 0xFFB86BFF.toInt()), ColorStop(1f, 0xFFFF8A65.toInt())))
+        val swipes = Effect.BrushStrokes(count = 3, length = 0.95f, width = 0.08f, softness = 0.15f, blur = 0.1f, fade = 0.35f, randomness = 0.5f,
+            bend = 0.1f, bristles = 0.7f, angle = 30f, color = 0xFFE8D5B0.toInt(), direction = StrokeDirection.PARALLEL, style = StrokeStyle.PAINTED)
+        mapOf(
+            "fb_pattern_noise" to fill(Paint.Noise(Pattern.Noise(size = 0.2f, detail = 4.5f, roughness = 0.6f, distortion = 0.8f, stretch = 4f, stretchAngle = 30f), 5, warm)),
+            "fb_pattern_ridges" to backdrop(Paint.Noise(Pattern.Noise(size = 0.25f, detail = 5f, ridges = true, distortion = 0.4f), 9, cool)),
+            "fb_pattern_cells" to backdrop(Paint.Noise(Pattern.Cells(size = 0.12f), 3, cool)),
+            "fb_pattern_edges" to fill(Paint.Noise(Pattern.Cells(size = 0.08f, edgeWidth = 0.12f, feature = CellFeature.EDGES), 4, warm)),
+            "fb_pattern_crackle" to backdrop(Paint.Noise(Pattern.Cells(size = 0.15f, randomness = 0.8f, feature = CellFeature.CRACKLE), 6, warm)),
+            "fb_pattern_bands" to backdrop(Paint.Noise(Pattern.Waves(size = 0.08f, distortion = 3f, detail = 3f), 2, warm)),
+            "fb_pattern_rings" to fill(Paint.Noise(Pattern.Waves(WaveKind.RINGS, size = 0.06f, distortion = 1f), 8, cool)),
+            "fb_adjust" to backdrop(Paint.Texture(marble, adjust = Adjust(brightness = -0.2f, contrast = 0.6f, saturation = 0.8f, warmth = 0.7f)), 2f),
+            "fb_finish_glass" to base.copy(layers = base.layers
+                .edit(Layer.BACKGROUND_ID) { it.copy(source = Paint.Texture(marble), mapping = Mapping(scale = 2f)) }
+                .edit(Layer.ICON_FILL_ID) { it.copy(opacity = GLASS_OPACITY, finish = GLASS_FINISH) }),
+            "fb_knockout" to base.copy(fill = FillParams(mode = FillMode.OUTLINE), shape = ShapeParams(strokeWeight = 2.5f),
+                layers = base.layers.edit(Layer.BACKGROUND_ID) { it.copy(source = sunset) }
+                    .edit(Layer.ICON_LINES_ID) { it.copy(opacity = 0f, finish = Finish(cut = 1f)) }),
+            "fb_clip_below" to base.copy(background = BackgroundParams(shape = BackgroundShape.Circle, size = 0.85f),
+                layers = base.layers.flatMap { l ->
+                    when (l.id) {
+                        Layer.BACKGROUND_ID -> listOf(l, PaintLayer("clouds", Paint.Noise(Pattern.Noise(detail = 4f), 1, cool), clip = ClipTarget.BELOW, opacity = 0.8f))
+                        Layer.ICON_LINES_ID -> listOf(l, PaintLayer("tint", sunset, clip = ClipTarget.BELOW, blend = BlendMode.MULTIPLY))
+                        else -> listOf(l)
+                    }
+                }),
+            "fb_shadow_offset" to base.withEffect(EffectLayer("shadow", Effect.DropShadow(angle = 135f, distance = 0.2f, blur = 0.02f), opacity = 0.8f)),
+            "fb_cover_clamp" to backdrop(Paint.Texture(marble)).let { t ->
+                t.copy(layers = t.layers.edit(Layer.BACKGROUND_ID) { it.copy(mapping = Mapping(scale = 0.5f, randomScale = 0.8f, randomRotation = 45f)) })
+            },
+            "fb_strokes_parallel" to base.withEffect(EffectLayer("swipes", swipes, opacity = 0.9f)),
+            "fb_strokes_corner" to base.withEffect(EffectLayer("burst", Effect.BrushStrokes(count = 60, length = 0.35f, width = 0.03f,
+                originX = 0.15f, originY = 0.85f, color = 0xFF7FD1E8.toInt(), style = StrokeStyle.PAINTED), opacity = 0.8f)),
+            "fb_strokes_painted" to brushJade(JADE_STROKES.copy(style = StrokeStyle.PAINTED), 0.7f),
+        )
+    }
+
     /**
      * The compact output resolution, readiness item 7: Plain and the Jade starter on every
      * sample at 324 px, rendered as a 324 px pack. Kept apart from [CASES], which are 432 px.
@@ -456,5 +520,6 @@ object GoldenSet {
             LOOK_SAMPLES.map { Triple("brush_background", BRUSH_BACKGROUND, it) } +
             SAMPLES.map { Triple("jade_m6", JADE_M6, it) } +
             BRUSH_VARIANTS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
-            LOOK_PASS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
+            LOOK_PASS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
+            FEEDBACK.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
 }

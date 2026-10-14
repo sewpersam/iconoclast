@@ -7,6 +7,9 @@ import dev.iconoclast.render.Breakup
 import dev.iconoclast.render.Decay
 import dev.iconoclast.render.Effect
 import dev.iconoclast.render.EffectLayer
+import dev.iconoclast.render.MAX_SHADOW_DISTANCE
+import dev.iconoclast.render.StrokeDirection
+import dev.iconoclast.render.StrokeStyle
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
 import java.util.Locale
@@ -73,7 +76,6 @@ private class Open(val showing: Boolean) {
     fun more(block: @Composable () -> Unit) { rare += block }
 }
 
-private val degrees = decimals(0, "°")
 
 /** A fraction of the tile as a percentage with one decimal: lengths and sizes. */
 private val canvas: (Float) -> String = { String.format(Locale.ROOT, "%.1f%%", it * 100) }
@@ -84,7 +86,7 @@ private fun StreakControls(
     onDrag: (Effect) -> Unit, onDone: () -> Unit, onCommit: (Effect) -> Unit, actions: BreakupActions, o: Open,
 ) {
     val d = Effect.Streaks()
-    SliderControl(Tips.STREAK_DIRECTION, e.angle, 0f..360f, d.angle, degrees, { onDrag(e.copy(angle = it)) }, onDone, { onCommit(e.copy(angle = d.angle)) })
+    DirectionDial(Tips.STREAK_DIRECTION, e.angle, d.angle, { onDrag(e.copy(angle = it)) }, onDone, { onCommit(e.copy(angle = d.angle)) })
     SliderControl(Tips.STREAK_LENGTH, e.length, 0f..0.6f, d.length, canvas, { onDrag(e.copy(length = it)) }, onDone, { onCommit(e.copy(length = d.length)) })
     val linked = theme.layers.firstOrNull { it.id == e.paintLayer } as? PaintLayer
     if (linked == null) {
@@ -134,10 +136,22 @@ private fun ColourFrom(tip: Tip, paintLayer: String?, theme: Theme, onSelect: (S
 @Composable
 private fun BrushStrokeControls(e: Effect.BrushStrokes, theme: Theme, onDrag: (Effect) -> Unit, onDone: () -> Unit, onCommit: (Effect) -> Unit, o: Open) {
     val d = Effect.BrushStrokes()
+    val parallel = e.direction == StrokeDirection.PARALLEL
+    ChoiceControl(Tips.STROKE_DIRECTION, listOf(StrokeDirection.OUTWARD to "Outward from a point", StrokeDirection.PARALLEL to "All one way"),
+        e.direction, d.direction, { if (it != e.direction) onCommit(withDirection(e, it)) })
+    if (parallel) {
+        DirectionDial(Tips.STROKE_ANGLE, e.angle, SWIPES.angle, { onDrag(e.copy(angle = it)) }, onDone, { onCommit(e.copy(angle = SWIPES.angle)) })
+    } else {
+        PointPad(Tips.STROKE_ORIGIN, e.originX, e.originY, e.originX != d.originX || e.originY != d.originY,
+            if (e.originX == 0.5f && e.originY == 0.5f) "The icon" else "Moved",
+            { x, y -> onDrag(e.copy(originX = x, originY = y)) }, onDone, { onCommit(e.copy(originX = d.originX, originY = d.originY)) })
+    }
+    ChoiceControl(Tips.STROKE_STYLE, listOf(StrokeStyle.PAINTED to "Painted", StrokeStyle.CLASSIC to "Classic"), e.style, StrokeStyle.PAINTED,
+        { onCommit(e.copy(style = it)) })
     SliderControl(Tips.STROKE_COUNT, e.count.toFloat(), 1f..400f, d.count.toFloat(), decimals(0),
         { onDrag(e.copy(count = (it + 0.5f).toInt().coerceIn(1, 400))) }, onDone, { onCommit(e.copy(count = d.count)) })
-    SliderControl(Tips.STROKE_LENGTH, e.length, 0.02f..0.5f, d.length, canvas, { onDrag(e.copy(length = it)) }, onDone, { onCommit(e.copy(length = d.length)) })
-    SliderControl(Tips.STROKE_WIDTH, e.width, 0.002f..0.08f, d.width, canvas, { onDrag(e.copy(width = it)) }, onDone, { onCommit(e.copy(width = d.width)) })
+    SliderControl(Tips.STROKE_LENGTH, e.length, 0.02f..1.2f, d.length, canvas, { onDrag(e.copy(length = it)) }, onDone, { onCommit(e.copy(length = d.length)) })
+    SliderControl(Tips.STROKE_WIDTH, e.width, 0.002f..0.2f, d.width, canvas, { onDrag(e.copy(width = it)) }, onDone, { onCommit(e.copy(width = d.width)) })
     SliderControl(Tips.BLUR_TIP, e.blur, 0f..1f, d.blur, percent, { onDrag(e.copy(blur = it)) }, onDone, { onCommit(e.copy(blur = d.blur)) })
     val linked = theme.layers.firstOrNull { it.id == e.paintLayer } as? PaintLayer
     if (linked == null) {
@@ -150,21 +164,37 @@ private fun BrushStrokeControls(e: Effect.BrushStrokes, theme: Theme, onDrag: (E
         SliderControl(Tips.VARIETY, e.randomness, 0f..1f, d.randomness, percent,
             { onDrag(e.copy(randomness = it)) }, onDone, { onCommit(e.copy(randomness = d.randomness)) })
         SliderControl(Tips.CURL, e.bend, -1f..1f, d.bend, signedPercent, { onDrag(e.copy(bend = it)) }, onDone, { onCommit(e.copy(bend = d.bend)) })
-        SliderControl(Tips.LEAN, e.drift, 0f..1f, d.drift, percent, { onDrag(e.copy(drift = it)) }, onDone, { onCommit(e.copy(drift = d.drift)) })
-        if (e.drift > 0f) {
-            SliderControl(Tips.LEAN_DIRECTION, e.angle, 0f..360f, d.angle, degrees, { onDrag(e.copy(angle = it)) }, onDone, { onCommit(e.copy(angle = d.angle)) })
+        // All one way, the angle is the direction itself; Lean is outward strokes only.
+        if (!parallel) {
+            SliderControl(Tips.LEAN, e.drift, 0f..1f, d.drift, percent, { onDrag(e.copy(drift = it)) }, onDone, { onCommit(e.copy(drift = d.drift)) })
+            if (e.drift > 0f) {
+                DirectionDial(Tips.LEAN_DIRECTION, e.angle, d.angle, { onDrag(e.copy(angle = it)) }, onDone, { onCommit(e.copy(angle = d.angle)) })
+            }
         }
         ColourFrom(Tips.STROKE_COLOUR_FROM, e.paintLayer, theme) { onCommit(e.copy(paintLayer = it)) }
         ShuffleControl(Tips.SHUFFLE_STROKES, e.seed != d.seed, { onCommit(e.copy(seed = Random.nextInt())) }, { onCommit(e.copy(seed = d.seed)) })
     }
 }
 
+/**
+ * All one way starts as the picked default of the round 1 sheet, docs/verification/feedback-1:
+ * three broad diagonal swipes across behind the icon, from where the strokes had been.
+ */
+private val SWIPES = Effect.BrushStrokes(count = 3, length = 0.95f, width = 0.08f, softness = 0.15f, blur = 0.1f, fade = 0.35f,
+    randomness = 0.5f, bend = 0.1f, bristles = 0.7f, angle = 30f, direction = StrokeDirection.PARALLEL)
+
+/** [e] turned to [to]: all one way takes the swipes' count, size and angle, keeping colour, style and seed; outward the defaults'. */
+private fun withDirection(e: Effect.BrushStrokes, to: StrokeDirection): Effect.BrushStrokes {
+    val from = if (to == StrokeDirection.PARALLEL) SWIPES else Effect.BrushStrokes()
+    return e.copy(direction = to, count = from.count, length = from.length, width = from.width, softness = from.softness, blur = from.blur,
+        fade = from.fade, randomness = from.randomness, bend = from.bend, bristles = from.bristles, angle = from.angle, drift = from.drift)
+}
+
 @Composable
 private fun BevelControls(e: Effect.Bevel, onDrag: (Effect) -> Unit, onDone: () -> Unit, onCommit: (Effect) -> Unit, o: Open) {
     val d = Effect.Bevel()
     ChoiceControl(Tips.RAISED, listOf(BevelStyle.INNER to "Inside the edge", BevelStyle.EMBOSS to "Across the edge"), e.style, d.style, { onCommit(e.copy(style = it)) })
-    SliderControl(Tips.RAISED_LIGHT, e.lightAngle, 0f..360f, d.lightAngle, degrees,
-        { onDrag(e.copy(lightAngle = it)) }, onDone, { onCommit(e.copy(lightAngle = d.lightAngle)) })
+    DirectionDial(Tips.RAISED_LIGHT, e.lightAngle, d.lightAngle, { onDrag(e.copy(lightAngle = it)) }, onDone, { onCommit(e.copy(lightAngle = d.lightAngle)) })
     SliderControl(Tips.HEIGHT, e.depth, 0f..4f, d.depth, decimals(2), { onDrag(e.copy(depth = it)) }, onDone, { onCommit(e.copy(depth = d.depth)) })
     o.more {
         SliderControl(Tips.EDGE_WIDTH, e.size, 0.001f..0.05f, d.size, canvas, { onDrag(e.copy(size = it)) }, onDone, { onCommit(e.copy(size = d.size)) })
@@ -183,14 +213,31 @@ private fun ShadowControls(
     dAngle: Float, dDistance: Float, dBlur: Float, dColor: Int,
     onDrag: (Float, Float, Float, Int) -> Unit, onDone: () -> Unit, onCommit: (Float, Float, Float, Int) -> Unit, o: Open,
 ) {
-    SliderControl(Tips.SHADOW_LIGHT, angle, 0f..360f, dAngle, degrees,
-        { onDrag(it, distance, blur, color) }, onDone, { onCommit(dAngle, distance, blur, color) })
-    SliderControl(Tips.DISTANCE, distance, 0f..0.1f, dDistance, canvas,
-        { onDrag(angle, it, blur, color) }, onDone, { onCommit(angle, dDistance, blur, color) })
+    // One offset pad for light direction and distance: the dot is where the shadow falls.
+    val (dx, dy) = shadowOffset(angle, distance)
+    OffsetPad(Tips.SHADOW_OFFSET, dx, dy, MAX_SHADOW_DISTANCE, angle != dAngle || distance != dDistance,
+        { x, y -> val (a, d) = shadowAngle(x, y, angle); onDrag(a, d, blur, color) }, onDone, { onCommit(dAngle, dDistance, blur, color) })
     SliderControl(Tips.SHADOW_SOFTNESS, blur, 0f..0.1f, dBlur, canvas, { onDrag(angle, distance, it, color) }, onDone, { onCommit(angle, distance, dBlur, color) })
     o.more {
         ColorControl(Tips.SHADOW_COLOUR, color, dColor, { onDrag(angle, distance, blur, it) }, onDone, { onCommit(angle, distance, blur, it) })
     }
+}
+
+/**
+ * Where a shadow falls, as a fraction of the tile on screen, y down: away from the light at
+ * [angle], counterclockwise from the right with y up, [distance] off.
+ */
+fun shadowOffset(angle: Float, distance: Float): Pair<Float, Float> {
+    val a = Math.toRadians(angle.toDouble())
+    return (-Math.cos(a) * distance).toFloat() to (Math.sin(a) * distance).toFloat()
+}
+
+/** The light angle and distance that put a shadow at ([dx], [dy]); at no offset, [keep] stays the angle. */
+fun shadowAngle(dx: Float, dy: Float, keep: Float): Pair<Float, Float> {
+    val d = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat().coerceAtMost(MAX_SHADOW_DISTANCE)
+    if (d < 0.0005f) return keep to 0f
+    val deg = Math.toDegrees(Math.atan2(dy.toDouble(), -dx.toDouble())).toFloat()
+    return ((deg + 360f) % 360f) to d
 }
 
 /** Glow and inner glow share their settings: size, solidity, colour. */

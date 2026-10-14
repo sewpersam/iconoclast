@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import dev.iconoclast.app.ui.theme.OutlinedAction
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -58,7 +58,7 @@ fun BreakupPicker(selected: String?, actions: BreakupActions, layerId: String, o
             for (hash in imported) {
                 Choice("Your image", selected == hash, { onSelect(hash) }) { TextureThumbnail(hash, actions.file, "Your image", THUMB) }
             }
-            OutlinedButton(onClick = { actions.import(layerId) }) { Text("Add image", maxLines = 1) }
+            OutlinedAction(onClick = { actions.import(layerId) }) { Text("Add image", maxLines = 1) }
         }
     }
 }

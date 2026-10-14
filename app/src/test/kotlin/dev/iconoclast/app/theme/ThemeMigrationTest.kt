@@ -229,7 +229,78 @@ class ThemeMigrationTest {
     private fun iconTogether(doc: JsonObject): JsonObject {
         val theme = doc["theme"] as JsonObject
         val layers = JsonArray(iconTogether((theme["layers"] as JsonArray).toList()).map(::v8Mapping))
-        return JsonObject(doc + ("theme" to JsonObject(theme + ("layers" to layers))))
+        // And schema 9's rewrite, tested on its own by version8RendersTheSameAsSchema9.
+        return v8ToV9(JsonObject(doc + ("theme" to JsonObject(theme + ("layers" to layers)))), { 0L }, { "" })
+    }
+
+    /**
+     * A schema 9 document as schema 8 wrote it, for themes schema 8 could hold: patterns
+     * back to noise, no adjust, finish or stroke direction, version 8.
+     */
+    private fun v8Of(doc: JsonObject): JsonObject {
+        val theme = doc["theme"] as JsonObject
+        val layers = JsonArray((theme["layers"] as JsonArray).map { l ->
+            val o = l as JsonObject
+            when ((o["type"] as JsonPrimitive).content) {
+                "paint" -> {
+                    val src = o["source"] as JsonObject
+                    val back = when ((src["type"] as JsonPrimitive).content) {
+                        "texture" -> JsonObject(src - "adjust")
+                        "pattern" -> {
+                            val p = src["pattern"] as JsonObject
+                            val (kind, octaves) = when ((p["type"] as JsonPrimitive).content) {
+                                "noise" -> (if ((p["ridges"] as JsonPrimitive).content == "true") "RIDGED" else "FBM") to
+                                    ((p["detail"] as JsonPrimitive).content.toDouble().toInt() + 1)
+                                else -> "GRAIN" to 4
+                            }
+                            JsonObject(mapOf("type" to JsonPrimitive("noise"), "kind" to JsonPrimitive(kind), "octaves" to JsonPrimitive(octaves),
+                                "seed" to src["seed"]!!, "stops" to src["stops"]!!))
+                        }
+                        else -> src
+                    }
+                    JsonObject(o - "finish" + ("source" to back))
+                }
+                "effect" -> {
+                    val e = o["effect"] as JsonObject
+                    if ((e["type"] as JsonPrimitive).content != "brushStrokes") o
+                    else JsonObject(o + ("effect" to JsonObject(e - listOf("direction", "originX", "originY", "style"))))
+                }
+                else -> o
+            }
+        })
+        return JsonObject(doc + mapOf("schemaVersion" to JsonPrimitive(8), "theme" to JsonObject(theme + ("layers" to layers))))
+    }
+
+    /**
+     * The schema 9 migration test, items 7 and 8: every golden theme schema 8 could hold,
+     * written as schema 8 (noise paints, explicit clips), migrates to patterns and, where
+     * it is the same, clip to the layer below, and renders every golden byte for byte.
+     */
+    @Test
+    fun version8RendersTheSameAsSchema9() {
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
+        val renderer = IconRenderer()
+        renderer.textures.put(File(goldens, GoldenSet.TEXTURE_FILE).readBytes())
+        renderer.textures.put(dev.iconoclast.render.Marble.PNG)
+        var below = 0
+        var patterns = 0
+        val themes = HashMap<Theme, Theme>()
+        for ((dir, theme, name) in GoldenSet.CASES) {
+            if (dir.startsWith("fb_")) continue
+            val migrated = themes.getOrPut(theme) {
+                val v8 = v8Of(json(ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = theme).toJson()) as JsonObject)
+                assertTrue("\"pattern\"" !in v8.toString() && "\"finish\"" !in v8.toString(), dir)
+                migrate(v8.toString(), now = { error("no clock") }, newId = { error("no id") }).theme.also { m ->
+                    below += m.layers.count { it is PaintLayer && it.clip == dev.iconoclast.render.ClipTarget.BELOW }
+                    patterns += m.layers.count { it is PaintLayer && it.source is Paint.Noise }
+                }
+            }
+            val png = renderer.renderPng(name, bundle.icon(GoldenSet.SAMPLES.indexOf(name)), migrated, OUTPUT_SIZE)
+            assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
+        }
+        assertTrue(below > 0, "some clips became BELOW")
+        assertTrue(patterns > 0, "some noise became patterns")
     }
 
     private fun v8Mapping(layer: JsonElement): JsonElement {
@@ -265,12 +336,13 @@ class ThemeMigrationTest {
         for ((dir, theme) in GoldenSet.LOOKS + GoldenSet.BLENDS) {
             val current = json(ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = theme).toJson()) as JsonObject
             val t = current["theme"] as JsonObject
-            val v7 = JsonObject(current + mapOf("schemaVersion" to JsonPrimitive(7),
-                "theme" to JsonObject(t + ("layers" to JsonArray((t["layers"] as JsonArray).map(::v7Mapping))))))
+            val v8 = v8Of(current)
+            val t8 = v8["theme"] as JsonObject
+            val v7 = JsonObject(v8 + mapOf("schemaVersion" to JsonPrimitive(7),
+                "theme" to JsonObject(t8 + ("layers" to JsonArray((t8["layers"] as JsonArray).map(::v7Mapping))))))
             assertTrue("lockOffset" in v7.toString())
             val migrated = migrate(v7.toString(), now = { error("no clock") }, newId = { error("no id") })
-            assertEquals(theme, migrated.theme, dir)
-            assertEquals(current, json(migrated.toJson()))
+            assertEquals(v8ToV9(v8, { 0L }, { "" }), json(migrated.toJson()), dir)
             val samples = if (dir in GoldenSet.LOOKS) GoldenSet.LOOK_SAMPLES else GoldenSet.BLEND_SAMPLES
             for (name in samples) {
                 val png = renderer.renderPng(name, bundle.icon(GoldenSet.SAMPLES.indexOf(name)), migrated.theme, OUTPUT_SIZE)

@@ -129,5 +129,5 @@ internal object Noise {
     private fun fade(t: Float): Float = t * t * t * (t * (t * 6f - 15f) + 10f)
 
     /** Decorrelates octaves: the golden-ratio constant as a 32-bit int. */
-    private const val OCTAVE_SALT = -0x61c88647 // 0x9e3779b9
+    const val OCTAVE_SALT = -0x61c88647 // 0x9e3779b9
 }

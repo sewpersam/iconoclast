@@ -11,6 +11,7 @@ import dev.iconoclast.render.EffectKey
 import dev.iconoclast.render.Mask
 import dev.iconoclast.render.MaskCache
 import dev.iconoclast.render.NoiseKey
+import dev.iconoclast.render.NoiseKind
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.TextureOffset
@@ -68,14 +69,34 @@ internal class StackInput(
 internal object StackEvaluator {
 
     fun paint(buf: FloatArray, layers: List<Layer>, input: StackInput, pass: Pass = Pass(input.size * input.size)) {
+        // The coverage of the row below, for a layer clipped to BELOW.
+        var below: () -> Clip = { NOTHING }
         for (layer in layers) when (layer) {
             is EffectsLayer -> input.border?.let { over(buf, it, input.borderColor!!) }
-            is PaintLayer -> paint(buf, layer, input, pass)
-            is EffectLayer -> if (layer.enabled && layer.opacity > 0f) {
-                val e = layer.effect
-                if (e is Effect.Blur) blur(buf, e, layer.opacity, input, pass)
-                else for (out in EffectPaint.outputs(layer, layers, input)) paintEffect(buf, out, layer.opacity, pass)
+            is PaintLayer -> {
+                below = paint(buf, layer, input, pass, below).let { c -> { c } }
+                // The icon's two layers are one row: what lies above clips to the whole icon.
+                if (layer.id == Layer.ICON_FILL_ID || layer.id == Layer.ICON_LINES_ID) below = { clip(ClipTarget.ICON, false, input, pass) { NOTHING } }
             }
+            is EffectLayer -> below = (if (layer.enabled && layer.opacity > 0f) {
+                val e = layer.effect
+                if (e is Effect.Blur) {
+                    blur(buf, clip(e.clip, e.clipInverse, input, pass, below), layer.opacity, e.radius, input)
+                    clip(e.clip, e.clipInverse, input, pass, below)
+                } else {
+                    val n = pass.pixels
+                    val union = FloatArray(n)
+                    for (out in EffectPaint.outputs(layer, layers, input)) {
+                        paintEffect(buf, out, layer.opacity, pass)
+                        val cv = out.coverage
+                        for (i in 0 until n) {
+                            val c = cv[i].coerceIn(0f, 1f)
+                            if (c > 0f) union[i] = union[i] + c - union[i] * c
+                        }
+                    }
+                    Clip(union, false, false, false)
+                }
+            } else NOTHING).let { c -> { c } }
         }
     }
 
@@ -107,8 +128,8 @@ internal object StackEvaluator {
      * Composites [out] at [opacity] into [buf] and adds it to the EFFECTS clip target. The
      * colour times coverage times opacity goes through the blend, as a paint layer's does.
      */
-    fun paintEffect(buf: FloatArray, out: EffectOutput, opacity: Float, pass: Pass) {
-        val acc = pass.effects ?: FloatArray(pass.pixels).also { pass.effects = it }
+    fun paintEffect(buf: FloatArray, out: EffectOutput, opacity: Float, pass: Pass, track: Boolean = true) {
+        val acc = if (!track) FloatArray(0) else pass.effects ?: FloatArray(pass.pixels).also { pass.effects = it }
         val scratch = FloatArray(3)
         val cv = out.coverage
         for (i in 0 until pass.pixels) {
@@ -125,9 +146,11 @@ internal object StackEvaluator {
             val br = buf[o]
             val bg = buf[o + 1]
             val bb = buf[o + 2]
-            val e = acc[i]
-            val shown = if (out.atop) cov * ab else cov
-            acc[i] = e + shown - e * shown
+            if (track) {
+                val e = acc[i]
+                val shown = if (out.atop) cov * ab else cov
+                acc[i] = e + shown - e * shown
+            }
             val s = out.solid
             val sa: Float
             if (s != null) {
@@ -151,20 +174,27 @@ internal object StackEvaluator {
         }
     }
 
-    private fun paint(buf: FloatArray, layer: PaintLayer, input: StackInput, pass: Pass) {
-        if (!layer.visible || layer.opacity == 0f) return
-        val clip = clip(layer, input, pass)
-        if (clip.empty) return
+    /**
+     * Paints [layer] and returns its coverage, clip times matte, for a layer above that
+     * clips to it. A hidden layer still has its clip, though nothing of it is painted.
+     */
+    private fun paint(buf: FloatArray, layer: PaintLayer, input: StackInput, pass: Pass, below: () -> Clip): Clip {
+        val clip = clip(layer.clip, layer.clipInverse, input, pass, below)
+        if (!layer.visible || layer.opacity == 0f && layer.finish.isNone) return clip
+        if (clip.empty) return clip
         val n = input.size * input.size
         // A feathered matte reads its neighbours, so then the source is needed everywhere.
         val feathered = layer.matte?.let { it.feather * input.size >= 0.5f } ?: false
         val src = source(layer.source, layer, input, needLuminance = layer.matte != null, need = if (feathered) null else clip.need())
         val matte = layer.matte?.let { Mattes.apply(it, src.luminance!!, input.size) }
+        val area = if (matte == null) clip else Clip(FloatArray(n) { clip.at(it) * matte[it] }, false, false, false)
+        val finish = layer.finish
+        if (finish.cut > 0f) cut(buf, area, finish.cut, n)
         val opacity = layer.opacity
         val solid = src.solid
         val colors = src.colors
         val scratch = FloatArray(3)
-        for (i in 0 until n) {
+        if (opacity > 0f) for (i in 0 until n) {
             var cov = clip.at(i)
             if (opacity != 1f) cov *= opacity
             if (matte != null) cov *= matte[i]
@@ -177,6 +207,48 @@ internal object StackEvaluator {
                 BlendModes.composite(layer.blend, c[o] * cov, c[o + 1] * cov, c[o + 2] * cov, c[o + 3] * cov, buf, o, scratch)
             }
         }
+        if (finish.frost > 0f) blur(buf, area, 1f, finish.frost, input)
+        if (finish.grain > 0f) grain(buf, area, finish.grain, input)
+        if (finish.rim > 0f) rim(buf, area, finish.rim, input)
+        return area
+    }
+
+    /** Destination-out by [area] times [amount]: everything below fades toward transparent. */
+    private fun cut(buf: FloatArray, area: Clip, amount: Float, n: Int) {
+        for (i in 0 until n) {
+            val k = area.at(i) * amount
+            if (k <= 0f) continue
+            val keep = 1f - k
+            val o = 4 * i
+            for (c in 0..3) buf[o + c] *= keep
+        }
+    }
+
+    /** A finish's film grain: Grain's field at size 1, overlaid source-atop over [area] at [amount]. */
+    private fun grain(buf: FloatArray, area: Clip, amount: Float, input: StackInput) {
+        val n = input.size * input.size
+        val g = Mappings.noise(NoiseKind.GRAIN, 1, FINISH_GRAIN_SEED, Mappings.grain(1f, input.offset), input.size, input.grainCells)
+        val px = FloatArray(4 * n)
+        for (i in 0 until n) {
+            val v = 0.5f + (g[i] - 0.5f) * amount
+            px[4 * i] = v
+            px[4 * i + 1] = v
+            px[4 * i + 2] = v
+            px[4 * i + 3] = 1f
+        }
+        paintEffect(buf, EffectOutput(FloatArray(n) { area.at(it) }, null, px, BlendMode.OVERLAY, atop = true), 1f, Pass(n), track = false)
+    }
+
+    /**
+     * A finish's light rim: the area less its blur, sigma [RIM_SIGMA] of the canvas, doubled
+     * and clamped, screened in white at [amount], source-atop.
+     */
+    private fun rim(buf: FloatArray, area: Clip, amount: Float, input: StackInput) {
+        val n = input.size * input.size
+        val a = FloatArray(n) { area.at(it) }
+        val b = Blur.gaussian(a, input.size, input.size, maxOf(0.5f, RIM_SIGMA * input.size))
+        val cov = FloatArray(n) { ((a[it] - b[it]) * 2f).coerceIn(0f, 1f) * amount }
+        paintEffect(buf, EffectOutput(cov, floatArrayOf(1f, 1f, 1f, 1f), null, BlendMode.SCREEN, atop = true), 1f, Pass(n), track = false)
     }
 
     /**
@@ -202,6 +274,7 @@ internal object StackEvaluator {
             is Paint.Texture -> {
                 val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
                 val px = Mappings.texture(tex, input.place(layer.mapping), input.size, need)
+                paint.adjust?.let { if (!it.isIdentity) Adjustments.apply(it, px) }
                 val lum = if (needLuminance) lumOf(px, n) else null
                 paint.stops?.let { stops ->
                     val c = FloatArray(4)
@@ -219,11 +292,11 @@ internal object StackEvaluator {
                 // pixels are the same either way. Read-only: the gradient map writes to px.
                 val placed = input.place(layer.mapping)
                 val v = if (input.cacheNoise) {
-                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, placed, input.size, input.grainCells)) {
-                        Mappings.noise(paint.kind, paint.octaves, paint.seed, placed, input.size, input.grainCells)
+                    input.cache.noise(NoiseKey(paint.pattern, paint.seed, placed, input.size, input.grainCells)) {
+                        Mappings.pattern(paint.pattern, paint.seed, placed, input.size, input.grainCells)
                     }
                 } else {
-                    Mappings.noise(paint.kind, paint.octaves, paint.seed, placed, input.size, input.grainCells, need)
+                    Mappings.pattern(paint.pattern, paint.seed, placed, input.size, input.grainCells, need)
                 }
                 val px = FloatArray(v.size * 4)
                 val c = FloatArray(4)
@@ -277,11 +350,10 @@ internal object StackEvaluator {
      * zero and divided by the blur of an all-ones plane, which is the kernel weight that
      * fell inside the tile: so the rim keeps its strength, as if the tile continued.
      */
-    private fun blur(buf: FloatArray, e: Effect.Blur, opacity: Float, input: StackInput, pass: Pass) {
+    private fun blur(buf: FloatArray, clip: Clip, opacity: Float, radius: Float, input: StackInput) {
         val size = input.size
-        val sigma = e.radius * size / 2f
+        val sigma = radius * size / 2f
         if (sigma < MIN_SIGMA) return
-        val clip = clip(e.clip, e.clipInverse, input, pass)
         if (clip.empty) return
         val n = size * size
         val plane = FloatArray(n)
@@ -307,9 +379,7 @@ internal object StackEvaluator {
     /** Below this sigma in pixels the blur moves nothing visibly. */
     private const val MIN_SIGMA = 0.2f
 
-    private fun clip(layer: PaintLayer, input: StackInput, pass: Pass): Clip = clip(layer.clip, layer.clipInverse, input, pass)
-
-    private fun clip(target: ClipTarget, inv: Boolean, input: StackInput, pass: Pass): Clip {
+    private fun clip(target: ClipTarget, inv: Boolean, input: StackInput, pass: Pass, below: () -> Clip): Clip {
         fun of(m: Mask?) = Clip(m?.values, false, false, inv)
         return when (target) {
             ClipTarget.CANVAS -> Clip(null, true, false, inv)
@@ -319,8 +389,15 @@ internal object StackEvaluator {
             ClipTarget.ICON_FILL -> of(input.masks.body)
             ClipTarget.ICON_LINES -> of(input.masks.lines)
             ClipTarget.EFFECTS -> Clip(pass.effects, false, false, inv)
+            ClipTarget.BELOW -> below().let { b -> if (!inv) b else Clip(FloatArray(pass.pixels) { b.at(it) }, false, false, true) }
         }
     }
+
+    /** Nothing: below the bottom row, or a switched-off effect. */
+    private val NOTHING = Clip(null, false, false, false)
+
+    private const val FINISH_GRAIN_SEED = 0x51A55
+    private const val RIM_SIGMA = 0.012f
 
     /** Source-over of premultiplied colour [c] through coverage [mask]: the border. */
     private fun over(buf: FloatArray, mask: Mask, c: FloatArray) {

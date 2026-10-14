@@ -81,7 +81,17 @@ data class EffectKey(
  * reuses it. [placement] is the mapping as this icon places it, so a mapping with no
  * per-icon shift, turn or zoom shares one field across icons. Only preview sizes are cached; see IconRenderer.
  */
-data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val placement: Placement, val size: Int, val grainCells: Int)
+data class NoiseKey(val pattern: Pattern, val seed: Int, val placement: Placement, val size: Int, val grainCells: Int)
+
+/**
+ * An effect's output for one icon at one size: the icon mask it reads ([icon]), the effect
+ * and its blend, the per-icon offset and seed, the grain cells, and the linked paint layer's
+ * source and mapping when the effect takes colours from one.
+ */
+data class EffectOutputKey(
+    val icon: EffectKey, val effect: Effect, val blend: BlendMode, val size: Int, val offset: TextureOffset,
+    val iconSeed: Long, val pinned: Boolean, val grainCells: Int, val source: Paint?, val mapping: Mapping?,
+)
 
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 
@@ -127,6 +137,13 @@ class MaskCache(private val maxBytes: Long = 64L shl 20) {
         require(!key.kind.coverage) { "${key.kind} is coverage" }
         return get(key, compute) { 4L * it.pixels }
     }
+
+    /**
+     * Whatever an effect paints, at preview sizes, schema 9: [key] holds everything the
+     * output reads, so an edit of another layer reuses it. Read-only once cached; [bytes]
+     * sizes the entry.
+     */
+    internal fun <T : Any> output(key: EffectOutputKey, bytes: (T) -> Long, compute: () -> T): T = get(key, compute, bytes)
 
     /** A noise field, read-only once cached. */
     fun noise(key: NoiseKey, compute: () -> FloatArray): FloatArray =

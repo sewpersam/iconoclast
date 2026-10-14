@@ -17,7 +17,11 @@ import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.ColorStop
 import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.MappingMode
-import dev.iconoclast.render.NoiseKind
+import dev.iconoclast.render.CellFeature
+import dev.iconoclast.render.Pattern
+import dev.iconoclast.render.WaveKind
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.texture.BuiltInBrushes
@@ -191,6 +195,7 @@ private fun ImageSource(paint: Paint.Texture, textures: TextureActions?, onDrag:
         { onCommit(paint.copy(stops = imageStops(it, paint.stops))) },
     )
     paint.stops?.let { stops -> Stops(stops, { onDrag(paint.copy(stops = it)) }, onDone, { onCommit(paint.copy(stops = it)) }) }
+    AdjustControls(paint.adjust, { onDrag(paint.copy(adjust = it)) }, onDone, { onCommit(paint.copy(adjust = it)) })
 }
 
 /**
@@ -206,19 +211,33 @@ private fun PlacementControls(
     Section(if (image) "Placement" else "Pattern placement")
     if (image && more) {
         ChoiceControl(Tips.IMAGE_PLACEMENT, listOf(MappingMode.FILL to "Cover the tile", MappingMode.FIT to "Show whole image", MappingMode.TILE to "Repeat"),
-            m.mode, d.mode, { onCommit(m.copy(mode = it)) })
+            m.mode, d.mode, { onCommit(covered(m.copy(mode = it))) })
     }
-    SliderControl(Tips.ZOOM, m.scale, 0.25f..4f, d.scale, decimals(2, "×"), { onDrag(m.copy(scale = it)) }, onDone, { onCommit(m.copy(scale = d.scale)) })
+    // Cover never shows a gap: its smallest scale leaves room for the random size and shift.
+    val least = if (image) coverMin(m) else 0.25f
+    SliderControl(Tips.SCALE, m.scale, least..4f, d.scale, decimals(2, "×"), { onDrag(covered(m.copy(scale = it))) }, onDone, { onCommit(covered(m.copy(scale = d.scale))) })
     SliderControl(Tips.ROTATE, m.rotation, -180f..180f, d.rotation, decimals(0, "°"),
         { onDrag(m.copy(rotation = it)) }, onDone, { onCommit(m.copy(rotation = d.rotation)) })
     SliderControl(Tips.RANDOM_SHIFT, m.randomShift, 0f..1f, d.randomShift, percent,
-        { onDrag(m.copy(randomShift = it)) }, onDone, { onCommit(m.copy(randomShift = d.randomShift)) })
+        { onDrag(covered(m.copy(randomShift = it))) }, onDone, { onCommit(covered(m.copy(randomShift = d.randomShift))) })
     SliderControl(Tips.RANDOM_ROTATION, m.randomRotation, 0f..180f, d.randomRotation, decimals(0, "°"),
         { onDrag(m.copy(randomRotation = it)) }, onDone, { onCommit(m.copy(randomRotation = d.randomRotation)) })
     SliderControl(Tips.RANDOM_SIZE, m.randomScale, 0f..1f, d.randomScale, percent,
-        { onDrag(m.copy(randomScale = it)) }, onDone, { onCommit(m.copy(randomScale = d.randomScale)) })
+        { onDrag(covered(m.copy(randomScale = it))) }, onDone, { onCommit(covered(m.copy(randomScale = d.randomScale))) })
     ShuffleControl(Tips.SHUFFLE_PLACEMENT, m.seed != d.seed, { onCommit(m.copy(seed = newSeed())) }, { onCommit(m.copy(seed = d.seed)) })
 }
+
+/**
+ * The smallest scale Cover allows, so every icon's image covers the tile: twice the random
+ * size's reach, `2^randomScale`, keeps the smallest icon at 1x or more, and half again at
+ * full random shift leaves the shift room to move. Other modes: the model's 0.25.
+ */
+fun coverMin(m: Mapping): Float =
+    if (m.mode != MappingMode.FILL) 0.25f
+    else (StrictMath.pow(2.0, m.randomScale.toDouble()).toFloat() * (1f + 0.5f * m.randomShift)).coerceAtMost(4f)
+
+/** [m] with its scale raised to [coverMin] if it fell below it. */
+fun covered(m: Mapping): Mapping = coverMin(m).let { if (m.scale < it) m.copy(scale = it) else m }
 
 /** A new arrangement; never 0, which is each icon's own. */
 private fun newSeed(): Int = Random.nextInt().let { if (it == 0) 1 else it }
@@ -228,17 +247,93 @@ fun imageName(sha256: String): String = if (BuiltInBrushes.isBuiltIn(sha256)) te
 
 @Composable
 private fun PatternSource(paint: Paint.Noise, onDrag: (Paint) -> Unit, onDone: () -> Unit, onCommit: (Paint) -> Unit, more: Boolean) {
-    val d = Paint.Noise()
-    ChoiceControl(
-        Tips.PATTERN, NoiseKind.entries.map { it to LayerStack.patternName(it) },
-        paint.kind, d.kind, { onCommit(paint.copy(kind = it)) },
-    )
-    if (paint.kind != NoiseKind.GRAIN && (more || paint.octaves != d.octaves)) {
-        SliderControl(Tips.DETAIL, paint.octaves.toFloat(), 1f..8f, d.octaves.toFloat(), decimals(0),
-            { onDrag(paint.copy(octaves = it.roundToInt().coerceIn(1, 8))) }, onDone, { onCommit(paint.copy(octaves = d.octaves)) })
+    val pat = paint.pattern
+    fun dragP(p: Pattern) = onDrag(paint.copy(pattern = p))
+    fun commitP(p: Pattern) = onCommit(paint.copy(pattern = p))
+    val kind = when (pat) {
+        is Pattern.Noise -> 0
+        is Pattern.Cells -> 1
+        is Pattern.Waves -> 2
     }
-    ShuffleControl(Tips.SHUFFLE_PATTERN, paint.seed != d.seed, { onCommit(paint.copy(seed = Random.nextInt())) }, { onCommit(paint.copy(seed = d.seed)) })
+    ChoiceControl(Tips.PATTERN_KIND, listOf(0 to "Noise", 1 to "Cells", 2 to "Waves"), kind, 0,
+        { if (it != kind) commitP(listOf(Pattern.Noise(), Pattern.Cells(), Pattern.Waves())[it]) })
+    PatternPresets(pat) { commitP(it) }
+    when (pat) {
+        is Pattern.Noise -> NoiseControls(pat, ::dragP, onDone, ::commitP, more)
+        is Pattern.Cells -> CellsControls(pat, ::dragP, onDone, ::commitP)
+        is Pattern.Waves -> WavesControls(pat, ::dragP, onDone, ::commitP)
+    }
+    ShuffleControl(Tips.SHUFFLE_PATTERN, paint.seed != 0, { onCommit(paint.copy(seed = Random.nextInt())) }, { onCommit(paint.copy(seed = 0)) })
     Stops(paint.stops, { onDrag(paint.copy(stops = it)) }, onDone, { onCommit(paint.copy(stops = it)) })
+}
+
+/** Named starting points, docs/naming-spec.md 2.10: each only sets the generator's sliders. */
+val PATTERN_PRESETS: List<Pair<String, Pattern>> = listOf(
+    "Clouds" to Pattern.Noise(),
+    "Veins" to Pattern.Noise(ridges = true),
+    "Marble" to Pattern.Noise(size = 0.2f, detail = 5f, ridges = true, distortion = 0.6f),
+    "Speckles" to Pattern.Cells(size = 0f, randomness = 0f),
+    "Stone" to Pattern.Cells(size = 0.12f),
+    "Crackle" to Pattern.Cells(size = 0.15f, randomness = 0.8f, feature = CellFeature.CRACKLE),
+    "Wood" to Pattern.Waves(size = 0.08f, distortion = 3f, detail = 3f),
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PatternPresets(current: Pattern, onPick: (Pattern) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        LabelRow(Tips.PATTERN_START)
+        FlowRow(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((name, p) in PATTERN_PRESETS) Pill(name, p == current) { onPick(p) }
+        }
+    }
+}
+
+/** A pattern size as a share of the tile; 0, Cells only, is one pixel. */
+private val patternSize: (Float) -> String = { if (it == 0f) "Pixel" else String.format(java.util.Locale.ROOT, "%.0f%%", it * 100) }
+
+@Composable
+private fun NoiseControls(p: Pattern.Noise, onDrag: (Pattern) -> Unit, onDone: () -> Unit, onCommit: (Pattern) -> Unit, more: Boolean) {
+    val d = Pattern.Noise()
+    SliderControl(Tips.PATTERN_SIZE, p.size, 0.01f..1f, d.size, patternSize, { onDrag(p.copy(size = it)) }, onDone, { onCommit(p.copy(size = d.size)) })
+    SliderControl(Tips.DETAIL, p.detail, 0f..8f, d.detail, decimals(1), { onDrag(p.copy(detail = it)) }, onDone, { onCommit(p.copy(detail = d.detail)) })
+    SliderControl(Tips.DISTORTION, p.distortion, 0f..2f, d.distortion, decimals(2), { onDrag(p.copy(distortion = it)) }, onDone, { onCommit(p.copy(distortion = d.distortion)) })
+    SliderControl(Tips.STRETCH, p.stretch, 1f..16f, d.stretch, decimals(1, "×"), { onDrag(p.copy(stretch = it)) }, onDone, { onCommit(p.copy(stretch = d.stretch)) })
+    if (p.stretch > 1f) {
+        SliderControl(Tips.STRETCH_ANGLE, p.stretchAngle, 0f..180f, d.stretchAngle, decimals(0, "°"),
+            { onDrag(p.copy(stretchAngle = it)) }, onDone, { onCommit(p.copy(stretchAngle = d.stretchAngle)) })
+    }
+    SwitchControl(Tips.RIDGES, p.ridges, d.ridges) { onCommit(p.copy(ridges = it)) }
+    if (more || p.roughness != d.roughness) {
+        SliderControl(Tips.ROUGHNESS, p.roughness, 0f..1f, d.roughness, percent, { onDrag(p.copy(roughness = it)) }, onDone, { onCommit(p.copy(roughness = d.roughness)) })
+    }
+}
+
+@Composable
+private fun CellsControls(p: Pattern.Cells, onDrag: (Pattern) -> Unit, onDone: () -> Unit, onCommit: (Pattern) -> Unit) {
+    val d = Pattern.Cells()
+    // The far left of the slider is one pixel, film-grain fine.
+    SliderControl(Tips.PATTERN_SIZE, p.size, 0f..0.5f, d.size, patternSize,
+        { onDrag(p.copy(size = if (it < 0.01f) 0f else it)) }, onDone, { onCommit(p.copy(size = d.size)) })
+    if (p.size > 0f) {
+        ChoiceControl(Tips.CELL_LOOK, listOf(CellFeature.CELLS to "Cells", CellFeature.EDGES to "Edges", CellFeature.CRACKLE to "Crackle"),
+            p.feature, d.feature, { onCommit(p.copy(feature = it)) })
+        SliderControl(Tips.RANDOMNESS, p.randomness, 0f..1f, d.randomness, percent, { onDrag(p.copy(randomness = it)) }, onDone, { onCommit(p.copy(randomness = d.randomness)) })
+        if (p.feature == CellFeature.EDGES) {
+            SliderControl(Tips.EDGE_LINE, p.edgeWidth, 0.01f..0.5f, d.edgeWidth, percent, { onDrag(p.copy(edgeWidth = it)) }, onDone, { onCommit(p.copy(edgeWidth = d.edgeWidth)) })
+        }
+    }
+}
+
+@Composable
+private fun WavesControls(p: Pattern.Waves, onDrag: (Pattern) -> Unit, onDone: () -> Unit, onCommit: (Pattern) -> Unit) {
+    val d = Pattern.Waves()
+    ChoiceControl(Tips.WAVE_SHAPE, listOf(WaveKind.BANDS to "Bands", WaveKind.RINGS to "Rings"), p.kind, d.kind, { onCommit(p.copy(kind = it)) })
+    SliderControl(Tips.PATTERN_SIZE, p.size, 0.01f..1f, d.size, patternSize, { onDrag(p.copy(size = it)) }, onDone, { onCommit(p.copy(size = d.size)) })
+    SliderControl(Tips.WAVE_DISTORTION, p.distortion, 0f..20f, d.distortion, decimals(1), { onDrag(p.copy(distortion = it)) }, onDone, { onCommit(p.copy(distortion = d.distortion)) })
+    if (p.distortion > 0f) {
+        SliderControl(Tips.DETAIL, p.detail, 0f..8f, d.detail, decimals(1), { onDrag(p.copy(detail = it)) }, onDone, { onCommit(p.copy(detail = d.detail)) })
+    }
 }
 
 /** An image's or pattern's colours: one tint colour, or a ramp from its darks to its lights. */

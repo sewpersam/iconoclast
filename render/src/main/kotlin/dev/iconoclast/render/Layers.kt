@@ -43,11 +43,40 @@ data class PaintLayer(
     val matte: Matte? = null,
     /** False: the layer paints nothing, whatever its [opacity]. The editor's eye. */
     val visible: Boolean = true,
+    /** Schema 9: frost, grain, a light rim and a cut through to the wallpaper, over this layer's own area. */
+    val finish: Finish = Finish(),
 ) : Layer {
     init {
         require(id.isNotBlank()) { "blank layer id" }
         require(opacity in 0f..1f) { "opacity $opacity" }
     }
+}
+
+/**
+ * A fill's finish, schema 9, applied where the layer shows, its clip times its matte. The
+ * layer's opacity is its see-through amount and stays apart. In paint order:
+ * - [cut] 0 to 1 erases everything painted below, toward a transparent tile, so the
+ *   wallpaper shows through the layer's shape; then the layer paints as usual;
+ * - [frost] 0 to 0.1 of the canvas blurs what is there now, below and the layer itself,
+ *   mixed in by the layer's area: frosted glass;
+ * - [grain] 0 to 1 overlays film grain on the area, source-atop, so a cut stays clean;
+ * - [rim] 0 to 1 screens a white light along the inside of the area's edge.
+ * The editor's Glass starting point is a see-through fill with frost, grain and a rim.
+ */
+data class Finish(
+    val frost: Float = 0f,
+    val grain: Float = 0f,
+    val rim: Float = 0f,
+    val cut: Float = 0f,
+) {
+    init {
+        require(frost in 0f..0.1f) { "frost $frost" }
+        require(grain in 0f..1f) { "grain $grain" }
+        require(rim in 0f..1f) { "rim $rim" }
+        require(cut in 0f..1f) { "cut $cut" }
+    }
+
+    val isNone: Boolean get() = frost == 0f && grain == 0f && rim == 0f && cut == 0f
 }
 
 /**
@@ -59,8 +88,12 @@ data class PaintLayer(
  * - [EFFECTS]: the effects' output so far: the union, `e + c - e c`, of the coverage
  *   times opacity of every enabled [EffectLayer] below this layer. Empty below the first.
  * - [CANVAS]: everything.
+ * - [BELOW], schema 9: the layer directly below in the editor's list, wherever it is
+ *   dragged: the icon row's ICON, a paint layer's own clip times its matte, an enabled
+ *   effect's output coverage (a blur's clip), nothing for a switched-off effect or at the
+ *   bottom. The effects marker is not in the list and is passed over.
  */
-enum class ClipTarget { CANVAS, BACKGROUND, ICON, ICON_FILL, ICON_LINES, EFFECTS }
+enum class ClipTarget { CANVAS, BACKGROUND, ICON, ICON_FILL, ICON_LINES, EFFECTS, BELOW }
 
 /**
  * Spec 2.3's blend modes, in its order. Formulas are W3C Compositing and Blending Level 1;
@@ -152,5 +185,5 @@ data class Matte(
     }
 }
 
-/** Procedural noise variants, layer/Noise. */
+/** Schema 8's procedural noise variants, now [Pattern.legacy]; grain effects use GRAIN's field. */
 enum class NoiseKind { FBM, RIDGED, GRAIN }

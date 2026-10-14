@@ -44,8 +44,10 @@ class BrushStrokesTest {
     fun rangesAreChecked() {
         assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(count = 0) }
         assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(count = 401) }
-        assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(length = 0.6f) }
+        assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(length = 1.3f) }
         assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(width = 0.001f) }
+        assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(width = 0.21f) }
+        assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(originX = 1.1f) }
         assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(bend = 1.5f) }
         assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(angle = 361f) }
         assertFailsWith<IllegalArgumentException> { Effect.BrushStrokes(softness = -0.1f) }
