@@ -286,5 +286,5 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Crop pinch: spreading the fingers already makes the image bigger in the frame (the frame shrinks over the fixed image). Left as is; not exercised on the AVD, adb cannot pinch.
 
 ### Deferred
-- The Make it glass button reads grey in the Geist theme; it is enabled.
-- Jade's grid latency is about 240 ms on the AVD before any of this round; Classic strokes are the cost.
+- Fixed in the PM review: outlined buttons now use `OutlinedAction` (text colour label and outline when enabled). Jade edits dropped from 240-320 ms to 30-77 ms for the on-screen grid, docs/verification/feedback-1.md.
+- Editing a brush stroke's own settings on Jade still takes about 200 ms for the grid on the 4-core AVD; next lever is a cropped distance blur or fewer preview strokes while dragging.
