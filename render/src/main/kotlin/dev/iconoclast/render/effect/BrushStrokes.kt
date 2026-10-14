@@ -331,6 +331,11 @@ internal object BrushStrokes {
             val pa = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.3f, 1f, ta) else pow(1f - ta, fadeExp)
             val pb = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.3f, 1f, tb) else pow(1f - tb, fadeExp)
             val m = maxOf(ha, hb) * (1f + SOFT_BAND * e.softness + tipBlur + (if (painted) RAGGED else 0f)) + 1.5f
+            // Edge > 0 needs dist < hw + soft / 2, and neither exceeds its value at the wider end.
+            val hmax = maxOf(ha, hb)
+            val reach = hmax + 0.5f * (1f + SOFT_BAND * e.softness * hmax + tipBlur * hmax)
+            val reach2 = (reach * 1.001f + 0.01f).let { it * it }
+            val segLen = sqrt(l2)
             val i0 = maxOf(sx0, floor(minOf(ax, ax + ex) - m).toInt())
             val i1 = minOf(sx1, ceil(maxOf(ax, ax + ex) + m).toInt())
             val j0 = maxOf(sy0, floor(minOf(ay, ay + ey) - m).toInt())
@@ -341,7 +346,10 @@ internal object BrushStrokes {
                 val u = if (l2 > 0f) ((qx * ex + qy * ey) / l2).coerceIn(0f, 1f) else 0f
                 val ddx = qx - u * ex
                 val ddy = qy - u * ey
-                val dist = sqrt(ddx * ddx + ddy * ddy)
+                val d2 = ddx * ddx + ddy * ddy
+                // Beyond the widest edge this segment can have: no coverage, and no root taken.
+                if (d2 > reach2) continue
+                val dist = sqrt(d2)
                 var hw = ha + (hb - ha) * u
                 val t = ta + (tb - ta) * u
                 var soft = 1f + SOFT_BAND * e.softness * hw
@@ -356,7 +364,7 @@ internal object BrushStrokes {
                 if (edge <= 0f) continue
                 var v = edge * (pa + (pb - pa) * u)
                 if (painted && e.bristles > 0f && l2 > 0f) {
-                    val side = (qx * ey - qy * ex) / sqrt(l2)
+                    val side = (qx * ey - qy * ex) / segLen
                     val s = (side / maxOf(hw, 0.5f)).coerceIn(-1f, 1f)
                     // Bristles along the stroke: each its own load, long streaks, the tail breaking up first.
                     val across = s * 0.5f + 0.5f
@@ -373,7 +381,7 @@ internal object BrushStrokes {
                     v = minOf(1f, v * (1f + POOL * q2 * q2 * q2))
                 } else if (e.bristles > 0f && l2 > 0f) {
                     // Signed position across the stroke, -1 to 1.
-                    val side = (qx * ey - qy * ex) / sqrt(l2)
+                    val side = (qx * ey - qy * ex) / segLen
                     val s = (side / maxOf(hw, 0.5f)).coerceIn(-1f, 1f)
                     val b = Noise.value((s * 0.5f + 0.5f) * BRISTLE_COUNT + st.bristleShift, t * BRISTLE_ALONG, st.bristleSeed)
                     // The loaded body carries a faint streak; past DRY_START the bristles run dry one by one.

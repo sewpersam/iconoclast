@@ -3,7 +3,7 @@ package dev.iconoclast.app.editor
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.OutlinedButton
+import dev.iconoclast.app.ui.theme.OutlinedAction
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -44,7 +44,7 @@ fun FinishControls(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done:
     }
     HelpAnchor(Tips.GLASS) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            OutlinedButton(onClick = { commit(with(layer.copy(opacity = Glass.FILL_OPACITY, finish = Glass.FILL_FINISH.copy(cut = f.cut)))) }) {
+            OutlinedAction(onClick = { commit(with(layer.copy(opacity = Glass.FILL_OPACITY, finish = Glass.FILL_FINISH.copy(cut = f.cut)))) }) {
                 Text("Make it glass")
             }
         }

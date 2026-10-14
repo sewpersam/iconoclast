@@ -115,3 +115,13 @@ tasks.register<JavaExec>("feedbackSheets") {
         providers.gradleProperty("out").getOrElse(rootProject.layout.projectDirectory.dir("docs/verification/feedback-1").asFile.path),
     )
 }
+
+tasks.register<JavaExec>("strokeProfile") {
+    group = "verification"
+    description = "Times Jade's brush strokes at preview size, uncached; -Pjfr=<file> records a flight recording."
+    classpath = verify.runtimeClasspath
+    mainClass = "dev.iconoclast.render.verify.StrokeProfileKt"
+    maxHeapSize = "1g"
+    providers.gradleProperty("jfr").orNull?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
+    args(layout.projectDirectory.file("src/test/resources/golden/samples.bin").asFile.path)
+}

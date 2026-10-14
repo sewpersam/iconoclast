@@ -15,7 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
+import dev.iconoclast.app.ui.theme.OutlinedAction
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -125,7 +125,7 @@ fun OverrideSheet(vm: EditorViewModel, ui: EditorUi, item: PreviewItem, image: I
             )
             Gap()
             HelpAnchor(Tips.UNDO_ICON) {
-                OutlinedButton(onClick = vm::resetOverride, enabled = !o.isEmpty, modifier = Modifier.fillMaxWidth()) { Text(Tips.UNDO_ICON.label) }
+                OutlinedAction(onClick = vm::resetOverride, enabled = !o.isEmpty, modifier = Modifier.fillMaxWidth()) { Text(Tips.UNDO_ICON.label) }
             }
         }
     }

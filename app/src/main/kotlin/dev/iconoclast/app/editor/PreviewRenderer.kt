@@ -24,6 +24,11 @@ data class PreviewRequest(
     val theme: Theme,
     val drawables: List<Int>,
     val first: Set<Int>? = null,
+    /**
+     * The cells actually on screen, a subset of [first]: drawn and shown before the margin
+     * around them, and the margin is skipped when a newer request is waiting.
+     */
+    val visible: Set<Int>? = null,
     val overrides: Map<Int, IconOverride> = emptyMap(),
     val resolution: OutputResolution = OutputResolution.FULL,
 )
@@ -83,9 +88,25 @@ class PreviewRenderer<T : Any>(
         val wanted = r.first?.let { f -> r.drawables.filter { it in f } } ?: r.drawables
         fun key(d: Int) = Key(PreviewLook(r.theme, r.overrides[d], r.resolution), d, size)
         val missing = synchronized(cache) { wanted.filter { cache[key(it)] == null } }
+        // The cells on screen first: the edit shows as soon as they are drawn.
+        val (now, later) = r.visible?.let { v -> missing.partition { it in v } } ?: (missing to emptyList())
+        if (!draw(r, now, ::key)) return
+        if (later.isNotEmpty()) {
+            publish(r, wanted.filter { it in r.visible!! }, ::key, now.size, t0, "on screen")
+            // A newer edit is waiting: the margin would only delay it.
+            if (requests.value !== r) return
+            if (!draw(r, later, ::key)) return
+        }
+        publish(r, wanted, ::key, missing.size, t0, if (r.first != null) "on screen only" else null)
+    }
+
+    /** Draws [ds] in parallel into the cache. False when the pass failed. */
+    private suspend fun draw(r: PreviewRequest, ds: List<Int>, key: (Int) -> Key): Boolean {
+        if (ds.isEmpty()) return true
         try {
-            val drawn = coroutineScope { missing.map { d -> async(dispatcher) { d to render(d, key(d).look) } }.awaitAll() }
+            val drawn = coroutineScope { ds.map { d -> async(dispatcher) { d to render(d, key(d).look) } }.awaitAll() }
             synchronized(cache) { for ((d, img) in drawn) cache[key(d)] = img }
+            return true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -93,17 +114,20 @@ class PreviewRenderer<T : Any>(
             requests.compareAndSet(r, null)
             failures++
             log("preview pass failed: $e")
-            return
+            return false
         }
+    }
+
+    /** Shows what the cache holds for [r]; complete when every one of [ready] shows its theme. */
+    private fun publish(r: PreviewRequest, ready: List<Int>, key: (Int) -> Key, drawnCount: Int, t0: Long, note: String?) {
         val shown = _frame.value.images
         val images = synchronized(cache) {
             r.drawables.mapNotNull { d -> (cache[key(d)] ?: shown[d])?.let { d to it } }.toMap()
         }
-        val complete = synchronized(cache) { wanted.all { cache[key(it)] != null } }
+        val complete = synchronized(cache) { ready.all { cache[key(it)] != null } }
         passes++
         _frame.value = PreviewFrame(r.theme, images, complete)
         val ms = (System.nanoTime() - t0) / 1_000_000
-        log("preview pass: ${missing.size} drawn, ${wanted.size - missing.size} cached, ${r.drawables.size} shown at $size px in $ms ms" +
-            if (r.first != null) ", on screen only" else "")
+        log("preview pass: $drawnCount drawn, ${ready.size} ready, ${r.drawables.size} shown at $size px in $ms ms" + (note?.let { ", $it" } ?: ""))
     }
 }

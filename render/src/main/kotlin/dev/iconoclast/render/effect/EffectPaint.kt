@@ -2,7 +2,9 @@ package dev.iconoclast.render.effect
 
 import dev.iconoclast.render.Effect
 import dev.iconoclast.render.EffectLayer
+import dev.iconoclast.render.EffectOutputKey
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.background.Paints
 import dev.iconoclast.render.layer.StackEvaluator.EffectOutput
 import dev.iconoclast.render.layer.StackInput
@@ -15,8 +17,8 @@ import dev.iconoclast.render.layer.StackInput
 internal object EffectPaint {
 
     fun outputs(layer: EffectLayer, layers: List<Layer>, input: StackInput): List<EffectOutput> = when (val e = layer.effect) {
-        is Effect.Streaks -> listOf(Streaks.paint(e, layer.blend, layers, input))
-        is Effect.BrushStrokes -> listOf(BrushStrokes.paint(e, layer.blend, layers, input))
+        is Effect.Streaks -> listOf(cached(layer, e.paintLayer, layers, input) { Streaks.paint(e, layer.blend, layers, input) })
+        is Effect.BrushStrokes -> listOf(cached(layer, e.paintLayer, layers, input) { BrushStrokes.paint(e, layer.blend, layers, input) })
         is Effect.Bevel -> Bevel.paint(e, input)
         is Effect.DropShadow -> listOf(DropShadow.paint(e, layer.blend, input))
         is Effect.InnerShadow -> listOf(InnerShadow.paint(e, layer.blend, input))
@@ -25,6 +27,20 @@ internal object EffectPaint {
         is Effect.Grain -> listOf(Grain.paint(e, layer.blend, input))
         // Blur rewrites the stack itself, StackEvaluator.blur; it paints no output.
         is Effect.Blur -> emptyList()
+    }
+
+    /**
+     * Streaks and strokes, the costly effects, at preview sizes: cached under everything
+     * they read, so editing any other layer redraws without them. The same arrays every time;
+     * the evaluator only reads them. At pack size each icon is drawn once: not cached.
+     */
+    private fun cached(layer: EffectLayer, paintLayer: String?, layers: List<Layer>, input: StackInput, compute: () -> EffectOutput): EffectOutput {
+        val icon = input.iconKey
+        if (!input.cacheNoise || icon == null) return compute()
+        val src = layers.firstOrNull { it.id == paintLayer } as? PaintLayer
+        val key = EffectOutputKey(icon, layer.effect, layer.blend, input.size, input.offset, input.iconSeed, input.pinned, input.grainCells,
+            src?.source, src?.mapping)
+        return input.cache.output(key, { o: EffectOutput -> 4L * (o.coverage.size + (o.colors?.size ?: 0)) }, compute)
     }
 
     /** Straight ARGB as one premultiplied colour. */

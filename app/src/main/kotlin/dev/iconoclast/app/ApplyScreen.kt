@@ -10,7 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import dev.iconoclast.app.ui.theme.OutlinedAction
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -72,7 +72,7 @@ fun ApplyScreen(
                 } else {
                     Text("${g.name} keeps showing the old icons until you do this. ${g.refresh}")
                     if (g.forceStopFromAppInfo && g.packageName.isNotEmpty()) {
-                        OutlinedButton(onClick = { onAppInfo(g.packageName) }) { Text("Open ${g.name} settings") }
+                        OutlinedAction(onClick = { onAppInfo(g.packageName) }) { Text("Open ${g.name} settings") }
                     }
                 }
             }
@@ -80,7 +80,7 @@ fun ApplyScreen(
                 Text(state.message)
                 if (state.fix == Fix.DAMAGED_KEY) {
                     Button(onClick = onRestoreKey) { Text("Restore from a backup") }
-                    OutlinedButton(onClick = onNewKey) { Text("Start over with a new key") }
+                    OutlinedAction(onClick = onNewKey) { Text("Start over with a new key") }
                 }
             }
         }

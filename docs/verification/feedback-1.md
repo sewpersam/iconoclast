@@ -32,3 +32,28 @@ Regenerate the sheets: `./gradlew :render:feedbackSheets -Pout=<dir>` (also prin
 Jade's own 45 Classic strokes dominate its numbers; Frost adds 15 to 70 ms to them.
 Cells first measured 220 ms: StrictMath.sqrt is a native call on ART, nine per pixel. They
 now compare squared distances, two roots per pixel, same bytes.
+
+## Speed pass (PM review)
+
+Release build on the AVD (4 cores, 2 preview threads), edit to frame, IconoclastPerf. "Grid"
+is every cell on screen; the margin cells around them follow and are skipped when a newer
+edit is waiting.
+
+| Jade edit | Before: hero / grid | After: hero / grid |
+|---|---|---|
+| Fill See-through, no Frost | 98 to 113 / 236 to 249 ms | 29 to 33 / 30 to 46 ms |
+| Fill Frost | 120 to 137 / 277 to 321 ms | 32 to 50 / 46 to 77 ms |
+| Fill See-through, Frost on | 117 to 123 / 301 to 306 ms | 34 to 53 / 57 to 68 ms |
+| Brush stroke Length (strokes redrawn) | 122 to 168 / 289 to 385 ms | 89 to 109 / 172 to 226 ms |
+
+What changed, pack bytes untouched (GoldenTest, ArtByteIdentityTest 508/508):
+- Streaks and brush strokes are cached at preview sizes under everything they read
+  (`EffectOutputKey`: icon mask, effect, blend, offset, seed, linked source and mapping), so
+  editing any other layer reuses them. Pack-size renders are never cached.
+- The preview draws the cells on screen first and shows them, then the margin.
+- The stroke raster skips pixels beyond a segment's widest edge before taking a root, and
+  takes the segment's length root once: the same values, far fewer native StrictMath calls on ART.
+
+Editing a stroke's own settings still redraws every stroke: about 200 ms for the grid on the
+AVD, with a 0.7 sigma distance blur (5 Gaussian passes) and the raster as the cost
+(`:render:strokeProfile -Pjfr=<file>`). A phone with 8 cores runs 4 preview threads, not 2.

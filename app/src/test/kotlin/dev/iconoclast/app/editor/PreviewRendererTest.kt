@@ -71,6 +71,25 @@ class PreviewRendererTest {
         scope.cancel()
     }
 
+    /** The cells on screen show before the margin is drawn; a newer edit skips the margin. */
+    @Test
+    fun onScreenCellsShowFirst() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default)
+        val margin = CountDownLatch(1)
+        val r = PreviewRenderer(scope, Dispatchers.Default, 128, render = { d, l ->
+            if (d == 2 && l.theme == weight(2f)) margin.await(5, TimeUnit.SECONDS)
+            "$d@${l.theme.shape.strokeWeight}"
+        })
+        r.request(PreviewRequest(weight(2f), listOf(0, 1, 2), first = setOf(0, 1, 2), visible = setOf(0, 1)))
+        val early = withTimeout(5000) { r.frame.first { it.theme == weight(2f) && it.complete } }
+        assertEquals("0@2.0", early.images[0])
+        assertEquals("1@2.0", early.images[1])
+        assertTrue(2 !in early.images, "the margin is not drawn yet")
+        margin.countDown()
+        withTimeout(5000) { r.frame.first { it.images[2] == "2@2.0" } }
+        scope.cancel()
+    }
+
     @Test
     fun aFailedPassCanBeRequestedAgain() = runBlocking {
         val scope = CoroutineScope(Dispatchers.Default)
