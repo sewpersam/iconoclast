@@ -8,7 +8,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -96,7 +95,7 @@ private fun toCrop(r: Rect): Crop? {
 private fun CropArea(img: ImageBitmap, frame: Rect, onChange: (Rect) -> Unit) {
     val current by rememberUpdatedState(frame)
     val density = LocalDensity.current
-    BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(img.width.toFloat() / img.height, matchHeightConstraintsFirst = img.height > img.width)) {
+    Box(Modifier.fillMaxWidth().aspectRatio(img.width.toFloat() / img.height, matchHeightConstraintsFirst = img.height > img.width)) {
         val corner = with(density) { 32.dp.toPx() }
         Image(img, contentDescription = "The image to crop", Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
         Box(
