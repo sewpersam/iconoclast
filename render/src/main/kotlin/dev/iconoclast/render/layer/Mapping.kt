@@ -5,6 +5,8 @@ import dev.iconoclast.render.IconSeed
 import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.NoiseKind
+import dev.iconoclast.render.Pattern
+import dev.iconoclast.render.WaveKind
 import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.math.SplitMix64
 import dev.iconoclast.render.math.floor
@@ -114,7 +116,8 @@ internal object Mappings {
         val asn = kotlin.math.abs(t.s)
         val k = when (p.mode) {
             MappingMode.FIT -> maxOf(w * ac + h * asn, w * asn + h * ac) / p.scale
-            MappingMode.FILL -> minOf(w, h) / (ac + asn) / p.scale
+            // Cover, schema 9: never below 1 for any icon, so its random size cannot open a gap.
+            MappingMode.FILL -> minOf(w, h) / (ac + asn) / maxOf(p.scale, 1f)
             MappingMode.TILE -> minOf(w, h) / p.scale
         }
         val (ox, oy) = p.offset
@@ -203,6 +206,42 @@ internal object Mappings {
                 NoiseKind.FBM -> Noise.fbm(nx, ny, octaves, seed)
                 NoiseKind.RIDGED -> Noise.ridged(nx, ny, octaves, seed)
                 NoiseKind.GRAIN -> Noise.grainBox(nx - half, nx + half, ny - half, ny + half, seed)
+            }
+        }
+        return out
+    }
+
+    /**
+     * A schema 9 pattern under every pixel, 0 to 1. Pixel-size Cells is [noise]'s grain,
+     * box-filtered at the pack's pixels. The rest are sampled at pixel centres in the frame
+     * [noise] uses: about the canvas centre, turned, `1 / size / scale` cells across, moved
+     * by the per-icon offset times [NOISE_PERIOD] cells. Rings centre on the canvas and the
+     * offset moves their centre by up to a quarter of it.
+     */
+    fun pattern(pat: Pattern, seed: Int, p: Placement, size: Int, grainCells: Int, need: FloatArray? = null): FloatArray {
+        if (pat is Pattern.Cells && pat.size == 0f) return noise(NoiseKind.GRAIN, 1, seed, p, size, grainCells, need)
+        val t = turn(p.rotation)
+        val period = when (pat) {
+            is Pattern.Noise -> pat.size
+            is Pattern.Cells -> pat.size
+            is Pattern.Waves -> pat.size
+        }
+        val cells = 1f / period / p.scale
+        val (ox, oy) = p.offset
+        val rings = pat is Pattern.Waves && pat.kind == WaveKind.RINGS
+        val bx = if (rings) (ox - 0.5f) * 0.5f * cells else ox * NOISE_PERIOD
+        val by = if (rings) (oy - 0.5f) * 0.5f * cells else oy * NOISE_PERIOD
+        val out = FloatArray(size * size)
+        for (y in 0 until size) for (x in 0 until size) {
+            if (need != null && need[y * size + x] == 0f) continue
+            val u = (x + 0.5f) / size - 0.5f
+            val v = (y + 0.5f) / size - 0.5f
+            val nx = bx + (t.c * u + t.s * v) * cells
+            val ny = by + (t.c * v - t.s * u) * cells
+            out[y * size + x] = when (pat) {
+                is Pattern.Noise -> PatternField.noise(pat, nx, ny, seed)
+                is Pattern.Cells -> PatternField.cells(pat, nx, ny, seed)
+                is Pattern.Waves -> PatternField.waves(pat, nx, ny, seed)
             }
         }
         return out

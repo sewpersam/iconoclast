@@ -4,6 +4,7 @@ import dev.iconoclast.render.Breakup
 import dev.iconoclast.render.Effect
 import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.MAX_SHADOW_DISTANCE
 import dev.iconoclast.render.Theme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,7 +34,7 @@ class EffectModelTest {
             { Effect.Bevel(size = 0f) },
             { Effect.Bevel(depth = 5f) },
             { Effect.Bevel(softness = 2f) },
-            { Effect.DropShadow(distance = 0.2f) },
+            { Effect.DropShadow(distance = 0.3f) },
             { Effect.InnerShadow(blur = -0.1f) },
             { Effect.OuterGlow(size = 0.2f) },
             { Effect.InnerGlow(spread = 1.1f) },
@@ -47,7 +48,7 @@ class EffectModelTest {
         // The ends of every range are valid.
         Effect.Streaks(angle = 0f, length = 0f); Effect.Streaks(angle = 360f, length = 0.6f)
         Effect.Bevel(size = 0.001f, depth = 0f, softness = 0f); Effect.Bevel(size = 0.05f, depth = 4f, softness = 1f)
-        Effect.DropShadow(distance = 0.1f, blur = 0.1f); Effect.OuterGlow(size = 0.1f, spread = 1f)
+        Effect.DropShadow(distance = MAX_SHADOW_DISTANCE, blur = 0.1f); Effect.OuterGlow(size = 0.1f, spread = 1f)
         Effect.Grain(amount = 0f, size = 1f); Effect.Grain(amount = 1f, size = 4f)
         Breakup(scale = 0.25f, stretch = 1f, density = 0f, contrast = 0f); Breakup(scale = 4f, stretch = 32f, density = 1f, contrast = 1f)
     }

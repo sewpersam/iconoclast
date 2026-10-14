@@ -81,7 +81,7 @@ data class EffectKey(
  * reuses it. [placement] is the mapping as this icon places it, so a mapping with no
  * per-icon shift, turn or zoom shares one field across icons. Only preview sizes are cached; see IconRenderer.
  */
-data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val placement: Placement, val size: Int, val grainCells: Int)
+data class NoiseKey(val pattern: Pattern, val seed: Int, val placement: Placement, val size: Int, val grainCells: Int)
 
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 

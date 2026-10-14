@@ -171,7 +171,7 @@ sealed interface Paint {
      * lowercase hex SHA-256 of its canonical PNG. With [stops], the texture's luminance is
      * gradient-mapped through them and its alpha kept; null keeps its own colours.
      */
-    data class Texture(val sha256: String, val stops: List<ColorStop>? = null) : Paint {
+    data class Texture(val sha256: String, val stops: List<ColorStop>? = null, val adjust: Adjust? = null) : Paint {
         init {
             require(HASH.matches(sha256)) { "texture hash $sha256" }
             stops?.let(::requireStops)
@@ -183,18 +183,140 @@ sealed interface Paint {
     }
 
     /**
-     * Procedural noise, 0 to 1, gradient-mapped through [stops]. [octaves] applies to fBm
-     * and ridged; [seed] picks the field, and the mapping's per-icon offset picks the patch.
+     * A procedural pattern, schema 9: one of three generators after Blender's Noise, Voronoi
+     * and Wave textures, its value 0 to 1 gradient-mapped through [stops]. [seed] picks the
+     * field, and the mapping's per-icon offset picks the patch. Code: layer/PatternField.
      */
     data class Noise(
-        val kind: NoiseKind = NoiseKind.FBM,
-        val octaves: Int = 4,
+        val pattern: Pattern = Pattern.Noise(),
         val seed: Int = 0,
-        val stops: List<ColorStop> = listOf(ColorStop(0f, 0xFF000000.toInt()), ColorStop(1f, 0xFFFFFFFF.toInt())),
+        val stops: List<ColorStop> = DEFAULT_STOPS,
     ) : Paint {
+        init { requireStops(stops) }
+
+        /**
+         * A schema 8 noise paint as its schema 9 pattern, drawing the same field to the bit:
+         * fBm and ridged are Noise at size 1/8 with [octaves] - 1 detail and roughness 0.5;
+         * grain is pixel-size Cells.
+         */
+        constructor(kind: NoiseKind, octaves: Int = 4, seed: Int = 0, stops: List<ColorStop> = DEFAULT_STOPS) :
+            this(Pattern.legacy(kind, octaves), seed, stops)
+
+        companion object {
+            val DEFAULT_STOPS = listOf(ColorStop(0f, 0xFF000000.toInt()), ColorStop(1f, 0xFFFFFFFF.toInt()))
+        }
+    }
+}
+
+/**
+ * Non-destructive colour adjustments of an image fill, schema 9, each -1 to 1 with 0 no
+ * change. Applied to the image's own colours before any recolouring. Code: layer/Adjustments.
+ */
+data class Adjust(
+    val brightness: Float = 0f,
+    val contrast: Float = 0f,
+    val saturation: Float = 0f,
+    val warmth: Float = 0f,
+) {
+    init {
+        require(brightness in -1f..1f) { "brightness $brightness" }
+        require(contrast in -1f..1f) { "contrast $contrast" }
+        require(saturation in -1f..1f) { "saturation $saturation" }
+        require(warmth in -1f..1f) { "warmth $warmth" }
+    }
+
+    val isIdentity: Boolean get() = brightness == 0f && contrast == 0f && saturation == 0f && warmth == 0f
+}
+
+/** What a Cells pattern shows, after Blender's Voronoi outputs. */
+enum class CellFeature {
+    /** One flat random value per cell: Voronoi's Color output. */
+    CELLS,
+    /** Lines along the borders between cells, [Pattern.Cells.edgeWidth] wide. */
+    EDGES,
+    /** Distance to the second-nearest cell minus the nearest, F2 - F1: cracked mud. */
+    CRACKLE,
+}
+
+/** A Waves pattern's shape, Blender's Wave Type. */
+enum class WaveKind { BANDS, RINGS }
+
+/**
+ * The three pattern generators, schema 9. Sizes are a cell's side, or a wave's period, as
+ * a fraction of the canvas before the layer's mapping scale.
+ */
+sealed interface Pattern {
+
+    /**
+     * Blender's Noise texture: value noise summed over octaves. [detail] 0 to 8 is the
+     * octaves above the first, fractional parts blended in; [roughness] the gain per
+     * octave; [distortion] 0 to 2 warps the field by itself; [stretch] 1 to 16 pulls it
+     * along [stretchAngle] degrees; [ridges] folds each octave about its middle into veins.
+     */
+    data class Noise(
+        val size: Float = 0.125f,
+        val detail: Float = 3f,
+        val roughness: Float = 0.5f,
+        val distortion: Float = 0f,
+        val stretch: Float = 1f,
+        val stretchAngle: Float = 0f,
+        val ridges: Boolean = false,
+    ) : Pattern {
         init {
+            require(size in 0.01f..1f) { "noise size $size" }
+            require(detail in 0f..8f) { "noise detail $detail" }
+            require(roughness in 0f..1f) { "noise roughness $roughness" }
+            require(distortion in 0f..2f) { "noise distortion $distortion" }
+            require(stretch in 1f..16f) { "noise stretch $stretch" }
+            require(stretchAngle in 0f..180f) { "noise stretch angle $stretchAngle" }
+        }
+    }
+
+    /**
+     * Blender's Voronoi texture, F1 and F2 in two dimensions. [size] 0 is one pack pixel
+     * per cell on an even grid, film-grain fine, box-filtered; above 0 the cells' points
+     * move off the grid by [randomness]. [edgeWidth] 0.01 to 0.5 of a cell, for EDGES.
+     */
+    data class Cells(
+        val size: Float = 0.125f,
+        val randomness: Float = 1f,
+        val edgeWidth: Float = 0.1f,
+        val feature: CellFeature = CellFeature.CELLS,
+    ) : Pattern {
+        init {
+            require(size == 0f || size in 0.01f..1f) { "cells size $size" }
+            require(randomness in 0f..1f) { "cells randomness $randomness" }
+            require(edgeWidth in 0.01f..0.5f) { "cells edge width $edgeWidth" }
+        }
+    }
+
+    /**
+     * Blender's Wave texture with a sine profile: straight [WaveKind.BANDS] or [WaveKind.RINGS]
+     * about the centre, [size] the period, bent by [distortion] 0 to 20 of noise with
+     * [detail] 0 to 8 octaves above the first. The mapping's rotation turns the bands.
+     */
+    data class Waves(
+        val kind: WaveKind = WaveKind.BANDS,
+        val size: Float = 0.125f,
+        val distortion: Float = 0f,
+        val detail: Float = 2f,
+    ) : Pattern {
+        init {
+            require(size in 0.01f..1f) { "waves size $size" }
+            require(distortion in 0f..20f) { "waves distortion $distortion" }
+            require(detail in 0f..8f) { "waves detail $detail" }
+        }
+    }
+
+    companion object {
+        /** Schema 8's noise kinds, drawn the same by these patterns. */
+        fun legacy(kind: NoiseKind, octaves: Int): Pattern {
             require(octaves in 1..8) { "octaves $octaves" }
-            requireStops(stops)
+            return when (kind) {
+                NoiseKind.FBM -> Noise(detail = (octaves - 1).toFloat())
+                NoiseKind.RIDGED -> Noise(detail = (octaves - 1).toFloat(), ridges = true)
+                NoiseKind.GRAIN -> Cells(size = 0f, randomness = 0f)
+            }
         }
     }
 }

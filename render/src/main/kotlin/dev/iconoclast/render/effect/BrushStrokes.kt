@@ -5,6 +5,8 @@ import dev.iconoclast.render.Effect
 import dev.iconoclast.render.IconSeed
 import dev.iconoclast.render.Layer
 import dev.iconoclast.render.PaintLayer
+import dev.iconoclast.render.StrokeDirection
+import dev.iconoclast.render.StrokeStyle
 import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.layer.Noise
 import dev.iconoclast.render.layer.StackEvaluator
@@ -58,12 +60,22 @@ internal object BrushStrokes {
         val icon = EffectSource.icon(input)
         val cov = FloatArray(pixels)
         val colors = FloatArray(4 * pixels)
-        if (icon.none { it > 0f }) return EffectOutput(cov, null, colors, blend)
+        val parallel = e.direction == StrokeDirection.PARALLEL
+        if (!parallel && icon.none { it > 0f }) return EffectOutput(cov, null, colors, blend)
 
         val reach = e.length * px
-        val sd = EffectSource.signedDistance(input, ceil(reach) + 2f)
-        val flow = EffectSource.blurred(input, (FLOW_BASE + FLOW_PER_LENGTH * e.length) * px)
-        val strokes = place(e, input.offset, sd, flow, n)
+        val band = ceil(reach) + 2f
+        var sd = EffectSource.signedDistance(input, band)
+        var flow = EffectSource.blurred(input, (FLOW_BASE + FLOW_PER_LENGTH * e.length) * px)
+        // Outward from another point: the icon's outline, and so the burst, moved there.
+        val mx = (e.originX - 0.5f) * px
+        val my = (e.originY - 0.5f) * px
+        if (!parallel && (mx != 0f || my != 0f)) {
+            val lifted = FloatArray(pixels) { sd[it] + band }
+            sd = EffectPaint.shifted(lifted, n, mx, my).also { for (i in it.indices) it[i] -= band }
+            flow = EffectPaint.shifted(flow, n, mx, my)
+        }
+        val strokes = if (parallel) placeParallel(e, input.offset, n) else place(e, input.offset, sd, flow, n)
 
         // One colour per stroke from the source at its start.
         val source = layers.firstOrNull { it.id == e.paintLayer } as? PaintLayer
@@ -87,8 +99,10 @@ internal object BrushStrokes {
             raster(e, st, n, local, cov, prem, c)
         }
 
-        if (e.blur > 0f) distanceBlur(e, sd, reach, n, cov, prem)
-        val holes = holes(icon, n)
+        // All one way, the blur grows toward each stroke's tip as it is drawn.
+        if (e.blur > 0f && !parallel) distanceBlur(e, sd, reach, n, cov, prem)
+        // Swipes run behind the icon: its counters show them as they show the background.
+        val holes = if (parallel) BooleanArray(pixels) else holes(icon, n)
 
         for (i in 0 until pixels) {
             val a = if (holes[i]) 0f else cov[i]
@@ -201,6 +215,61 @@ internal object BrushStrokes {
     }
 
     /**
+     * All one way: [Effect.BrushStrokes.count] strokes along the angle, spread evenly across
+     * a band through the origin, `count width 1.6` of the canvas wide up to 1.3, centred on
+     * the origin along their length. Each draws its own numbers in the order [place] does,
+     * then its place across and along the band. They bend, wobble and turn by the
+     * randomness as outward strokes do, with the angle as the field they follow.
+     */
+    private fun placeParallel(e: Effect.BrushStrokes, offset: TextureOffset, n: Int): List<Stroke> {
+        val px = n.toFloat()
+        val r = e.randomness
+        val seed = IconSeed.mix64((offset.x.toRawBits().toLong() shl 32) xor (offset.y.toRawBits().toLong() and 0xFFFFFFFFL)) xor e.seed.toLong()
+        val rng = SplitMix64(seed)
+        val (wx, wy) = EffectPaint.toward(e.angle)
+        val ax = -wy
+        val ay = wx
+        val span = minOf(MAX_SPAN, e.count * e.width * SPAN_PER_WIDTH) * px
+        val strokes = ArrayList<Stroke>(e.count)
+        for (i in 0 until e.count) {
+            val own = SplitMix64(rng.nextLong())
+            val coarse = own.nextFloat() < COARSE_SHARE
+            val len = e.length * px * (1f + r * (own.nextFloat() - 0.5f) * 1.2f) * (if (coarse) COARSE_LENGTH else 1f)
+            val hw = 0.5f * e.width * px * (1f + r * (own.nextFloat() - 0.5f) * 1.2f) * (if (coarse) COARSE_WIDTH else 1f)
+            val jitter = r * (own.nextFloat() - 0.5f) * JITTER * PARALLEL_JITTER
+            val turn = e.bend * BEND * (0.6f + 0.8f * own.nextFloat()) / STEPS
+            val tone = 1f + r * TONE * (2f * own.nextFloat() - 1f)
+            val bristleSeed = own.nextLong().toInt()
+            val bristleShift = own.nextFloat() * 64f
+            val across = ((i + 0.5f) / e.count - 0.5f) * span + r * (own.nextFloat() - 0.5f) * span / e.count
+            val along = r * (own.nextFloat() - 0.5f) * ALONG_JITTER * len
+            val (jc, js) = cosSin(jitter)
+            val xs = FloatArray(STEPS + 1)
+            val ys = FloatArray(STEPS + 1)
+            xs[0] = e.originX * px + ax * across - wx * (len * 0.5f - along)
+            ys[0] = e.originY * px + ay * across - wy * (len * 0.5f - along)
+            val h = len / STEPS
+            var dx = wx * jc - wy * js
+            var dy = wx * js + wy * jc
+            for (k in 1..STEPS) {
+                var nx = dx
+                var ny = dy
+                val (wc, ws) = cosSin(turn + r * (own.nextFloat() - 0.5f) * WOBBLE * PARALLEL_JITTER)
+                val qx = nx * wc - ny * ws
+                val qy = nx * ws + ny * wc
+                val m = sqrt(qx * qx + qy * qy)
+                if (m > 1e-6f) { nx = qx / m; ny = qy / m }
+                dx = nx
+                dy = ny
+                xs[k] = xs[k - 1] + dx * h
+                ys[k] = ys[k - 1] + dy * h
+            }
+            strokes += Stroke(xs, ys, hw, tone, bristleSeed, bristleShift, coarse)
+        }
+        return strokes.filter { it.coarse } + strokes.filter { !it.coarse }
+    }
+
+    /**
      * The unit direction away from the icon at pixel position (x, y), y down: the negated
      * gradient of the blurred mask by central differences. Null where the field is flat.
      */
@@ -240,6 +309,8 @@ internal object BrushStrokes {
 
         val fadeExp = FADE * e.fade
         val dryWidth = DRY_EDGE + DRY_SOFT * e.softness
+        val painted = e.style == StrokeStyle.PAINTED
+        val tipBlur = if (e.direction == StrokeDirection.PARALLEL) e.blur * TIP_BLUR else 0f
         for (k in 0 until STEPS) {
             val ax = xs[k]
             val ay = ys[k]
@@ -248,11 +319,11 @@ internal object BrushStrokes {
             val l2 = ex * ex + ey * ey
             val ta = k.toFloat() / STEPS
             val tb = (k + 1).toFloat() / STEPS
-            val ha = st.halfWidth * taper(ta)
-            val hb = st.halfWidth * taper(tb)
+            val ha = st.halfWidth * if (painted) paintedWidth(st, ta) else taper(ta)
+            val hb = st.halfWidth * if (painted) paintedWidth(st, tb) else taper(tb)
             val pa = pow(1f - ta, fadeExp)
             val pb = pow(1f - tb, fadeExp)
-            val m = maxOf(ha, hb) * (1f + SOFT_BAND * e.softness) + 1.5f
+            val m = maxOf(ha, hb) * (1f + SOFT_BAND * e.softness + tipBlur + (if (painted) RAGGED else 0f)) + 1.5f
             val i0 = maxOf(sx0, floor(minOf(ax, ax + ex) - m).toInt())
             val i1 = minOf(sx1, ceil(maxOf(ax, ax + ex) + m).toInt())
             val j0 = maxOf(sy0, floor(minOf(ay, ay + ey) - m).toInt())
@@ -264,13 +335,32 @@ internal object BrushStrokes {
                 val ddx = qx - u * ex
                 val ddy = qy - u * ey
                 val dist = sqrt(ddx * ddx + ddy * ddy)
-                val hw = ha + (hb - ha) * u
-                val soft = 1f + SOFT_BAND * e.softness * hw
+                var hw = ha + (hb - ha) * u
+                val t = ta + (tb - ta) * u
+                var soft = 1f + SOFT_BAND * e.softness * hw
+                if (tipBlur > 0f) soft += tipBlur * t * hw
+                if (painted && l2 > 0f) {
+                    // Ragged edges: each side of the stroke frays by its own noise along it.
+                    val side = (qx * ey - qy * ex)
+                    val fray = Noise.value(t * FRAY_ALONG + st.bristleShift, if (side > 0f) 0.5f else 7.5f, st.bristleSeed xor FRAY_SALT)
+                    hw *= 1f - RAGGED * (1f - e.softness * 0.5f) * fray
+                }
                 val edge = ((hw - dist) / soft + 0.5f).coerceIn(0f, 1f)
                 if (edge <= 0f) continue
-                val t = ta + (tb - ta) * u
                 var v = edge * (pa + (pb - pa) * u)
-                if (e.bristles > 0f && l2 > 0f) {
+                if (painted && e.bristles > 0f && l2 > 0f) {
+                    val side = (qx * ey - qy * ex) / sqrt(l2)
+                    val s = (side / maxOf(hw, 0.5f)).coerceIn(-1f, 1f)
+                    // Bristles along the stroke: each its own load, long streaks, the tail breaking up first.
+                    val lane = (s * 0.5f + 0.5f) * PAINTED_BRISTLES + st.bristleShift
+                    val load = Noise.value(lane, 0.5f, st.bristleSeed xor LOAD_SALT)
+                    val b = Noise.value(lane, t * PAINTED_ALONG, st.bristleSeed)
+                    v *= 1f - e.bristles * PAINTED_STREAK * (1f - b) * (0.4f + load)
+                    val th = e.bristles * ((t - PAINTED_DRY_START) / (1f - PAINTED_DRY_START)).coerceIn(0f, 1f) * (1.3f - 0.6f * load)
+                    if (th > 0f) v *= smoothstep(th - dryWidth, th + dryWidth, b * 0.6f + load * 0.4f)
+                    // Paint pooled where the brush came down.
+                    v = minOf(1f, v * (1f + POOL * pow(1f - t, 6f)))
+                } else if (e.bristles > 0f && l2 > 0f) {
                     // Signed position across the stroke, -1 to 1.
                     val side = (qx * ey - qy * ex) / sqrt(l2)
                     val s = (side / maxOf(hw, 0.5f)).coerceIn(-1f, 1f)
@@ -289,10 +379,13 @@ internal object BrushStrokes {
             val a = local[idx]
             if (a <= 0f) continue
             local[idx] = 0f
+            // Painted: wet paint over wet paint darkens where strokes cross.
+            val dark = if (painted) 1f - OVERLAP * cov[idx] else 1f
             cov[idx] = cov[idx] + a - cov[idx] * a
             val o = 4 * idx
             val keep = 1f - a
-            for (ch in 0..3) prem[o + ch] = prem[o + ch] * keep + c[ch] * a
+            for (ch in 0..2) prem[o + ch] = prem[o + ch] * keep + c[ch] * dark * a
+            prem[o + 3] = prem[o + 3] * keep + c[3] * a
         }
     }
 
@@ -315,6 +408,16 @@ internal object BrushStrokes {
             val o = 4 * i
             for (ch in 0..3) prem[o + ch] = prem[o + ch] + (blurred[ch][i].coerceIn(0f, 1f) - prem[o + ch]) * w
         }
+    }
+
+    /**
+     * Painted: pressed down from a third of the width to full by a tenth of the way, a
+     * slow swell and pinch along the stroke from its own noise, then lifted off.
+     */
+    private fun paintedWidth(st: Stroke, t: Float): Float {
+        val press = PRESS + (1f - PRESS) * smoothstep(0f, 0.1f, t)
+        val swell = 1f + SWELL * (Noise.value(t * SWELL_ALONG + st.bristleShift, 3.5f, st.bristleSeed xor FRAY_SALT) * 2f - 1f)
+        return press * swell * pow(1f - t, 0.45f)
     }
 
     /** Pressed on at the icon, full at a quarter of the way, lifted off to a point. */
@@ -389,6 +492,31 @@ internal object BrushStrokes {
 
     /** Distance blur at blur 1: sigma as a fraction of the stroke length in pixels. */
     private const val BLUR_PER_LENGTH = 0.15f
+
+    /** All one way: the band's width per stroke width, and its widest, fractions of the canvas. */
+    private const val SPAN_PER_WIDTH = 1.6f
+    private const val MAX_SPAN = 1.3f
+    /** All one way: how much of the outward turn and wobble a parallel stroke takes, and its slide along the band. */
+    private const val PARALLEL_JITTER = 0.25f
+    private const val ALONG_JITTER = 0.4f
+    /** All one way: the soft edge at the tip at blur 1, in half-widths. */
+    private const val TIP_BLUR = 2.5f
+
+    /** Painted: the width at touch-down, the swell either way and its rate, fraying, overlap darkening, pooled paint. */
+    private const val PRESS = 0.35f
+    private const val SWELL = 0.14f
+    private const val SWELL_ALONG = 2.5f
+    private const val RAGGED = 0.22f
+    private const val FRAY_ALONG = 22f
+    private const val OVERLAP = 0.22f
+    private const val POOL = 0.35f
+    /** Painted bristles: lanes across, rate along, streak depth, and where they start to run dry. */
+    private const val PAINTED_BRISTLES = 14f
+    private const val PAINTED_ALONG = 0.7f
+    private const val PAINTED_STREAK = 0.55f
+    private const val PAINTED_DRY_START = 0.2f
+    private const val FRAY_SALT = 0x3C6EF372
+    private const val LOAD_SALT = 0x0A54FF53
 
     /** Coverage below this is dropped: under half an 8-bit step. */
     private const val MIN_COVERAGE = 1f / 512
