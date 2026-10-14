@@ -56,8 +56,11 @@ enum class StrokeStyle {
     CLASSIC,
 
     /**
-     * Real paint: pressure at the start and lift at the end, a wobbling width, ragged
-     * edges, uneven bristle streaks that run dry toward the tail, darker where strokes overlap.
+     * Real paint, after Hertzmann, "Fast Paint Texture" (NPAR 2002): each stroke lays a
+     * height field (a thicker start, ridges at its edges, bristle grooves along it) that is
+     * lit by one fixed light, so the paint body reads under light; a wobbling width, ragged
+     * edges, a tail that breaks into dry-brush lines along the grooves, darker where
+     * strokes overlap.
      */
     PAINTED,
 }

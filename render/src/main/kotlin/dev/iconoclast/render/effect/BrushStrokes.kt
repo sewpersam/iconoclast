@@ -40,6 +40,13 @@ import dev.iconoclast.render.math.sqrt
  *    third of the length, each bristle runs dry where it falls below a threshold that
  *    rises toward the tip, so the stroke breaks into dry-brush marks. Paint
  *    runs out as `(1 - t)^(3 fade)`.
+ *    Painted, the mark is paint with a body instead: full width almost at once, a height
+ *    field per stroke (thickness thinning along it, a blob at touch-down, ridges at the
+ *    edges, two octaves of bristle grooves along it) composited like the colour and lit by
+ *    [Impasto], after Hertzmann, "Fast Paint Texture" (NPAR 2002). The body stays opaque;
+ *    toward the tail only the ridges carry paint, so it breaks into dry-brush lines along
+ *    the grooves. Each groove lays a slightly different tone. Texture coordinates come from
+ *    the unclamped projection on each segment, so the joints show no seams.
  * 4. Colour. Each stroke takes one colour, Hertzmann's rule: the linked layer's source at
  *    the stroke's start, or [Effect.BrushStrokes.color], lightened or darkened by up to 45%
  *    of the randomness. Strokes are painted over each other in order.
@@ -88,6 +95,11 @@ internal object BrushStrokes {
         val solid = EffectPaint.solid(e.color)
         val prem = FloatArray(4 * pixels)
         val local = FloatArray(pixels)
+        // Painted: the paint's height, Hertzmann's "Fast Paint Texture" (NPAR 2002).
+        val painted = e.style == StrokeStyle.PAINTED
+        val localH = if (painted) FloatArray(pixels) else null
+        val localT = if (painted) FloatArray(pixels) else null
+        val height = if (painted) FloatArray(pixels) else null
         for (st in strokes) {
             val c = FloatArray(4)
             if (sourceColors != null) {
@@ -97,8 +109,10 @@ internal object BrushStrokes {
                 for (k in 0..3) c[k] = solid[k]
             }
             for (k in 0..2) c[k] = minOf(c[3], c[k] * st.tone)
-            raster(e, st, n, local, cov, prem, c)
+            raster(e, st, n, local, cov, prem, c, localH, localT, height)
         }
+        // The paint body lit before the distance blur, so the far reach softens as before.
+        if (height != null) Impasto.light(height, n, cov, prem)
 
         // All one way, the blur grows toward each stroke's tip as it is drawn.
         if (e.blur > 0f && !parallel) distanceBlur(e, sd, reach, n, cov, prem)
@@ -288,7 +302,10 @@ internal object BrushStrokes {
      * Paints [st] into [local] as the maximum of its capsules, then over [cov] and [prem]
      * with premultiplied colour [c], and clears [local] behind it.
      */
-    private fun raster(e: Effect.BrushStrokes, st: Stroke, n: Int, local: FloatArray, cov: FloatArray, prem: FloatArray, c: FloatArray) {
+    private fun raster(
+        e: Effect.BrushStrokes, st: Stroke, n: Int, local: FloatArray, cov: FloatArray, prem: FloatArray, c: FloatArray,
+        localH: FloatArray?, localT: FloatArray?, height: FloatArray?,
+    ) {
         val xs = st.xs
         val ys = st.ys
         val margin = st.halfWidth * (1f + SOFT_BAND * e.softness) + 2f
@@ -316,7 +333,13 @@ internal object BrushStrokes {
         val frayL = if (painted) FloatArray(FRAY_N + 1) { Noise.value(it.toFloat() / FRAY_N * FRAY_ALONG + st.bristleShift, 0.5f, st.bristleSeed xor FRAY_SALT) } else null
         val frayR = if (painted) FloatArray(FRAY_N + 1) { Noise.value(it.toFloat() / FRAY_N * FRAY_ALONG + st.bristleShift, 7.5f, st.bristleSeed xor FRAY_SALT) } else null
         val loads = if (painted) FloatArray(LOAD_N + 1) { Noise.value(it.toFloat() / LOAD_N * PAINTED_BRISTLES + st.bristleShift, 0.5f, st.bristleSeed xor LOAD_SALT) } else null
-        val tipBlur = if (e.direction == StrokeDirection.PARALLEL) e.blur * TIP_BLUR else 0f
+        val tipBlur = if (e.direction == StrokeDirection.PARALLEL) e.blur * TIP_BLUR * (if (painted) PAINTED_TIP_BLUR else 1f) else 0f
+        // Painted: bristle grooves a fixed share of the canvas apart, never under MIN_GROOVE_PX.
+        val spacing = maxOf(GROOVE_SPACING * n, MIN_GROOVE_PX)
+        val lanes = maxOf(MIN_LANES, 2f * st.halfWidth / spacing)
+        val grooveDepth = spacing * GROOVE_DEPTH * (0.3f + 0.7f * e.bristles)
+        val dryStart = DRY_LATE - DRY_EARLY * e.fade
+        val dryAmount = DRY_BASE + (1f - DRY_BASE) * e.bristles
         for (k in 0 until STEPS) {
             val ax = xs[k]
             val ay = ys[k]
@@ -328,8 +351,8 @@ internal object BrushStrokes {
             val ha = st.halfWidth * if (painted) paintedWidth(st, ta) else taper(ta)
             val hb = st.halfWidth * if (painted) paintedWidth(st, tb) else taper(tb)
             // Painted: the load holds, then runs out over the last two thirds; the bristles break it up.
-            val pa = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.3f, 1f, ta) else pow(1f - ta, fadeExp)
-            val pb = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.3f, 1f, tb) else pow(1f - tb, fadeExp)
+            val pa = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.5f, 1f, ta) else pow(1f - ta, fadeExp)
+            val pb = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.5f, 1f, tb) else pow(1f - tb, fadeExp)
             val m = maxOf(ha, hb) * (1f + SOFT_BAND * e.softness + tipBlur + (if (painted) RAGGED else 0f)) + 1.5f
             // Edge > 0 needs dist < hw + soft / 2, and neither exceeds its value at the wider end.
             val hmax = maxOf(ha, hb)
@@ -352,7 +375,7 @@ internal object BrushStrokes {
                 val dist = sqrt(d2)
                 var hw = ha + (hb - ha) * u
                 val t = ta + (tb - ta) * u
-                var soft = 1f + SOFT_BAND * e.softness * hw
+                var soft = 1f + SOFT_BAND * e.softness * hw * (if (painted) PAINTED_SOFT else 1f)
                 if (tipBlur > 0f) soft += tipBlur * t * hw
                 if (painted && l2 > 0f) {
                     // Ragged edges: each side of the stroke frays by its own noise along it.
@@ -363,22 +386,42 @@ internal object BrushStrokes {
                 val edge = ((hw - dist) / soft + 0.5f).coerceIn(0f, 1f)
                 if (edge <= 0f) continue
                 var v = edge * (pa + (pb - pa) * u)
-                if (painted && e.bristles > 0f && l2 > 0f) {
+                var h = 0f
+                var tone = 1f
+                if (painted && l2 > 0f) {
+                    // Texture coordinates from the unclamped projection, so a pixel in a segment's
+                    // round cap reads the texture its neighbour would: no seams at the joints.
+                    val uRaw = (qx * ex + qy * ey) / l2
+                    val tt = (ta + (tb - ta) * uRaw).coerceIn(0f, 1f)
                     val side = (qx * ey - qy * ex) / segLen
-                    val s = (side / maxOf(hw, 0.5f)).coerceIn(-1f, 1f)
-                    // Bristles along the stroke: each its own load, long streaks, the tail breaking up first.
-                    val across = s * 0.5f + 0.5f
-                    val lane = across * PAINTED_BRISTLES + st.bristleShift
+                    val sRaw = side / maxOf(ha + (hb - ha) * uRaw, 0.5f)
+                    val s = sRaw.coerceIn(-1f, 1f)
+                    // Grooves read the unclamped place across, so a cap past the edge keeps them.
+                    val across = sRaw * 0.5f + 0.5f
+                    // Bristle grooves along the stroke: two octaves of value noise, long along, tight across.
+                    val g1 = Noise.value(across * lanes + st.bristleShift, tt * GROOVE_ALONG, st.bristleSeed)
+                    val g2 = Noise.value(across * lanes * GROOVE_FINE + st.bristleShift, tt * GROOVE_ALONG_FINE, st.bristleSeed xor GROOVE_SALT)
+                    val g = 0.62f * g1 + 0.38f * g2
                     val load = table(loads!!, across)
-                    val b = Noise.value(lane, t * PAINTED_ALONG, st.bristleSeed)
-                    // Lanes that carry little paint leave dark streaks the whole way along.
-                    v *= 1f - e.bristles * PAINTED_STREAK * (1f - smoothstep(0.2f, 0.6f, b)) * (1.2f - load)
-                    val th = e.bristles * ((t - PAINTED_DRY_START) / (1f - PAINTED_DRY_START)).coerceIn(0f, 1f) * (1.3f - 0.6f * load)
-                    if (th > 0f) v *= smoothstep(th - dryWidth, th + dryWidth, b * 0.6f + load * 0.4f)
+                    // Dry brush: toward the tail only the ridges still carry paint, the edges going first.
+                    val dry = dryAmount * smoothstep(dryStart, 1f, tt)
+                    if (dry > 0f) {
+                        val carry = 0.7f * g + 0.3f * load - DRY_EDGES * s * s * dry
+                        v *= smoothstep(dry - dryWidth, dry + dryWidth, carry)
+                    }
                     // Paint pooled where the brush came down.
-                    val q = 1f - t
+                    val q = 1f - tt
                     val q2 = q * q
                     v = minOf(1f, v * (1f + POOL * q2 * q2 * q2))
+                    // The paint body in pixels: thinning along the stroke, a blob at touch-down,
+                    // ridges pushed to the edges, the grooves cut into it.
+                    val s2 = s * s
+                    val s4 = s2 * s2
+                    val body = BODY * (1f - THIN * tt) + BLOB * (1f - smoothstep(0f, BLOB_END, tt))
+                    // The ridge at each edge is a few grooves high and narrow, as paint squeezed out from under the brush.
+                    h = st.halfWidth * body + grooveDepth * (2f * g - 1f + RIM * s4 * s4)
+                    // Paint never mixes evenly on the brush: each bristle lane lays a slightly different tone.
+                    tone = 1f + TONE_STREAK * (2f * g1 - 1f) + TONE_LOAD * (2f * load - 1f)
                 } else if (e.bristles > 0f && l2 > 0f) {
                     // Signed position across the stroke, -1 to 1.
                     val side = (qx * ey - qy * ex) / segLen
@@ -390,7 +433,13 @@ internal object BrushStrokes {
                     if (th > 0f) v *= smoothstep(th - dryWidth, th + dryWidth, b)
                 }
                 val idx = j * n + i
-                if (v > local[idx]) local[idx] = v
+                if (v > local[idx]) {
+                    local[idx] = v
+                    if (localH != null) {
+                        localH[idx] = h
+                        localT!![idx] = tone
+                    }
+                }
             }
         }
         for (j in sy0..sy1) for (i in sx0..sx1) {
@@ -399,11 +448,20 @@ internal object BrushStrokes {
             if (a <= 0f) continue
             local[idx] = 0f
             // Painted: wet paint over wet paint darkens where strokes cross.
-            val dark = if (painted) 1f - OVERLAP * cov[idx] else 1f
+            var dark = if (painted) 1f - OVERLAP * cov[idx] else 1f
+            if (localT != null) {
+                dark *= localT[idx]
+                localT[idx] = 0f
+            }
+            if (height != null) {
+                // Heights composite as the colour does; the paint below still lifts the new layer a little.
+                height[idx] = height[idx] * (1f - (1f - HEIGHT_KEEP) * a) + localH!![idx] * a
+                localH[idx] = 0f
+            }
             cov[idx] = cov[idx] + a - cov[idx] * a
             val o = 4 * idx
             val keep = 1f - a
-            for (ch in 0..2) prem[o + ch] = prem[o + ch] * keep + c[ch] * dark * a
+            for (ch in 0..2) prem[o + ch] = prem[o + ch] * keep + minOf(c[3], c[ch] * dark) * a
             prem[o + 3] = prem[o + 3] * keep + c[3] * a
         }
     }
@@ -434,7 +492,7 @@ internal object BrushStrokes {
      * slow swell and pinch along the stroke from its own noise, then lifted off.
      */
     private fun paintedWidth(st: Stroke, t: Float): Float {
-        val press = PRESS + (1f - PRESS) * smoothstep(0f, 0.08f, t)
+        val press = PRESS + (1f - PRESS) * smoothstep(0f, 0.05f, t)
         val swell = 1f + SWELL * (Noise.value(t * SWELL_ALONG + st.bristleShift, 3.5f, st.bristleSeed xor FRAY_SALT) * 2f - 1f)
         val lift = 1f - LIFT * smoothstep(0.65f, 1f, t)
         return press * swell * lift
@@ -532,20 +590,46 @@ internal object BrushStrokes {
     private const val TIP_BLUR = 2.5f
 
     /** Painted: the width at touch-down, the swell either way and its rate, fraying, overlap darkening, pooled paint. */
-    private const val PRESS = 0.35f
+    private const val PRESS = 0.92f
     private const val SWELL = 0.14f
     private const val SWELL_ALONG = 2.5f
     private const val RAGGED = 0.22f
     private const val FRAY_ALONG = 22f
     private const val OVERLAP = 0.22f
     private const val POOL = 0.35f
-    private const val LIFT = 0.85f
-    private const val PAINTED_FADE = 0.7f
-    /** Painted bristles: lanes across, rate along, streak depth, and where they start to run dry. */
+    private const val LIFT = 0.45f
+    /** Painted: paint thins a little toward the tail; it breaks up rather than going see-through. */
+    private const val PAINTED_FADE = 0.2f
+    /** Painted bristle loads: lanes across. */
     private const val PAINTED_BRISTLES = 14f
-    private const val PAINTED_ALONG = 0.7f
-    private const val PAINTED_STREAK = 0.55f
-    private const val PAINTED_DRY_START = 0.2f
+    /** Painted grooves: spacing as a share of the canvas and its floor in pixels, fewest per stroke, depth in spacings, cells along, the fine octave. */
+    private const val GROOVE_SPACING = 0.0065f
+    private const val MIN_GROOVE_PX = 1.6f
+    private const val MIN_LANES = 4f
+    private const val GROOVE_DEPTH = 0.4f
+    private const val GROOVE_ALONG = 0.35f
+    private const val GROOVE_FINE = 2.7f
+    private const val GROOVE_ALONG_FINE = 0.9f
+    /** Painted edges are crisp: this share of the softness slider's band. */
+    private const val PAINTED_SOFT = 0.15f
+    /** Painted paint does not blur: this share of the tip blur. */
+    private const val PAINTED_TIP_BLUR = 0.1f
+    private const val GROOVE_SALT = 0x6A09E667
+    /** Painted dry brush: where it starts at fade 0, how much earlier at fade 1, its strength at bristles 0, how much faster the edges dry. */
+    private const val DRY_LATE = 0.85f
+    private const val DRY_EARLY = 0.5f
+    private const val DRY_BASE = 0.35f
+    private const val DRY_EDGES = 0.35f
+    /** Painted body in half-widths: base thickness, thinning along, start blob and its end; the edge ridges in groove depths; how much paint below shows through. */
+    private const val BODY = 0.14f
+    private const val THIN = 0.6f
+    private const val BLOB = 0.22f
+    private const val BLOB_END = 0.16f
+    private const val RIM = 1.5f
+    private const val HEIGHT_KEEP = 0.25f
+    /** Painted tone streaks either way: per groove, per bristle lane's load. */
+    private const val TONE_STREAK = 0.05f
+    private const val TONE_LOAD = 0.04f
     private const val FRAY_SALT = 0x3C6EF372
     /** Painted tables: samples along a stroke for its fraying, across it for its bristle loads. */
     private const val FRAY_N = 96
