@@ -38,7 +38,7 @@ fun ApplyScreen(
             Text(if (active != null) "Apply ${active.name}" else "No theme to apply")
         }
         when (state) {
-            ApplyState.Idle -> Text("Apply builds an icon pack from your installed apps in the active theme and installs it.")
+            ApplyState.Idle -> Text("Apply builds an icon pack from the theme in use and installs it.")
             is ApplyState.Working -> {
                 if (state.total > 0) {
                     LinearProgressIndicator(progress = { state.done.toFloat() / state.total }, modifier = Modifier.fillMaxWidth())
@@ -51,24 +51,24 @@ fun ApplyScreen(
             is ApplyState.Installed -> {
                 val g = state.guide
                 Text("Pack installed. ${state.themed} apps themed, ${state.unthemed} not covered by Arcticons keep their own icon.")
-                OutlinedButton(onClick = onCoverage) { Text("See coverage") }
+                OutlinedButton(onClick = onCoverage) { Text("See which apps changed") }
                 if (state.firstInstall) {
                     Text("Select the pack in ${g.name}. ${g.selectPack}")
                 } else {
                     Text("${g.name} keeps showing the old icons until you do this. ${g.refresh}")
                     if (g.forceStopFromAppInfo && g.packageName.isNotEmpty()) {
-                        OutlinedButton(onClick = { onAppInfo(g.packageName) }) { Text("Open ${g.name} App info") }
+                        OutlinedButton(onClick = { onAppInfo(g.packageName) }) { Text("Open ${g.name} settings") }
                     }
                 }
             }
             is ApplyState.Problem -> {
                 Text(state.message)
                 when (state.fix) {
-                    Fix.GRANT_INSTALL_PERMISSION -> OutlinedButton(onClick = { onFix(Fix.GRANT_INSTALL_PERMISSION) }) { Text("Open settings") }
+                    Fix.GRANT_INSTALL_PERMISSION -> OutlinedButton(onClick = { onFix(Fix.GRANT_INSTALL_PERMISSION) }) { Text("Allow installing") }
                     Fix.UNINSTALL_OLD_PACK -> OutlinedButton(onClick = { onFix(Fix.UNINSTALL_OLD_PACK) }) { Text("Uninstall old pack") }
                     Fix.DAMAGED_KEY -> {
                         Button(onClick = onRestoreKey) { Text("Restore from a backup") }
-                        OutlinedButton(onClick = onNewKey) { Text("Make a new key") }
+                        OutlinedButton(onClick = onNewKey) { Text("Start over with a new key") }
                     }
                     null -> Unit
                 }

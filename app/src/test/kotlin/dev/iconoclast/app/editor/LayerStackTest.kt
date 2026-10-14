@@ -34,22 +34,47 @@ class LayerStackTest {
         assertSame(base, LayerStack.move(base, "background", up = false))
         assertEquals(ids(base), ids(LayerStack.remove(t, l.id)))
         assertSame(base, LayerStack.remove(base, Layer.EFFECTS_ID))
+        // The background and the icon only hide: the list offers no delete for them.
+        for (id in listOf(Layer.BACKGROUND_ID, Layer.ICON_FILL_ID, Layer.ICON_LINES_ID, LayerStack.ICON_ROW)) {
+            assertSame(base, LayerStack.remove(base, id))
+            assertEquals(false, LayerStack.canRemove(base, id))
+        }
+        assertEquals(true, LayerStack.canRemove(t, l.id))
+        assertEquals(2f, LayerStack.newLayer(Paint.Texture(GoldenSet.TEXTURE)).mapping.scale, "room for a patch per icon")
+        assertEquals(1f, LayerStack.newLayer(Paint.Solid(-1)).mapping.scale)
     }
 
+    /** Spec 1.2: the icon's fill and lines are one row; above it means above both. */
     @Test
-    fun backgroundTextureSitsAboveTheBackgroundPaint() {
-        val t = LayerStack.withBackgroundTexture(base, GoldenSet.TEXTURE)
-        assertEquals(listOf("background", LayerStack.BACKGROUND_TEXTURE_ID, "effects", "icon-fill", "icon-lines"), ids(t))
-        val layer = LayerStack.backgroundTexture(t)!!
-        assertEquals(ClipTarget.BACKGROUND, layer.clip)
-        assertEquals(2f, layer.mapping.scale, "room for a patch per icon")
-        assertEquals(2f, LayerStack.newLayer(Paint.Texture(GoldenSet.TEXTURE)).mapping.scale)
-        assertEquals(1f, LayerStack.newLayer(Paint.Solid(-1)).mapping.scale)
-        val tuned = LayerStack.replace(t, layer.copy(blend = BlendMode.MULTIPLY))
-        val again = LayerStack.withBackgroundTexture(tuned, "a".repeat(64))
-        assertEquals(BlendMode.MULTIPLY, LayerStack.backgroundTexture(again)!!.blend)
-        assertEquals("a".repeat(64), (LayerStack.backgroundTexture(again)!!.source as Paint.Texture).sha256)
-        assertEquals(ids(t), ids(again))
+    fun theIconIsOneRow() {
+        assertEquals(listOf(LayerStack.ICON_ROW, "background"), LayerStack.rows(base).map { it.id })
+        assertEquals(listOf("icon-fill", "icon-lines"), LayerStack.rows(base).first().layers.map { it.id })
+        val l = LayerStack.newLayer(Paint.Solid(-1))
+        assertEquals(listOf("background", "effects", "icon-fill", "icon-lines", l.id), ids(LayerStack.insertAbove(base, l, LayerStack.ICON_ROW)))
+        assertEquals(listOf("background", "effects", "icon-fill", "icon-lines", l.id), ids(LayerStack.insertAbove(base, l, "icon-fill")))
+        // Hiding the row hides both its layers.
+        val hidden = LayerStack.withVisible(base, LayerStack.ICON_ROW, visible = false)
+        assertEquals(listOf(false, false), LayerStack.rowLayers(hidden, LayerStack.ICON_ROW).map { (it as PaintLayer).visible })
+        assertEquals("Hidden", rowSummary(hidden, LayerStack.rows(hidden).first()))
+        assertEquals("Lines only", rowSummary(base, LayerStack.rows(base).first()))
+        assertEquals("Icon", LayerStack.rowLabel(base, LayerStack.rows(base).first()))
+    }
+
+    /** Nothing can be dropped between the icon's fill and lines: a drag past the Icon row jumps it whole. */
+    @Test
+    fun noDropBetweenIconFillAndLines() {
+        val l = LayerStack.newLayer(Paint.Solid(-1))
+        val top = LayerStack.insertAbove(base, l, null)
+        // Down from the top onto the Icon row: lands below both.
+        assertEquals(listOf("background", "effects", l.id, "icon-fill", "icon-lines"), ids(LayerStack.moveOnto(top, l.id, LayerStack.ICON_ROW)))
+        val below = LayerStack.moveOnto(top, l.id, LayerStack.ICON_ROW)
+        // Up again: lands above both.
+        assertEquals(ids(top), ids(LayerStack.moveOnto(below, l.id, LayerStack.ICON_ROW)))
+        // Either icon layer alone is not a row and cannot be a target or be moved.
+        assertSame(top, LayerStack.moveOnto(top, l.id, "icon-fill"))
+        assertSame(top, LayerStack.moveOnto(top, "icon-lines", l.id))
+        // The Icon row moves as one.
+        assertEquals(listOf("icon-fill", "icon-lines", "background", "effects", l.id), ids(LayerStack.moveOnto(top, LayerStack.ICON_ROW, "background")))
     }
 
     @Test
@@ -57,8 +82,9 @@ class LayerStackTest {
         val a = PaintLayer("a", Paint.Texture(GoldenSet.TEXTURE))
         val b = PaintLayer("b", Paint.Texture(GoldenSet.TEXTURE))
         val t = base.copy(layers = base.layers + a + b)
-        assertEquals("Texture 1", LayerStack.label(t, a))
-        assertEquals("Texture 2", LayerStack.label(t, b))
+        assertEquals("Image 1", LayerStack.label(t, a))
+        assertEquals("Image 2", LayerStack.label(t, b))
+        assertEquals("Veins", LayerStack.label(t, PaintLayer("v", Paint.Noise(dev.iconoclast.render.NoiseKind.RIDGED))))
         assertEquals("Icon fill", LayerStack.label(t, t.layers[2]))
     }
 
@@ -68,7 +94,8 @@ class LayerStackTest {
         assertEquals("Add", BLEND_NAMES[BlendMode.ADD])
         assertEquals("Normal", BLEND_NAMES[BlendMode.NORMAL])
         assertEquals(ClipTarget.entries.toSet(), CLIP_NAMES.keys)
-        assertEquals("Effects", clipName(ClipTarget.EFFECTS))
+        assertEquals("Effects below", clipName(ClipTarget.EFFECTS))
+        assertEquals(BlendMode.entries.toSet(), BLEND_LINES.keys)
     }
 
     @Test
@@ -80,8 +107,9 @@ class LayerStackTest {
         val tex = LayerStack.withTexture(solid, a).copy(mapping = Mapping(MappingMode.TILE, scale = 3f))
         val swapped = LayerStack.withTexture(tex, b)
         assertEquals(Paint.Texture(b) to tex.mapping, swapped.source to swapped.mapping)
-        val bg = LayerStack.backgroundTexture(LayerStack.withBackgroundTexture(Theme(), a))!!
-        assertEquals(bg.mapping, defaultsOf(bg).mapping, "the reset target is where it started")
+        // The page path: a remembered image switched back to keeps the image placement start.
+        assertEquals(LayerStack.NEW_TEXTURE_MAPPING, withSource(solid, Paint.Texture(a)).mapping)
+        assertEquals(tex.mapping, withSource(tex, Paint.Texture(b)).mapping)
     }
 
     /**
@@ -99,9 +127,6 @@ class LayerStackTest {
         val golden = LayerStack.layer(GoldenSet.BRUSH_BACKGROUND, Layer.BACKGROUND_ID) as PaintLayer
         val mapped = brushed.copy(source = Paint.Texture(brush, (golden.source as Paint.Texture).stops))
         assertEquals(GoldenSet.BRUSH_BACKGROUND, LayerStack.replace(jade, mapped))
-
-        val layer = LayerStack.backgroundTexture(LayerStack.withBackgroundTexture(jade, brush))!!
-        assertEquals(Triple(Paint.Texture(brush) as Paint, ClipTarget.BACKGROUND, LayerStack.NEW_TEXTURE_MAPPING), Triple(layer.source, layer.clip, layer.mapping))
     }
 
     @Test
@@ -126,10 +151,10 @@ class LayerStackTest {
         assertEquals(false, LayerStack.aboveIcon(t, streaks))
         assertEquals(true, LayerStack.aboveIcon(t, bevel))
         assertEquals(BlendMode.OVERLAY, grain.blend)
-        assertEquals("Scanlines", LayerStack.label(t, streaks))
-        assertEquals("Bevel and emboss", LayerStack.label(t, bevel))
+        assertEquals("Streaks", LayerStack.label(t, streaks))
+        assertEquals("Raised edge", LayerStack.label(t, bevel))
         val two = LayerStack.insertEffect(t, LayerStack.newEffect(t, Effect.Grain()))
-        assertEquals("Grain 1", LayerStack.label(two, grain))
+        assertEquals("Film grain 1", LayerStack.label(two, grain))
         assertEquals(ids(t) - grain.id, ids(LayerStack.remove(t, grain.id)))
     }
 
@@ -158,14 +183,13 @@ class LayerStackTest {
     @Test
     fun dragMovesOntoTheNeighbourAndSkipsTheHiddenMarker() {
         // Rows, top first, leave the effects marker out.
-        assertEquals(listOf("icon-lines", "icon-fill", "background"), LayerStack.rows(base).map { it.id })
-        // Down from icon fill onto the background: past the marker, which stays put.
-        assertEquals(listOf("icon-fill", "background", "effects", "icon-lines"), ids(LayerStack.moveOnto(base, "icon-fill", "background")))
+        assertEquals(listOf(LayerStack.ICON_ROW, "background"), LayerStack.rows(base).map { it.id })
+        // Down from the icon onto the background: past the marker, which stays put.
+        assertEquals(listOf("icon-fill", "icon-lines", "background", "effects"), ids(LayerStack.moveOnto(base, LayerStack.ICON_ROW, "background")))
         // Up: lands just above the target.
-        assertEquals(listOf("effects", "icon-fill", "background", "icon-lines"), ids(LayerStack.moveOnto(base, "background", "icon-fill")))
-        assertEquals(listOf("background", "effects", "icon-lines", "icon-fill"), ids(LayerStack.moveOnto(base, "icon-fill", "icon-lines")))
-        assertSame(base, LayerStack.moveOnto(base, "icon-fill", "icon-fill"))
-        assertSame(base, LayerStack.moveOnto(base, "gone", "icon-fill"))
+        assertEquals(listOf("effects", "icon-fill", "icon-lines", "background"), ids(LayerStack.moveOnto(base, "background", LayerStack.ICON_ROW)))
+        assertSame(base, LayerStack.moveOnto(base, LayerStack.ICON_ROW, LayerStack.ICON_ROW))
+        assertSame(base, LayerStack.moveOnto(base, "gone", LayerStack.ICON_ROW))
     }
 
     @Test
@@ -177,7 +201,7 @@ class LayerStackTest {
         assertEquals(false, h.visible)
         assertEquals(0.4f, h.opacity)
         assertEquals(false, LayerStack.isVisible(h))
-        assertEquals("Hidden", layerSummary(h, aboveIcon = true))
+        assertEquals("Hidden", rowSummary(hidden, LayerStack.Row(h.id, listOf(h))))
         // A save and a reload, an app restart, keep both the flag and the opacity.
         val doc = ThemeDocument(id = "a", name = "A", created = 1, modified = 2, theme = hidden)
         val reloaded = migrate(doc.toJson()).theme
@@ -197,27 +221,25 @@ class LayerStackTest {
     }
 
     @Test
-    fun effectsMoveBehindOrOnTopOfTheIcon() {
-        val shadow = LayerStack.newEffect(base, Effect.DropShadow())
-        val t = LayerStack.insertEffect(base, shadow)
-        val top = LayerStack.placeEffect(t, shadow.id, onTop = true)
-        assertEquals(listOf("background", "effects", "icon-fill", "icon-lines", shadow.id), ids(top))
-        assertEquals(true, LayerStack.aboveIcon(top, LayerStack.layer(top, shadow.id)!!))
-        assertEquals(ids(t), ids(LayerStack.placeEffect(top, shadow.id, onTop = false)))
-        assertSame(t, LayerStack.placeEffect(t, shadow.id, onTop = false))
-        assertSame(t, LayerStack.placeEffect(t, "icon-fill", onTop = true))
-    }
-
-    @Test
     fun summariesArePlainWords() {
-        val fill = base.layers.first { it.id == "icon-fill" } as PaintLayer
-        assertEquals("On the icon fill", layerSummary(fill, aboveIcon = false))
+        fun summary(t: Theme, id: String) = rowSummary(t, LayerStack.rows(t).first { it.id == id })
         val tex = PaintLayer("t", Paint.Texture(GoldenSet.TEXTURE), clip = ClipTarget.ICON, clipInverse = true,
             blend = BlendMode.SCREEN, opacity = 0.5f, matte = dev.iconoclast.render.Matte())
-        assertEquals("Outside the icon, masked by brightness, Screen blend, 50% opacity", layerSummary(tex, aboveIcon = false))
-        assertEquals("Everywhere", layerSummary(PaintLayer("c", Paint.Solid(-1)), aboveIcon = false))
+        val fillTint = PaintLayer("f", Paint.Solid(-1), clip = ClipTarget.ICON_FILL)
+        val t = base.copy(layers = base.layers + tex + fillTint + PaintLayer("c", Paint.Solid(-1)))
+        assertEquals("Outside whole icon · cut out by brightness · Screen · 50%", summary(t, "t"))
+        assertEquals("Inside icon fill", summary(t, "f"))
+        assertEquals("Everywhere", summary(t, "c"))
+        assertEquals("Soft square", summary(t, "background"))
         val shadow = LayerStack.newEffect(base, Effect.DropShadow())
-        assertEquals("Behind the icon", layerSummary(shadow, aboveIcon = false))
-        assertEquals("On top of the icon, 35% opacity", layerSummary(shadow.copy(opacity = 0.35f), aboveIcon = true))
+        val s = LayerStack.insertEffect(base, shadow)
+        assertEquals("Behind the icon", summary(s, shadow.id))
+        val over = base.copy(layers = base.layers + shadow.copy(opacity = 0.35f))
+        assertEquals("Over the icon · 35%", summary(over, shadow.id))
+        // Spec 4.3: an effect that only draws on the icon, below it, is hidden and says so.
+        val bevel = LayerStack.newEffect(base, Effect.Bevel())
+        val under = base.copy(layers = listOf(base.layers[0], base.layers[1], bevel) + base.layers.drop(2))
+        assertEquals("Hidden behind the icon", summary(under, bevel.id))
+        assertEquals("Off", summary(base.copy(background = base.background.copy(enabled = false)), "background"))
     }
 }

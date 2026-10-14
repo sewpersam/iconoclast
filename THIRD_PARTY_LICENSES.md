@@ -23,6 +23,17 @@ The store graphics in `fastlane/metadata/android/en-US/images/` (`icon.png`,
 and Neon presets, copied from the golden test images. They are derivatives of
 Arcticons, licensed CC BY-SA 4.0, with this attribution.
 
+## Geist fonts
+
+- Project: Geist Sans and Geist Mono by The Geist Project Authors,
+  https://github.com/vercel/geist-font, release v1.7.2.
+- Files: `app/src/main/res/font/geist_*.ttf`, the release's static TTFs,
+  unmodified, renamed only to fit Android resource names.
+- Licence: SIL Open Font License 1.1, full text in `licenses/OFL-1.1-Geist.txt`.
+
+The app's look follows Geist UI (https://geist-ui.dev, MIT) as a visual
+reference only. No Geist UI code is included.
+
 ## Runtime dependencies
 
 Every artifact on the app's release runtime classpath, with the licence its

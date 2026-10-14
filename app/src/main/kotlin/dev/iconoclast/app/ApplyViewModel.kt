@@ -103,8 +103,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         // Overrides add no texture, so the document theme's textures are every slot's.
         val missing = withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, theme) }
         if (missing.isNotEmpty()) return ApplyState.Problem(
-            "Nothing was installed: this theme uses a texture that is not on this phone. " +
-                "Import the theme's .zip again, or remove the texture layer in the editor.",
+            "Nothing was installed: this theme uses an image that is not on this phone. " +
+                "Import the theme's .zip again, or delete the image layer in the editor.",
         )
         // Before drawing anything: without the install permission the pack could not be installed.
         if (!app.packageManager.canRequestPackageInstalls()) return needsPermission()
@@ -173,7 +173,7 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
 
     /** M7 addendum, spec 6.5: the key files are there and do not open. Nothing was installed. */
     private fun damagedKey() = ApplyState.Problem(
-        "The pack signing key on this phone is damaged, so $appName cannot sign the pack. Nothing was installed. " +
+        "The pack key on this phone is damaged, so $appName cannot sign the pack. Nothing was installed. " +
             "Restore the key from a theme backup that includes it. Or make a new key: the pack already installed " +
             "then has to be uninstalled once, and the launcher set to the new one.",
         Fix.DAMAGED_KEY,

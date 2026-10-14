@@ -35,6 +35,41 @@ object EditorIcons {
         moveTo(6f, 6f); lineTo(18f, 18f)
         moveTo(18f, 6f); lineTo(6f, 18f)
     }
+    /** A bin: delete. */
+    val Delete = icon("Delete") {
+        moveTo(4f, 7f); lineTo(20f, 7f)
+        moveTo(9f, 7f); lineTo(9f, 4f); lineTo(15f, 4f); lineTo(15f, 7f)
+        moveTo(6f, 7f); lineTo(7f, 20f); lineTo(17f, 20f); lineTo(18f, 7f)
+    }
+    /** A circular arrow: back to the default. */
+    val Reset = icon("Reset") {
+        moveTo(3f, 4f); lineTo(3.5f, 9f); lineTo(8.5f, 8.5f)
+        moveTo(3.5f, 9f)
+        arcTo(9f, 9f, 0f, isMoreThanHalf = true, isPositiveArc = true, x1 = 3.6f, y1 = 15f)
+    }
+    /** A circled i: what this page is for. */
+    val Info = icon("Info") {
+        moveTo(21f, 12f)
+        arcTo(9f, 9f, 0f, isMoreThanHalf = true, isPositiveArc = true, x1 = 3f, y1 = 12f)
+        arcTo(9f, 9f, 0f, isMoreThanHalf = true, isPositiveArc = true, x1 = 21f, y1 = 12f)
+        moveTo(12f, 11f); lineTo(12f, 16.5f)
+        moveTo(12f, 7.5f); lineTo(12f, 7.6f)
+    }
+    /** A downward chevron: opens a list or a section. */
+    val Chevron = icon("Chevron") { moveTo(6f, 9f); lineTo(12f, 15f); lineTo(18f, 9f) }
+    /** A left arrow: back. */
+    val Back = icon("Back") { moveTo(19f, 12f); lineTo(5f, 12f); moveTo(11f, 6f); lineTo(5f, 12f); lineTo(11f, 18f) }
+    /** A plus: add. */
+    val Add = icon("Add") { moveTo(12f, 5f); lineTo(12f, 19f); moveTo(5f, 12f); lineTo(19f, 12f) }
+    /** A four-point sparkle: an effect. */
+    val Sparkle = icon("Sparkle", width = 1.75f) {
+        moveTo(12f, 3f)
+        curveTo(12.8f, 8.5f, 15.5f, 11.2f, 21f, 12f)
+        curveTo(15.5f, 12.8f, 12.8f, 15.5f, 12f, 21f)
+        curveTo(11.2f, 15.5f, 8.5f, 12.8f, 3f, 12f)
+        curveTo(8.5f, 11.2f, 11.2f, 8.5f, 12f, 3f)
+        close()
+    }
     /** Two columns of three dots: grab here to drag. */
     val DragHandle = icon("Drag") {
         for (x in listOf(9f, 15f)) for (y in listOf(6f, 12f, 18f)) {

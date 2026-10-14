@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -39,53 +40,56 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 
 /**
- * A colour as hue, saturation and value sliders plus a hex field, no picker library.
+ * A colour as hue, intensity and brightness sliders plus a hex field, no picker library.
  * [argb] is straight 0xAARRGGBB. The sliders keep the alpha; the hex field takes
- * RRGGBB, which keeps it too, or AARRGGBB. Collapsed it is a swatch and the hex value;
- * a tap opens the sliders. With [swatches] a row of one-tap colours shows even collapsed.
+ * RRGGBB, which keeps it too, or AARRGGBB. At rest it is one row, the name and a swatch;
+ * a tap opens one-tap colours, the sliders and the hex code. The full colour picker
+ * replaces the open part in the next pass.
  */
 @Composable
 fun ColorControl(
-    label: String,
+    tip: Tip,
     argb: Int,
     default: Int,
     onDrag: (Int) -> Unit,
     onDone: () -> Unit,
     onCommit: (Int) -> Unit,
-    swatches: Boolean = false,
 ) {
+    val label = tip.label
     var open by rememberSaveable { mutableStateOf(false) }
     // Hue and saturation survive a trip through grey or black, where the colour forgets them.
     var hsv by remember { mutableStateOf(toHsv(argb)) }
     LaunchedEffect(argb) { if (fromHsv(hsv, argb) != argb) hsv = toHsv(argb) }
     val hex = hex(argb)
     Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = if (open) "Close $label" else "Edit $label") { open = !open },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            Box(
-                Modifier.size(28.dp)
-                    .background(Color(argb), RoundedCornerShape(6.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
-                    .semantics { contentDescription = "$label colour $hex" },
-            )
-            Text(hex, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
-            ResetButton(label, enabled = argb != default) { onCommit(default) }
+        HelpAnchor(tip) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClickLabel = if (open) "Close $label" else "Change $label") { open = !open },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Box(
+                    Modifier.size(28.dp)
+                        .background(Color(argb), RoundedCornerShape(6.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
+                        .semantics { contentDescription = "$label $hex" },
+                )
+                ResetButton(label, enabled = argb != default) { onCommit(default) }
+            }
         }
-        if (swatches || open) Swatches(label, argb, onCommit)
-        if (open) Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (open) Swatches(label, argb, onCommit)
+        if (open) Column(Modifier.padding(start = 12.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             fun set(h: FloatArray) {
                 hsv = h
                 onDrag(fromHsv(h, argb))
             }
             val ref = toHsv(default)
-            SliderControl("$label hue", hsv[0], 0f..360f, ref[0], decimals(0, "°"),
+            SliderControl(Tips.HUE, hsv[0], 0f..360f, ref[0], decimals(0, "°"),
                 { set(floatArrayOf(it, hsv[1], hsv[2])) }, onDone, { set(floatArrayOf(ref[0], hsv[1], hsv[2])); onDone() })
-            SliderControl("$label saturation", hsv[1], 0f..1f, ref[1], percent,
+            SliderControl(Tips.INTENSITY, hsv[1], 0f..1f, ref[1], percent,
                 { set(floatArrayOf(hsv[0], it, hsv[2])) }, onDone, { set(floatArrayOf(hsv[0], ref[1], hsv[2])); onDone() })
-            SliderControl("$label value", hsv[2], 0f..1f, ref[2], percent,
+            SliderControl(Tips.BRIGHTNESS, hsv[2], 0f..1f, ref[2], percent,
                 { set(floatArrayOf(hsv[0], hsv[1], it)) }, onDone, { set(floatArrayOf(hsv[0], hsv[1], ref[2])); onDone() })
             HexField(label, argb, onCommit)
         }
@@ -105,7 +109,7 @@ private fun Swatches(label: String, argb: Int, onCommit: (Int) -> Unit) {
             val picked = value == argb
             Box(
                 Modifier.size(36.dp)
-                    .border(if (picked) 3.dp else 1.dp, if (picked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape)
+                    .border(if (picked) 3.dp else 1.dp, if (picked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant, CircleShape)
                     .padding(if (picked) 4.dp else 0.dp)
                     .background(Color(c), CircleShape)
                     .clickable(role = Role.Button, onClickLabel = "$label $name") { onCommit(value) }
@@ -130,7 +134,7 @@ private fun HexField(label: String, argb: Int, onCommit: (Int) -> Unit) {
     OutlinedTextField(
         value = text,
         onValueChange = { text = it.take(8) },
-        label = { Text("$label hex") },
+        label = { Text(Tips.HEX.label) },
         prefix = { Text("#") },
         isError = parsed == null,
         singleLine = true,

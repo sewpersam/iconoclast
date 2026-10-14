@@ -62,6 +62,6 @@ object TexturePresence {
 
     /** The user's explanation. */
     fun message(count: Int): String =
-        if (count == 1) "A texture this theme uses is not on this phone. Its layer is hidden. Import the texture again or remove the layer."
-        else "$count textures this theme uses are not on this phone. Their layers are hidden. Import them again or remove the layers."
+        if (count == 1) "An image this theme uses is not on this phone. Its layer is hidden. Add the image again or delete the layer."
+        else "$count images this theme uses are not on this phone. Their layers are hidden. Add them again or delete the layers."
 }

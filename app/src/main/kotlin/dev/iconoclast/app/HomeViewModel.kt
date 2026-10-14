@@ -65,7 +65,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _keyPrompt = MutableStateFlow<KeyState?>(null)
     /**
-     * An archive with a signing key waits for the restore question: this phone has no key
+     * An archive with a pack key waits for the restore question: this phone has no key
      * ([KeyState.NONE]) or a damaged one ([KeyState.DAMAGED]). Null when nothing is asked.
      */
     val keyPrompt: StateFlow<KeyState?> = _keyPrompt
@@ -106,17 +106,17 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Shares the theme as a .zip with its textures. A texture missing from the phone stops
-     * it. [includeKey] adds the signing key; pass it only after the warning was tapped.
+     * it. [includeKey] adds the pack key; pass it only after the warning was tapped.
      */
-    fun export(id: String, includeKey: Boolean = false) = act("Not exported") {
+    fun export(id: String, includeKey: Boolean = false) = act("Not shared") {
         val doc = repo.get(id) ?: return@act
         val missing = withContext(Dispatchers.IO) { TexturePresence.ensure(container.textures, doc.theme) }
         if (missing.isNotEmpty()) {
-            _message.value = "Not exported. ${TexturePresence.message(missing.size)}"
+            _message.value = "Not shared. ${TexturePresence.message(missing.size)}"
             return@act
         }
         val key = if (!includeKey) null else withContext(Dispatchers.IO) { container.packKey.backup() } ?: run {
-            _message.value = "Not exported. There is no signing key yet: it is made on the first Apply."
+            _message.value = "Not shared. There is no pack key yet: it is made on the first Apply."
             return@act
         }
         launches.trySend(withContext(Dispatchers.IO) { ThemeTransfer.shareIntent(getApplication(), doc, container.textures.store, key) })
@@ -160,9 +160,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         _message.value = importing {
             if (restore) {
                 val result = store(read(uri, readKey = true), restoreKey = true)
-                "Imported ${result.doc.name}" + if (result.key == RestoreResult.RESTORED) " and restored its signing key" else ""
+                "Imported ${result.doc.name}" + if (result.key == RestoreResult.RESTORED) " and restored its pack key" else ""
             } else {
-                "Imported ${store(archive, restoreKey = false).doc.name} without its signing key"
+                "Imported ${store(archive, restoreKey = false).doc.name} without its pack key"
             }
         }
     }
@@ -171,12 +171,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun keyNote(uri: Uri): String = try {
         val theirs = read(uri, readKey = true).key?.open()?.certificate?.encoded
         val ours = withContext(Dispatchers.IO) { container.packKey.loadOrCreate().certificate.encoded }
-        if (theirs != null && theirs.contentEquals(ours)) ". Its signing key is already this phone's."
-        else ". Its signing key was not imported: this phone already has a different one, which it keeps."
+        if (theirs != null && theirs.contentEquals(ours)) ". Its pack key is already this phone's."
+        else ". Its pack key was not imported: this phone already has a different one, which it keeps."
     } catch (e: ThemeFormatException) {
-        ". Its signing key could not be read and was skipped."
+        ". Its pack key could not be read and was skipped."
     } catch (e: InvalidKeyBackupException) {
-        ". Its signing key could not be read and was skipped."
+        ". Its pack key could not be read and was skipped."
     }
 
     /** The whole file is validated before anything is stored. */
@@ -207,12 +207,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 _message.value = "$failure. Storage error: ${e.message ?: e.javaClass.simpleName}"
             } catch (e: DamagedKeyException) {
                 Log.w(TAG, failure, e)
-                _message.value = "$failure. The pack signing key on this phone is damaged. " +
+                _message.value = "$failure. The pack pack key on this phone is damaged. " +
                     "Restore it by importing a backup that includes the key, or make a new key from Apply."
             } catch (e: GeneralSecurityException) {
-                // A signing key store this phone could not read, by export or key restore.
+                // A pack key store this phone could not read, by export or key restore.
                 Log.w(TAG, failure, e)
-                _message.value = "$failure. The signing key on this phone could not be read: ${e.message ?: e.javaClass.simpleName}"
+                _message.value = "$failure. The pack key on this phone could not be read: ${e.message ?: e.javaClass.simpleName}"
             } catch (e: IllegalStateException) {
                 // CancellationException is an IllegalStateException: cancellation must pass.
                 if (e is CancellationException) throw e

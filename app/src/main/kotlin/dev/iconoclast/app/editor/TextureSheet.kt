@@ -43,12 +43,17 @@ fun TextureSheet(
     val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(onPicked) }
     val documents = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(onPicked) }
     if (!open) return
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp,
+    ) {
         Column(Modifier.padding(bottom = 24.dp)) {
-            Text("Texture", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)
+            Text("Choose an image", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)
             ListItem(
                 headlineContent = { Text("From photos") },
-                supportingContent = { Text("The system photo picker") },
+                supportingContent = { Text("Pick from your gallery") },
                 modifier = Modifier.clickable {
                     onDismiss()
                     photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -56,32 +61,32 @@ fun TextureSheet(
             )
             ListItem(
                 headlineContent = { Text("From files") },
-                supportingContent = { Text("Any image file, through the document picker") },
+                supportingContent = { Text("Pick any image file on your phone") },
                 modifier = Modifier.clickable {
                     onDismiss()
                     documents.launch(arrayOf("image/*"))
                 },
             )
-            Text("Built-in", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall)
+            Text("Included patterns", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall)
             Row(
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 for (b in BuiltInBrushes.ALL) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        TextureThumbnail(b.sha256, file, "Built-in brush ${b.name}", 64.dp, Modifier.clickable { onChosen(b.sha256) })
+                        TextureThumbnail(b.sha256, file, "Included pattern ${b.name}", 64.dp, Modifier.clickable { onChosen(b.sha256) })
                         Text(b.name, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
             if (recent.isNotEmpty()) {
-                Text("Imported", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall)
+                Text("Your images", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleSmall)
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     for (hash in recent) {
-                        TextureThumbnail(hash, file, "Imported texture ${hash.take(8)}", 64.dp, Modifier.clickable { onChosen(hash) })
+                        TextureThumbnail(hash, file, "Your image", 64.dp, Modifier.clickable { onChosen(hash) })
                     }
                 }
             }

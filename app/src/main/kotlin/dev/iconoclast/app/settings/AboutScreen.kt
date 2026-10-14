@@ -39,14 +39,15 @@ private const val ARCTICONS_URL = "https://github.com/Arcticons-Team/Arcticons"
 private const val CC_BY_SA_URL = "https://creativecommons.org/licenses/by-sa/4.0/"
 private const val GPL_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
 private const val LICENSE_ASSET = "licenses/dependencies.txt"
+private const val GEIST_URL = "https://github.com/vercel/geist-font"
 
 /**
  * Pack size per resolution: PhoneBudgetTest on icondesign36, the Jade preset, 300 icons,
  * M7 Task 11 (docs/verification/m7.md). Grain-heavy looks are the largest.
  */
 private val RESOLUTIONS = listOf(
-    Triple(OutputResolution.FULL, "Full, 432 px", "Sharpest on every screen. A Jade pack of 300 icons measured 12.5 MB."),
-    Triple(OutputResolution.COMPACT, "Compact, 324 px", "For phones short on storage. The same pack measured 8.4 MB."),
+    Triple(OutputResolution.FULL, "Sharp (larger pack)", "Sharpest on every screen. A Jade pack of 300 icons measured 12.5 MB."),
+    Triple(OutputResolution.COMPACT, "Compact (smaller pack)", "For phones short on storage. The same pack measured 8.4 MB."),
 )
 
 /** One line of the dependency list: `group:name:version<TAB>licence`. */
@@ -74,7 +75,7 @@ fun AboutScreen(settings: AppSettings, modifier: Modifier = Modifier) {
     val app = stringResource(R.string.app_name)
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            Header("Output icon resolution")
+            Header("Icon quality")
             Column(Modifier.selectableGroup()) {
                 for ((r, name, detail) in RESOLUTIONS) {
                     Row(
@@ -84,7 +85,7 @@ fun AboutScreen(settings: AppSettings, modifier: Modifier = Modifier) {
                         RadioButton(selected = resolution == r, onClick = null)
                         Column(Modifier.padding(start = 12.dp)) {
                             Text(name, style = MaterialTheme.typography.bodyLarge)
-                            Text(detail, style = MaterialTheme.typography.bodySmall)
+                            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -113,13 +114,18 @@ fun AboutScreen(settings: AppSettings, modifier: Modifier = Modifier) {
             if (BuildConfig.SOURCE_URL.isEmpty()) Text("The source code link is added at the first public release.", style = MaterialTheme.typography.bodySmall)
         }
         item {
-            Header("Export signing key")
+            Header("Moving to a new phone")
             Text(
-                "Packs are signed with a key made on this phone. A reinstalled app has a new key and cannot update the pack " +
-                    "you have, so it must uninstall it first. To keep the key, export a theme from the home screen and tick " +
-                    "\"Include the pack signing key\". A warning comes first: anyone with that file can replace your pack. " +
-                    "Importing the file on a fresh install offers to restore the key.",
+                "Your icon pack is signed with a key made on this phone. A reinstalled $app gets a new key and cannot update " +
+                    "the pack you have, so it must uninstall it first. To keep the key, share a theme from the home screen and tick " +
+                    "\"Include my pack key\". A warning comes first: anyone with that file can replace your pack. " +
+                    "Opening the file on a fresh install offers to restore the key.",
             )
+        }
+        item {
+            Header("Fonts")
+            Text("Geist Sans and Geist Mono by The Geist Project Authors, SIL Open Font License 1.1.")
+            TextButton(onClick = { open(GEIST_URL) }) { Text("Geist") }
         }
         item { Header("Open source licences (${deps.size})") }
         items(deps, key = { it.artifact }) { d ->

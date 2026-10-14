@@ -7,6 +7,7 @@ import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.Layer
 import dev.iconoclast.render.Mapping
+import dev.iconoclast.render.NoiseKind
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
@@ -24,12 +25,58 @@ object LayerStack {
 
     fun replace(theme: Theme, layer: Layer): Theme = theme.copy(layers = theme.layers.map { if (it.id == layer.id) layer else it })
 
-    /** Puts [layer] directly above [belowId], or on top when that is null or gone. */
+    /**
+     * The Icon row's id in the list. Its two layers, the icon fill and the icon lines, move,
+     * hide and show together, and nothing goes between them.
+     */
+    const val ICON_ROW = "icon"
+
+    /**
+     * Puts [layer] directly above the row [belowId], or on top when that is null or gone.
+     * Above the Icon row means above both its layers.
+     */
     fun insertAbove(theme: Theme, layer: Layer, belowId: String?): Theme {
-        val i = theme.layers.indexOfFirst { it.id == belowId }
-        val at = if (i < 0) theme.layers.size else i + 1
-        return theme.copy(layers = theme.layers.toMutableList().apply { add(at, layer) })
+        val units = units(theme)
+        val i = units.indexOfFirst { u -> u.any { it.id == belowId } || (belowId == ICON_ROW && isIcon(u)) }
+        val l = units.toMutableList().apply { add(if (i < 0) size else i + 1, listOf(layer)) }
+        return theme.copy(layers = l.flatten())
     }
+
+    /**
+     * The stack bottom to top in the units the list moves: one layer each, except the icon
+     * fill and icon lines, one unit when they sit next to each other. A stack from an older
+     * file is migrated to that on load, schema 7.
+     */
+    fun units(theme: Theme): List<List<Layer>> {
+        val out = mutableListOf<List<Layer>>()
+        var i = 0
+        val l = theme.layers
+        while (i < l.size) {
+            val next = l.getOrNull(i + 1)
+            if (next != null && setOf(l[i].id, next.id) == ICON_IDS) {
+                out += listOf(l[i], next)
+                i += 2
+            } else {
+                out += listOf(l[i])
+                i++
+            }
+        }
+        return out
+    }
+
+    private fun isIcon(unit: List<Layer>) = unit.size == 2 && unit.map { it.id }.toSet() == ICON_IDS
+
+    private fun unitId(unit: List<Layer>) = if (isIcon(unit)) ICON_ROW else unit.single().id
+
+    /** One row of the layer list: [id] is a layer's, or [ICON_ROW] for the icon's two. */
+    data class Row(val id: String, val layers: List<Layer>) {
+        val first: Layer get() = layers.first()
+        val isIcon: Boolean get() = id == ICON_ROW
+    }
+
+    /** The layers row [id] stands for: the icon's two for [ICON_ROW], else that one layer. */
+    fun rowLayers(theme: Theme, id: String?): List<Layer> =
+        if (id == ICON_ROW) theme.layers.filter { it.id in ICON_IDS } else listOfNotNull(layer(theme, id))
 
     /** Swaps the layer with its neighbour above ([up]) or below. At either end, unchanged. */
     fun move(theme: Theme, id: String, up: Boolean): Theme {
@@ -47,16 +94,23 @@ object LayerStack {
      * such as the effects marker the list hides, keep their order. Unknown ids: unchanged.
      */
     fun moveOnto(theme: Theme, id: String, targetId: String): Theme {
-        val from = theme.layers.indexOfFirst { it.id == id }
-        val to = theme.layers.indexOfFirst { it.id == targetId }
+        val units = units(theme)
+        val from = units.indexOfFirst { unitId(it) == id || (!isIcon(it) && it.single().id == id) }
+        val to = units.indexOfFirst { unitId(it) == targetId || (!isIcon(it) && it.single().id == targetId) }
         if (from < 0 || to < 0 || from == to) return theme
-        val l = theme.layers.toMutableList()
+        val l = units.toMutableList()
         l.add(to, l.removeAt(from))
-        return theme.copy(layers = l)
+        return theme.copy(layers = l.flatten())
     }
 
     /** The rows the layer list shows, top of the stack first. The effects marker is not one. */
-    fun rows(theme: Theme): List<Layer> = theme.layers.asReversed().filter { it !is EffectsLayer }
+    fun rows(theme: Theme): List<Row> =
+        units(theme).asReversed().filter { it.single0() !is EffectsLayer }.map { Row(unitId(it), it) }
+
+    private fun List<Layer>.single0(): Layer? = singleOrNull()
+
+    /** A row shows while any of its layers does. */
+    fun isVisible(theme: Theme, row: Row): Boolean = row.layers.any(::isVisible)
 
     /** A paint layer is hidden by its eye; an effect when switched off. Opacity plays no part. */
     fun isVisible(layer: Layer): Boolean = when (layer) {
@@ -69,26 +123,24 @@ object LayerStack {
      * Shows or hides layer [id]: a paint layer's eye, an effect's switch. Opacity is never
      * touched, so a layer shown again, after a restart too, has the opacity it had.
      */
-    fun withVisible(theme: Theme, id: String, visible: Boolean): Theme = when (val l = layer(theme, id)) {
+    fun withVisible(theme: Theme, id: String, visible: Boolean): Theme =
+        if (id == ICON_ROW) rowLayers(theme, id).fold(theme) { t, l -> withVisible(t, l.id, visible) } else when (val l = layer(theme, id)) {
         is PaintLayer -> if (l.visible == visible) theme else replace(theme, l.copy(visible = visible))
         is EffectLayer -> if (l.enabled == visible) theme else replace(theme, l.copy(enabled = visible))
         else -> theme
     }
 
     /**
-     * Puts effect [id] behind the icon, at the default slot [Theme.withEffect] uses, or on
-     * top of the stack, over the icon. Already there: unchanged.
+     * Removes a paint or effect layer. The effects marker stays, a stack holds exactly one,
+     * and so do the base stack's own layers: the background and the icon only hide.
      */
-    fun placeEffect(theme: Theme, id: String, onTop: Boolean): Theme {
-        val l = layer(theme, id) as? EffectLayer ?: return theme
-        if (aboveIcon(theme, l) == onTop) return theme
-        val rest = theme.copy(layers = theme.layers.filterNot { it.id == id })
-        return if (onTop) rest.copy(layers = rest.layers + l) else rest.withEffect(l)
-    }
-
-    /** Removes a paint or effect layer. The effects marker stays: a stack holds exactly one. */
     fun remove(theme: Theme, id: String): Theme =
-        if (layer(theme, id) is EffectsLayer) theme else theme.copy(layers = theme.layers.filterNot { it.id == id })
+        if (!canRemove(theme, id)) theme else theme.copy(layers = theme.layers.filterNot { it.id == id })
+
+    fun canRemove(theme: Theme, id: String): Boolean {
+        val l = layer(theme, id) ?: return false
+        return l !is EffectsLayer && id != Layer.BACKGROUND_ID && id !in ICON_IDS
+    }
 
     /**
      * The mapping a new texture layer starts with: scale 2, so the texture leaves room for
@@ -116,22 +168,8 @@ object LayerStack {
     fun withClip(layer: PaintLayer, clip: ClipTarget): PaintLayer =
         layer.copy(clip = clip, clipInverse = layer.clipInverse && clip != ClipTarget.CANVAS)
 
-    fun backgroundTexture(theme: Theme): PaintLayer? = layer(theme, BACKGROUND_TEXTURE_ID) as? PaintLayer
-
-    /**
-     * Sets the background's texture layer to [hash]: an existing one keeps its settings, a
-     * new one goes right above the background paint, clipped to the background shape.
-     */
-    fun withBackgroundTexture(theme: Theme, hash: String): Theme {
-        val existing = backgroundTexture(theme)
-        if (existing != null) {
-            val stops = (existing.source as? Paint.Texture)?.stops
-            return replace(theme, existing.copy(source = Paint.Texture(hash, stops)))
-        }
-        val layer = PaintLayer(BACKGROUND_TEXTURE_ID, Paint.Texture(hash), clip = ClipTarget.BACKGROUND, mapping = NEW_TEXTURE_MAPPING)
-        val bottom = layer(theme, Layer.BACKGROUND_ID)?.id ?: return theme.copy(layers = listOf(layer) + theme.layers)
-        return insertAbove(theme, layer, bottom)
-    }
+    /** The name a row shows in the list and on its page. */
+    fun rowLabel(theme: Theme, row: Row): String = if (row.isIcon) "Icon" else label(theme, row.first)
 
     /** The name shown in the list. Layers of one kind are numbered from the bottom. */
     fun label(theme: Theme, layer: Layer): String {
@@ -149,26 +187,34 @@ object LayerStack {
 
     private fun kindName(layer: Layer): String = when (layer) {
         is EffectLayer -> effectName(layer.effect)
-        is PaintLayer -> when (layer.source) {
+        is PaintLayer -> when (val source = layer.source) {
             is Paint.Solid -> "Colour"
-            is Paint.LinearGradient -> "Linear gradient"
-            is Paint.RadialGradient -> "Radial gradient"
-            is Paint.Texture -> "Texture"
-            is Paint.Noise -> "Noise"
+            is Paint.LinearGradient, is Paint.RadialGradient -> "Gradient"
+            is Paint.Texture -> "Image"
+            is Paint.Noise -> patternName(source.kind)
         }
         else -> "Effects"
     }
 
     fun effectName(effect: Effect): String = when (effect) {
-        is Effect.Streaks -> "Scanlines"
+        is Effect.Streaks -> "Streaks"
         is Effect.BrushStrokes -> "Brush strokes"
-        is Effect.Bevel -> "Bevel and emboss"
-        is Effect.DropShadow -> "Drop shadow"
+        is Effect.Bevel -> "Raised edge"
+        is Effect.DropShadow -> "Shadow"
         is Effect.InnerShadow -> "Inner shadow"
-        is Effect.OuterGlow -> "Outer glow"
+        is Effect.OuterGlow -> "Glow"
         is Effect.InnerGlow -> "Inner glow"
-        is Effect.Grain -> "Grain"
+        is Effect.Grain -> "Film grain"
     }
+
+    fun patternName(kind: NoiseKind): String = when (kind) {
+        NoiseKind.FBM -> "Clouds"
+        NoiseKind.RIDGED -> "Veins"
+        NoiseKind.GRAIN -> "Speckle"
+    }
+
+    /** Effects that draw only on the icon: below the Icon row they are hidden behind it. */
+    fun drawsOnIconOnly(effect: Effect): Boolean = effect is Effect.Bevel || effect is Effect.InnerShadow || effect is Effect.InnerGlow
 
     /** The paint layers a streak can take its paint from: textures and noise. */
     fun streakSources(theme: Theme): List<PaintLayer> =
@@ -204,6 +250,8 @@ object LayerStack {
         val icon = theme.layers.indexOfFirst { it.id == Layer.ICON_FILL_ID || it.id == Layer.ICON_LINES_ID }
         return icon in 0 until i
     }
+
+    private val ICON_IDS = setOf(Layer.ICON_FILL_ID, Layer.ICON_LINES_ID)
 
     private val NAMED = setOf(Layer.BACKGROUND_ID, Layer.EFFECTS_ID, Layer.ICON_FILL_ID, Layer.ICON_LINES_ID, BACKGROUND_TEXTURE_ID)
 }

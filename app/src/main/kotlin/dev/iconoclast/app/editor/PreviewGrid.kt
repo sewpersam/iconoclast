@@ -69,9 +69,9 @@ fun PreviewPanel(
         }
         val hero = items.firstOrNull { it.drawable == focused } ?: items.first()
         Column(
-            Modifier.width(HERO_WIDTH).fillMaxHeight().clickable(onClickLabel = "Override this icon") { onTap(hero) }
+            Modifier.width(HERO_WIDTH).fillMaxHeight().clickable(onClickLabel = "Change this icon only") { onTap(hero) }
                 .semantics(mergeDescendants = true) {
-                    contentDescription = if (hero.drawable in overridden) "${hero.label}, large, overridden" else "${hero.label}, large"
+                    contentDescription = if (hero.drawable in overridden) "${hero.label}, large, changed for this icon" else "${hero.label}, large"
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
@@ -92,8 +92,8 @@ fun PreviewPanel(
                 val badged = item.drawable in overridden
                 Box(
                     Modifier.padding(2.dp)
-                        .clickable(onClickLabel = "Override this icon") { onTap(item) }
-                        .semantics(mergeDescendants = true) { contentDescription = if (badged) "${item.label}, overridden" else item.label },
+                        .clickable(onClickLabel = "Change this icon only") { onTap(item) }
+                        .semantics(mergeDescendants = true) { contentDescription = if (badged) "${item.label}, changed for this icon" else item.label },
                 ) { Cell(images[item.drawable], badged, CELL) }
             }
         }
@@ -112,13 +112,13 @@ private fun Cell(image: ImageBitmap?, badged: Boolean, size: Dp) {
             Box(
                 Modifier.align(Alignment.TopEnd).size(size / 4)
                     .border(2.dp, BACKDROP, CircleShape)
-                    .background(MaterialTheme.colorScheme.tertiary, CircleShape),
+                    .background(Color.White, CircleShape),
             )
         }
     }
 }
 
-private val BACKDROP = Color(0xFF3C4043)
+private val BACKDROP = dev.iconoclast.app.ui.theme.PreviewBackdrop
 private val CELL = 48.dp
 private val HERO = 104.dp
 private val HERO_WIDTH = 132.dp

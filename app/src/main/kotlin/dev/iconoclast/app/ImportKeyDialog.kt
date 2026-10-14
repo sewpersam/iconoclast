@@ -14,16 +14,16 @@ import androidx.compose.runtime.Composable
 fun ImportKeyDialog(damaged: Boolean, onAnswer: (restore: Boolean) -> Unit) {
     AlertDialog(
         onDismissRequest = { onAnswer(false) },
-        title = { Text("Restore the signing key?") },
+        title = { Text("Restore your pack key?") },
         text = {
             Text(
-                "This backup holds a pack signing key, and " +
+                "This backup holds a pack key, and " +
                     (if (damaged) "the key on this phone is damaged. " else "this phone has none yet. ") +
                     "Restore it if it is your own key, from your earlier install: " +
                     "Apply can then update the pack already installed instead of replacing it.",
             )
         },
         confirmButton = { TextButton(onClick = { onAnswer(true) }) { Text("Restore key") } },
-        dismissButton = { TextButton(onClick = { onAnswer(false) }) { Text("Theme only") } },
+        dismissButton = { TextButton(onClick = { onAnswer(false) }) { Text("Just the theme") } },
     )
 }

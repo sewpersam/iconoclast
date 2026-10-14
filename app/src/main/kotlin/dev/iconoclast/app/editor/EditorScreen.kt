@@ -1,62 +1,69 @@
 package dev.iconoclast.app.editor
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import dev.iconoclast.render.EffectLayer
+import dev.iconoclast.render.Layer
+import dev.iconoclast.render.PaintLayer
 
 /**
- * Spec 2.3's Shape and Fill are one Icon tab, everything about the line art; Layers holds
- * the effects too, since they are layers of the same stack. Three tabs fit a phone.
- */
-private val TABS = listOf("Icon", "Background", "Layers")
-private const val LAYERS_TAB = 2
-
-/**
- * The theme editor, spec 2.2 screen 2: the live preview of your apps on top, the tabbed
- * controls below, undo, redo and Apply in the bar. Apply saves this
- * theme and makes it the active one, then [onApply] goes to the Apply screen.
+ * The theme editor, docs/naming-spec.md 1.1: the live preview pinned on top, and below it
+ * one list of layers. Tapping a row opens that layer's properties page in its place, with
+ * a back arrow; the preview stays, so every change shows. The theme name in the bar
+ * renames; undo, redo and Apply stay in the bar. Apply saves this theme and makes it the
+ * active one, then [onApply] goes to the Apply screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
     val ui by vm.ui.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    var renaming by rememberSaveable { mutableStateOf(false) }
     // The process may be killed any time after the activity stops: save what is pending.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.flush() }
     LaunchedEffect(ui.message) {
@@ -66,15 +73,38 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
             if (result == SnackbarResult.ActionPerformed) vm.undoRemoval()
         }
     }
+    BackHandler(enabled = ui.page != null) { vm.openPage(null) }
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(ui.name.ifEmpty { "Theme" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                title = {
+                    HelpAnchor(Tips.THEME_NAME) {
+                        Text(
+                            ui.name.ifEmpty { "Theme" },
+                            Modifier.clickable(enabled = !ui.loading && !ui.missing, role = Role.Button, onClickLabel = "Rename theme") { renaming = true },
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                },
+                navigationIcon = {
+                    NamedIcon(Tips.BACK.label) {
+                        IconButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = Tips.BACK.label }) {
+                            Icon(EditorIcons.Back, contentDescription = null)
+                        }
+                    }
+                },
                 actions = {
-                    IconButton(onClick = vm::undo, enabled = ui.canUndo) { Icon(EditorIcons.Undo, contentDescription = "Undo") }
-                    IconButton(onClick = vm::redo, enabled = ui.canRedo) { Icon(EditorIcons.Redo, contentDescription = "Redo") }
-                    TextButton(onClick = { vm.apply(onApply) }, enabled = !ui.loading && !ui.missing) { Text("Apply") }
+                    NamedIcon(Tips.UNDO.label) {
+                        IconButton(onClick = vm::undo, enabled = ui.canUndo) { Icon(EditorIcons.Undo, contentDescription = "Undo") }
+                    }
+                    NamedIcon(Tips.REDO.label) {
+                        IconButton(onClick = vm::redo, enabled = ui.canRedo) { Icon(EditorIcons.Redo, contentDescription = "Redo") }
+                    }
+                    HelpAnchor(Tips.APPLY) {
+                        Button(onClick = { vm.apply(onApply) }, enabled = !ui.loading && !ui.missing, modifier = Modifier.padding(end = 8.dp)) { Text("Apply") }
+                    }
                 },
             )
         },
@@ -88,52 +118,87 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
             }
         }
     }
+    if (renaming) RenameDialog(ui.name, onDismiss = { renaming = false }) { vm.rename(it); renaming = false }
 }
 
 @Composable
 private fun Editor(vm: EditorViewModel, ui: EditorUi) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    val textures = TextureActions({ ui.selectedLayer?.let { vm.chooseTexture(TextureTarget.Source(it)) } }, vm::textureFile)
+    val textures = { id: String -> TextureActions({ vm.chooseTexture(TextureTarget.Source(id)) }, vm::textureFile) }
     val stack = StackActions(
-        select = vm::selectLayer,
-        addLayer = { vm.showAddLayer(true) },
-        addEffect = { vm.showAddEffect(true) },
+        open = vm::openPage,
+        add = { vm.showAdd(true) },
         moveOnto = vm::moveLayerOnto,
         dragOnto = vm::dragLayerOnto,
         dragDone = vm::endDrag,
         setVisible = vm::setLayerVisible,
-        placeEffect = vm::placeEffect,
         remove = vm::removeLayer,
     )
     Column(Modifier.fillMaxSize()) {
         LivePreview(vm, ui)
-        if (ui.importingTexture) LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = "Importing texture" })
-        PrimaryTabRow(selectedTabIndex = tab) {
-            TABS.forEachIndexed { i, name ->
-                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(name, maxLines = 1) })
+        if (ui.importingTexture) LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = "Adding image" })
+        val page = ui.page
+        val theme = ui.theme
+        val pageLayers = LayerStack.rowLayers(theme, page)
+        // A page whose layer went, by undo or delete, closes.
+        LaunchedEffect(page, pageLayers.isEmpty()) { if (page != null && pageLayers.isEmpty()) vm.openPage(null) }
+        if (page == null || pageLayers.isEmpty()) {
+            Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+                LayersList(theme, stack, vm::textureFile)
             }
-        }
-        Column(
-            Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            val theme = ui.theme
-            when (tab) {
-                0 -> IconTab(theme, vm::drag, vm::endDrag, vm::commit) { id -> vm.selectLayer(id); tab = LAYERS_TAB }
-                1 -> BackgroundTab(theme, vm::drag, vm::endDrag, vm::commit,
-                    TextureActions({ vm.chooseTexture(TextureTarget.Background) }, vm::textureFile))
-                else -> LayersTab(
-                    theme, ui.selectedLayer, stack, vm::drag, vm::endDrag, vm::commit, textures,
-                    BreakupActions(ui.recentTextures, vm::textureFile) { vm.chooseTexture(TextureTarget.Breakup(it)) },
-                )
+        } else {
+            val first = pageLayers.first()
+            val (title, info) = when {
+                page == LayerStack.ICON_ROW -> "Icon" to Tips.PAGE_ICON
+                page == Layer.BACKGROUND_ID -> "Background" to Tips.PAGE_BACKGROUND
+                first is EffectLayer -> LayerStack.label(theme, first) to Tips.PAGE_EFFECT
+                else -> LayerStack.label(theme, first) to Tips.PAGE_LAYER
+            }
+            PageHeader(title, Tip(title, info.help)) { vm.openPage(null) }
+            Column(
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 8.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                when {
+                    page == LayerStack.ICON_ROW -> IconPage(theme, vm::drag, vm::endDrag, vm::commit, textures)
+                    page == Layer.BACKGROUND_ID -> BackgroundPage(theme, vm::drag, vm::endDrag, vm::commit, textures(Layer.BACKGROUND_ID))
+                    first is EffectLayer -> EffectPage(first, theme, vm::drag, vm::endDrag, vm::commit,
+                        BreakupActions(ui.recentTextures, vm::textureFile) { vm.chooseTexture(TextureTarget.Breakup(it)) })
+                    first is PaintLayer -> LayerPage(first, theme, vm::drag, vm::endDrag, vm::commit, textures(first.id))
+                }
             }
         }
     }
-    if (ui.addingLayer) {
-        AddLayerSheet(onDismiss = { vm.showAddLayer(false) }, onAdd = vm::addLayer, onTexture = { vm.chooseTexture(TextureTarget.NewLayer) })
+    if (ui.adding) {
+        AddSheet(onDismiss = { vm.showAdd(false) }, onAdd = vm::addLayer, onImage = { vm.chooseTexture(TextureTarget.NewLayer) }, onEffect = vm::addEffect)
     }
-    if (ui.addingEffect) AddEffectSheet(onDismiss = { vm.showAddEffect(false) }, onAdd = vm::addEffect)
     ui.overriding?.let { item -> LiveOverrideSheet(vm, ui, item) }
     TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
+}
+
+/** A properties page's header: back to the list, the page's name, and its ⓘ. */
+@Composable
+private fun PageHeader(title: String, info: Tip, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        NamedIcon("Back to layers") {
+            IconButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = "Back to layers" }) {
+                Icon(EditorIcons.Back, contentDescription = null)
+            }
+        }
+        Text(title, Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        InfoButton(info)
+    }
+}
+
+@Composable
+private fun RenameDialog(current: String, onDismiss: () -> Unit, onRename: (String) -> Unit) {
+    var name by rememberSaveable { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename theme") },
+        text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }) },
+        confirmButton = { TextButton(onClick = { onRename(name) }, enabled = name.isNotBlank()) { Text("Rename") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /**

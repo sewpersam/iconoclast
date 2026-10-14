@@ -82,7 +82,11 @@ data class ShapeParams(
     val cap: LineCap = LineCap.ROUND,
     val join: LineJoin = LineJoin.ROUND,
     val miterLimit: Float = 4f,
-    /** Size of the 48-unit icon box as a fraction of the adaptive-icon safe zone. */
+    /**
+     * Size of the 48-unit icon box as a fraction of the adaptive-icon safe zone, the unit
+     * every saved theme uses. [MAX_ICON_SCALE] makes the box the whole canvas; the editor
+     * shows the size as that fraction of the canvas, so 100% touches the edges.
+     */
     val iconScale: Float = 0.8f,
     /** Offset as a fraction of the canvas. */
     val offsetX: Float = 0f,
@@ -92,10 +96,13 @@ data class ShapeParams(
     init {
         require(strokeWeight in 0.25f..4f) { "strokeWeight $strokeWeight" }
         require(miterLimit in 1f..10f) { "miterLimit $miterLimit" }
-        require(iconScale in 0.5f..1f) { "iconScale $iconScale" }
+        require(iconScale in 0.5f..MAX_ICON_SCALE) { "iconScale $iconScale" }
         require(offsetX in -0.1f..0.1f && offsetY in -0.1f..0.1f) { "offset $offsetX,$offsetY" }
     }
 }
+
+/** The icon scale whose 48-unit box spans the whole canvas: the safe zone's inverse, 108 / 66. */
+const val MAX_ICON_SCALE = 108f / 66f
 
 enum class FillMode { OUTLINE, INVERT, SILHOUETTE, OUTLINE_SILHOUETTE }
 
