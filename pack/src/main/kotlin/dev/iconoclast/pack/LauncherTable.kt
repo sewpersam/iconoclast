@@ -24,16 +24,22 @@ object LauncherTable {
     val known: List<LauncherGuide> = listOf(
         // Neo 0.9.3 on the emulator: Restart alone refreshed once and failed once; switching
         // to System icons and back alone failed; Restart then switching worked both times.
+        // Neo keeps the old pack in memory until it restarts, and stores every icon it draws
+        // in a cache that only a pack switch or an update of that app clears. Switching
+        // before the restart stores the old icons again, and they stay until each app
+        // updates; see docs/verification/fb-pack.md. The first selection uses the same order,
+        // since a pack from an earlier install leaves its icons in that cache.
         LauncherGuide(
             packageName = "com.saggitt.omega",
             name = "Neo Launcher",
-            selectPack = "Long-press the home screen, then Home settings, Profile, Icon Packs, pick the pack and tap OK. " +
-                "If the pack is not listed, open the menu at the top right of Home settings, tap Restart, and try again. " +
-                "If an app such as Phone keeps its old icon, open Icon Packs again, pick System icons and tap OK, " +
-                "then pick the pack again and tap OK.",
+            selectPack = "Long-press the home screen, then Home settings. Open the menu at the top right and tap Restart. " +
+                "Then open Home settings again, Profile, Icon Packs, pick System icons and tap OK, " +
+                "then open Icon Packs again, pick the pack and tap OK. Restart first: in the other order some apps keep their old icon. " +
+                "If an app such as Phone still shows its old icon, tap Restart once more.",
             refresh = "Long-press the home screen, then Home settings. Open the menu at the top right and tap Restart. " +
                 "Then open Home settings again, Profile, Icon Packs, pick System icons and tap OK, " +
-                "then open Icon Packs again, pick the pack and tap OK.",
+                "then open Icon Packs again, pick the pack and tap OK. Restart first: in the other order some apps keep their old icon. " +
+                "If an app such as Phone still shows its old icon, tap Restart once more.",
             forceStopFromAppInfo = false,
         ),
         // Lawnchair 15 beta 3: "Restart Lawnchair" exists only in its hidden debug menu.
