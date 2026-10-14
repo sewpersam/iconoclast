@@ -15,9 +15,9 @@ import dev.iconoclast.render.Theme
 
 /**
  * The Icon row's page, docs/naming-spec.md 1.3: the fill style, then the lines, the fill
- * and the size, each with only what most people touch; the rest under More options. A
- * section the style draws nothing for is hidden: no lines in Solid shape, no fill in
- * Lines only. The colours are the icon lines and icon fill layers of the stack; their
+ * and the size, each with only what most people touch; the rest under More options.
+ * What the style draws nothing with is hidden: no line colour in Solid shape, where the
+ * thickness still shapes the solid, and no fill in Lines only. The colours are the icon lines and icon fill layers of the stack; their
  * opacity and mix mode live here too, so the icon has one page.
  */
 @Composable
