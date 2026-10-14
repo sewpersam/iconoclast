@@ -123,7 +123,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
 
 @Composable
 private fun Editor(vm: EditorViewModel, ui: EditorUi) {
-    val textures = { id: String -> TextureActions({ vm.chooseTexture(TextureTarget.Source(id)) }, vm::textureFile) }
+    val textures = { id: String -> TextureActions({ vm.chooseTexture(TextureTarget.Source(id)) }, vm::textureFile) { vm.openCrop(id) } }
     val stack = StackActions(
         open = vm::openPage,
         add = { vm.showAdd(true) },
@@ -169,9 +169,11 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi) {
         }
     }
     if (ui.adding) {
-        AddSheet(onDismiss = { vm.showAdd(false) }, onAdd = vm::addLayer, onImage = { vm.chooseTexture(TextureTarget.NewLayer) }, onEffect = vm::addEffect)
+        AddSheet(onDismiss = { vm.showAdd(false) }, onAdd = vm::addLayer, onImage = { vm.chooseTexture(TextureTarget.NewLayer) }, onEffect = vm::addEffect,
+            onGlass = vm::addGlass)
     }
     ui.overriding?.let { item -> LiveOverrideSheet(vm, ui, item) }
+    ui.cropping?.let { CropDialog(it, vm::texturePng, vm::closeCrop, vm::applyCrop) }
     TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
 }
 

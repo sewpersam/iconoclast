@@ -129,6 +129,7 @@ private fun Swatch(layer: Layer, file: (String) -> File) {
         is Paint.Solid -> Box(m.background(Color(source.argb), shape))
         is Paint.LinearGradient -> Box(m.background(Brush.horizontalGradient(source.stops.map { Color(it.argb) }.atLeastTwo()), shape))
         is Paint.RadialGradient -> Box(m.background(Brush.radialGradient(source.stops.map { Color(it.argb) }.atLeastTwo()), shape))
+        is Paint.AngularGradient -> Box(m.background(Brush.sweepGradient(source.stops.map { Color(it.argb) }.atLeastTwo()), shape))
         is Paint.Noise -> Box(m.background(Brush.linearGradient(source.stops.map { Color(it.argb) }.atLeastTwo()), shape))
         null -> Box(m.background(MaterialTheme.colorScheme.surfaceVariant, shape), contentAlignment = Alignment.Center) {
             Icon(EditorIcons.Sparkle, contentDescription = null, Modifier.size(18.dp))

@@ -1,6 +1,24 @@
 package dev.iconoclast.app.editor
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -40,11 +58,11 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 
 /**
- * A colour as hue, intensity and brightness sliders plus a hex field, no picker library.
- * [argb] is straight 0xAARRGGBB. The sliders keep the alpha; the hex field takes
- * RRGGBB, which keeps it too, or AARRGGBB. At rest it is one row, the name and a swatch;
- * a tap opens one-tap colours, the sliders and the hex code. The full colour picker
- * replaces the open part in the next pass.
+ * A colour, docs/naming-spec.md 2.10: at rest one row, the name and a swatch; a tap opens
+ * the colour picker. The picker is pure Compose: a square for intensity and brightness, a
+ * hue bar, a see-through bar, the hex code, and the colours used most recently anywhere in
+ * the app. [argb] is straight 0xAARRGGBB. Drags call [onDrag] and end with [onDone], one
+ * undo step; a tap on a recent colour or the hex code commits.
  */
 @Composable
 fun ColorControl(
@@ -54,13 +72,12 @@ fun ColorControl(
     onDrag: (Int) -> Unit,
     onDone: () -> Unit,
     onCommit: (Int) -> Unit,
+    startOpen: Boolean = false,
 ) {
     val label = tip.label
-    var open by rememberSaveable { mutableStateOf(false) }
-    // Hue and saturation survive a trip through grey or black, where the colour forgets them.
-    var hsv by remember { mutableStateOf(toHsv(argb)) }
-    LaunchedEffect(argb) { if (fromHsv(hsv, argb) != argb) hsv = toHsv(argb) }
+    var open by rememberSaveable { mutableStateOf(startOpen) }
     val hex = hex(argb)
+    val recents = RecentColours.of(LocalContext.current)
     Column(Modifier.fillMaxWidth()) {
         HelpAnchor(tip) {
             Row(
@@ -69,63 +86,167 @@ fun ColorControl(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Box(
-                    Modifier.size(28.dp)
-                        .background(Color(argb), RoundedCornerShape(6.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
-                        .semantics { contentDescription = "$label $hex" },
-                )
+                ColourSwatch(argb, 28.dp, Modifier.semantics { contentDescription = "$label $hex" })
                 ResetButton(label, enabled = argb != default) { onCommit(default) }
             }
         }
-        if (open) Swatches(label, argb, onCommit)
-        if (open) Column(Modifier.padding(start = 12.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            fun set(h: FloatArray) {
-                hsv = h
-                onDrag(fromHsv(h, argb))
-            }
-            val ref = toHsv(default)
-            SliderControl(Tips.HUE, hsv[0], 0f..360f, ref[0], decimals(0, "°"),
-                { set(floatArrayOf(it, hsv[1], hsv[2])) }, onDone, { set(floatArrayOf(ref[0], hsv[1], hsv[2])); onDone() })
-            SliderControl(Tips.INTENSITY, hsv[1], 0f..1f, ref[1], percent,
-                { set(floatArrayOf(hsv[0], it, hsv[2])) }, onDone, { set(floatArrayOf(hsv[0], ref[1], hsv[2])); onDone() })
-            SliderControl(Tips.BRIGHTNESS, hsv[2], 0f..1f, ref[2], percent,
-                { set(floatArrayOf(hsv[0], hsv[1], it)) }, onDone, { set(floatArrayOf(hsv[0], hsv[1], ref[2])); onDone() })
-            HexField(label, argb, onCommit)
-        }
+        if (open) ColourPicker(label, argb, onDrag, { onDone(); recents.add(it) }, { onCommit(it); recents.add(it) }, recents.colours)
     }
 }
 
-/** One tap colours, the common picks; the sliders and hex field remain for the rest. */
+/** A colour on a checkerboard, so see-through shows. */
 @Composable
-private fun Swatches(label: String, argb: Int, onCommit: (Int) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        for ((c, name) in SWATCHES) {
-            // The picked swatch keeps the alpha the colour has.
-            val value = (argb and 0xFF000000.toInt()) or (c and 0xFFFFFF)
-            val picked = value == argb
-            Box(
-                Modifier.size(36.dp)
-                    .border(if (picked) 3.dp else 1.dp, if (picked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                    .padding(if (picked) 4.dp else 0.dp)
-                    .background(Color(c), CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = "$label $name") { onCommit(value) }
-                    .semantics { contentDescription = "$label $name"; selected = picked },
-            )
+fun ColourSwatch(argb: Int, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(6.dp)) {
+    Box(
+        modifier.size(size).clip(shape)
+            .drawBehind { checker(); drawRect(Color(argb)) }
+            .border(1.dp, MaterialTheme.colorScheme.outline, shape),
+    )
+}
+
+/** Light and mid grey squares behind a see-through colour. */
+private fun DrawScope.checker(cell: Float = 6.dp.toPx()) {
+    drawRect(Color(0xFFFFFFFF))
+    var y = 0
+    while (y * cell < size.height) {
+        var x = y % 2
+        while (x * cell < size.width) {
+            drawRect(Color(0xFFCCCCCC), Offset(x * cell, y * cell), Size(cell, cell))
+            x += 2
+        }
+        y++
+    }
+}
+
+/**
+ * The picker itself. Hue and intensity survive a trip through grey or black, where the
+ * colour itself forgets them: [hsv] holds them while the colour passes through.
+ */
+@Composable
+private fun ColourPicker(label: String, argb: Int, onDrag: (Int) -> Unit, onDone: (Int) -> Unit, onCommit: (Int) -> Unit, recent: List<Int>) {
+    var hsv by remember { mutableStateOf(toHsv(argb)) }
+    LaunchedEffect(argb) { if (fromHsv(hsv, argb) != argb) hsv = toHsv(argb) }
+    // The latest colour a drag produced, for onDone, which fires after the last onDrag.
+    val latest = remember { intArrayOf(argb) }
+    latest[0] = argb
+    fun set(h: FloatArray, alpha: Int = argb ushr 24) {
+        hsv = h
+        val c = fromHsv(h, alpha shl 24)
+        latest[0] = c
+        onDrag(c)
+    }
+    val done = { onDone(latest[0]) }
+    val hueColour = Color.hsv(hsv[0], 1f, 1f)
+    Column(Modifier.padding(start = 4.dp, end = 4.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Intensity left to right, brightness bottom to top.
+        Box(
+            Modifier.fillMaxWidth().height(168.dp).clip(RoundedCornerShape(8.dp))
+                .background(Brush.horizontalGradient(listOf(Color.White, hueColour)))
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
+                .drag2d({ fx, fy -> set(floatArrayOf(hsv[0], fx, 1f - fy)) }, done)
+                .semantics {
+                    contentDescription = "$label ${Tips.INTENSITY.label} and ${Tips.BRIGHTNESS.label}"
+                    stateDescription = "${Tips.INTENSITY.label} ${percent(hsv[1])}, ${Tips.BRIGHTNESS.label} ${percent(hsv[2])}"
+                }
+                .drawWithContent {
+                    drawContent()
+                    val c = Offset(hsv[1] * size.width, (1f - hsv[2]) * size.height)
+                    drawCircle(Color.White, 9.dp.toPx(), c, style = Stroke(3.dp.toPx()))
+                    drawCircle(Color.Black, 10.5.dp.toPx(), c, style = Stroke(1.dp.toPx()))
+                },
+        )
+        PickerBar("$label ${Tips.HUE.label}", hsv[0] / 360f, "${Math.round(hsv[0])}°",
+            { drawRect(Brush.horizontalGradient((0..6).map { Color.hsv(it * 60f % 360f, 1f, 1f) })) },
+            { set(floatArrayOf(it * 360f, hsv[1], hsv[2])) }, done)
+        val opaque = Color(fromHsv(hsv, 0xFF shl 24))
+        PickerBar("$label ${Tips.SEE_THROUGH.label}", (argb ushr 24) / 255f, percent((argb ushr 24) / 255f),
+            { checker(); drawRect(Brush.horizontalGradient(listOf(opaque.copy(alpha = 0f), opaque))) },
+            { set(hsv, Math.round(it * 255f)) }, done)
+        HexField(label, argb, onCommit)
+        if (recent.isNotEmpty()) {
+            Text(Tips.RECENT_COLOURS.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (c in recent) {
+                    val picked = c == argb
+                    ColourSwatch(c, 36.dp,
+                        Modifier.clickable(role = Role.Button, onClickLabel = "$label ${hex(c)}") { onCommit(c) }
+                            .semantics { contentDescription = "Recent colour ${hex(c)}"; selected = picked },
+                        CircleShape)
+                }
+            }
         }
     }
 }
 
-private val SWATCHES: List<Pair<Int, String>> = listOf(
-    0xFFFFFFFF.toInt() to "white", 0xFFBDC1C6.toInt() to "light grey", 0xFF5F6368.toInt() to "grey",
-    0xFF202124.toInt() to "charcoal", 0xFF000000.toInt() to "black", 0xFFE57373.toInt() to "red",
-    0xFFFFB74D.toInt() to "orange", 0xFFFFF176.toInt() to "yellow", 0xFF81C784.toInt() to "green",
-    0xFF3E8E73.toInt() to "jade", 0xFF4DD0E1.toInt() to "teal", 0xFF64B5F6.toInt() to "blue",
-    0xFF9575CD.toInt() to "purple", 0xFFF06292.toInt() to "pink",
-)
+/** A horizontal bar picking a fraction 0 to 1 by tap or drag, with a thumb. */
+@Composable
+private fun PickerBar(desc: String, fraction: Float, value: String, paint: DrawScope.() -> Unit, onChange: (Float) -> Unit, onDone: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(14.dp))
+            .drawBehind(paint)
+            .drag2d({ fx, _ -> onChange(fx) }, onDone)
+            .semantics {
+                contentDescription = desc
+                stateDescription = value
+                setProgress { onChange(it.coerceIn(0f, 1f)); onDone(); true }
+            }
+            .drawWithContent {
+                drawContent()
+                val x = (fraction.coerceIn(0f, 1f) * (size.width - size.height) + size.height / 2)
+                drawCircle(Color.White, size.height / 2 - 3.dp.toPx(), Offset(x, size.height / 2), style = Stroke(3.dp.toPx()))
+                drawCircle(Color.Black, size.height / 2 - 1.dp.toPx(), Offset(x, size.height / 2), style = Stroke(1.dp.toPx()))
+            },
+    )
+}
+
+/** Tap or drag anywhere: [onMove] gets the pointer as fractions of the box, clamped; [onEnd] when it lifts. */
+@Composable
+private fun Modifier.drag2d(onMove: (Float, Float) -> Unit, onEnd: () -> Unit): Modifier {
+    // The gesture outlives recompositions; it calls whatever the latest composition passed.
+    val move by rememberUpdatedState(onMove)
+    val end by rememberUpdatedState(onEnd)
+    return pointerInput(Unit) { awaitEachGesture {
+        val down = awaitFirstDown()
+        fun send(p: Offset) = move((p.x / size.width).coerceIn(0f, 1f), (p.y / size.height).coerceIn(0f, 1f))
+        send(down.position)
+        down.consume()
+        while (true) {
+            val e = awaitPointerEvent()
+            val c = e.changes.firstOrNull { it.id == down.id } ?: break
+            if (!c.pressed) break
+            send(c.position)
+            c.consume()
+        }
+        end()
+    } }
+}
+
+/**
+ * The last [MAX] colours picked anywhere, newest first, kept in preferences. One per
+ * process, read on first use.
+ */
+class RecentColours private constructor(private val prefs: android.content.SharedPreferences) {
+    val colours = mutableStateListOf<Int>().apply {
+        prefs.getString(KEY, null)?.split(',')?.mapNotNull { it.toLongOrNull(16)?.toInt() }?.let { addAll(it.take(MAX)) }
+    }
+
+    fun add(c: Int) {
+        colours.remove(c)
+        colours.add(0, c)
+        while (colours.size > MAX) colours.removeAt(colours.size - 1)
+        prefs.edit().putString(KEY, colours.joinToString(",") { "%08X".format(it) }).apply()
+    }
+
+    companion object {
+        private const val MAX = 10
+        private const val KEY = "recentColours"
+        @Volatile private var instance: RecentColours? = null
+
+        fun of(context: android.content.Context): RecentColours = instance ?: synchronized(this) {
+            instance ?: RecentColours(context.applicationContext.getSharedPreferences("colours", android.content.Context.MODE_PRIVATE)).also { instance = it }
+        }
+    }
+}
 
 @Composable
 private fun HexField(label: String, argb: Int, onCommit: (Int) -> Unit) {

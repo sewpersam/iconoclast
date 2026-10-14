@@ -33,6 +33,8 @@ private val PAINTS = listOf(
 )
 
 private val EFFECTS: List<Pair<Effect, String>> = listOf(
+    Effect.Blur() to "Softens everything below it, such as an image background",
+    Effect.Grain() to "Fine grey speckle over the whole icon, like film",
     Effect.BrushStrokes() to "Painted strokes flicking off the icon",
     Effect.Streaks() to "Lines trailing off the icon in one direction, like motion",
     Effect.Bevel() to "Makes the icon look raised, with a lit side and a shaded side",
@@ -40,13 +42,12 @@ private val EFFECTS: List<Pair<Effect, String>> = listOf(
     Effect.InnerShadow() to "Shading inside the icon's edges, so it looks pressed in",
     Effect.OuterGlow() to "A glow around the icon",
     Effect.InnerGlow() to "Light along the inside of the icon's edges",
-    Effect.Grain() to "Fine grey speckle over the whole icon, like film",
 )
 
-/** The one Add sheet: a colour, gradient, image or pattern layer, or an effect, each at its default. */
+/** The one Add sheet: a colour, gradient, image or pattern layer, the Glass look, or an effect, each at its default. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddSheet(onDismiss: () -> Unit, onAdd: (Paint) -> Unit, onImage: () -> Unit, onEffect: (Effect) -> Unit) {
+fun AddSheet(onDismiss: () -> Unit, onAdd: (Paint) -> Unit, onImage: () -> Unit, onEffect: (Effect) -> Unit, onGlass: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -57,6 +58,8 @@ fun AddSheet(onDismiss: () -> Unit, onAdd: (Paint) -> Unit, onImage: () -> Unit,
             Text("Add", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)
             Group("Colour or image")
             for (o in PAINTS) Item(o.name, o.detail) { o.paint?.let(onAdd) ?: onImage() }
+            Group("Look")
+            Item("Glass", "See-through frosted tile with a bright edge and light grain. Your wallpaper shows through; it is not blurred.", onGlass)
             Group("Effect")
             for ((effect, detail) in EFFECTS) Item(LayerStack.effectName(effect), detail) { onEffect(effect) }
         }
