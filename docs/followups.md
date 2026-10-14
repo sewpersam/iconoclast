@@ -288,3 +288,22 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 ### Deferred
 - Fixed in the PM review: outlined buttons now use `OutlinedAction` (text colour label and outline when enabled). Jade edits dropped from 240-320 ms to 30-77 ms for the on-screen grid, docs/verification/feedback-1.md.
 - Editing a brush stroke's own settings on Jade still takes about 200 ms for the grid on the 4-core AVD; next lever is a cropped distance blur or fewer preview strokes while dragging.
+
+## Brush texture pass (2026-10-14)
+
+His words: "it just looks like random streaks. It should actually look like a paintbrush texture."
+
+### Rulings
+- Ruling: Painted strokes carry paint with a body, after Hertzmann, "Fast Paint Texture" (NPAR 2002). Each stroke writes a height field beside its colour: thickness, a blob at touch-down, narrow edge ridges, two octaves of bristle grooves along it. `effect/Impasto.kt` lights it with one fixed upper-left light and a small wet highlight. The tail breaks into dry-brush lines along the grooves instead of going see-through; each groove lays a slightly different tone. Classic is untouched, byte for byte.
+- Ruling: procedural stays. RealBrush (Lu et al. 2013) needs scanned exemplars and texture synthesis per stroke; the height model reads as paint at 128 to 432 px without vendoring anything. No CC0 scan added.
+- Ruling: Painted edges are crisper than the Softness slider gives Classic (15% of its band), and Painted takes 10% of the swipe tip blur. Paint does not blur; a soft edge read as airbrush.
+- Ruling: grooves sit 0.65% of the canvas apart, never under 1.6 px, so the 128 px preview keeps a coarser version of the texture instead of aliasing it away.
+- Changed on purpose: the 18 Painted goldens (`fb_strokes_parallel`, `fb_strokes_corner`, `fb_strokes_painted`). Every other golden is byte-identical, including `ThemeMigrationTest.version8RendersTheSameAsSchema9`.
+
+### Evidence
+- Sheets: `docs/verification/brush-texture/compare-128.png`, `compare-216.png`, `compare-432.png`, before on the left, after on the right. Regenerate the after half: `./gradlew :render:paintSheet -Pout=<dir> -Pprefix=after`.
+- Stroke edit, 24 icons at 128 px, JVM, `:render:strokeProfile`: Jade Classic 83 to 84 ms, Jade Painted 135 to 131 ms, Painted swipes 26 to 28 ms.
+
+### Deferred
+- `ArtByteIdentityTest` not run in this pass: the emulator was in use by another task. New code is plain float arithmetic plus `StrictMath.sqrt`, as the rest of the renderer. Run it before the next phone release; 18 goldens changed.
+- `./gradlew :render:test -PupdateGoldens` fails in a fresh worktree: `GoldenTest.writeSamples` cannot find a sample icon in the converted bundle there. The 18 goldens were rewritten from the committed `samples.bin` instead.
