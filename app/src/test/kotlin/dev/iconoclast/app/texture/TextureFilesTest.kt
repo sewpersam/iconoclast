@@ -62,6 +62,15 @@ class TextureFilesTest {
     }
 
     @Test
+    fun imageLinksMustBeWebAddresses() {
+        assertEquals("https://example.org/a.png", TextureImport.parseLink("  https://example.org/a.png\n").toString())
+        assertEquals("https://example.org/x?y=1", TextureImport.parseLink("http://example.org/x?y=1").toString())
+        for (bad in listOf("", "example.org/a.png", "file:///sdcard/a.png", "content://media/1", "javascript:alert(1)", "https://", "ftp://example.org/a.png")) {
+            kotlin.test.assertFailsWith<TextureImportException>(bad) { TextureImport.parseLink(bad) }
+        }
+    }
+
+    @Test
     fun importSizesKeepTheLongestSideAtMost2048() {
         assertEquals(2048 to 1536, TextureImport.fitted(4000, 3000, 2048))
         assertEquals(1536 to 2048, TextureImport.fitted(3000, 4000, 2048))
