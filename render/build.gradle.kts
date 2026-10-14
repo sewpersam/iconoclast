@@ -116,6 +116,21 @@ tasks.register<JavaExec>("feedbackSheets") {
     )
 }
 
+// ./gradlew :render:paintSheet -Pout=<dir> -Pprefix=<name> writes Painted brush stroke sheets at 216 and 432 px.
+tasks.register<JavaExec>("paintSheet") {
+    group = "verification"
+    description = "Renders Painted brush strokes at grid and pack size."
+    classpath = verify.runtimeClasspath
+    mainClass = "dev.iconoclast.render.verify.PaintSheetKt"
+    maxHeapSize = "1g"
+    systemProperty("java.awt.headless", "true")
+    args(
+        layout.projectDirectory.file("src/test/resources/golden/samples.bin").asFile.path,
+        providers.gradleProperty("out").getOrElse(rootProject.layout.projectDirectory.dir("docs/verification/brush-texture").asFile.path),
+        providers.gradleProperty("prefix").getOrElse("after"),
+    )
+}
+
 tasks.register<JavaExec>("strokeProfile") {
     group = "verification"
     description = "Times Jade's brush strokes at preview size, uncached; -Pjfr=<file> records a flight recording."

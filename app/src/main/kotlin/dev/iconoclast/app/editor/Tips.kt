@@ -171,8 +171,8 @@ object Tips {
     val STROKE_WIDTH = Tip("Stroke width", "How wide each stroke is where it starts.")
     val STROKE_SOFTNESS = Tip("Softness", "Low gives crisp edges and bristle marks; high gives soft, smooth strokes.")
     val BLUR_TIP = Tip("Blur toward the tip", "How much strokes blur as they move away from the icon.")
-    val PAINT_RUNS_OUT = Tip("Paint runs out", "How much a stroke fades along its length, like a brush running dry.")
-    val DRY_BRUSH = Tip("Dry brush marks", "Adds the streaky lines a dry brush leaves, thinning out toward the tip.")
+    val PAINT_RUNS_OUT = Tip("Paint runs out", "How soon a stroke runs dry along its length.")
+    val DRY_BRUSH = Tip("Dry brush marks", "The marks the bristles leave: deeper grooves in Painted, and more of the tail breaking into dry streaks.")
     val VARIETY = Tip("Variety", "How different the strokes are from one another in direction, length, width and shade.")
     val CURL = Tip("Curl", "Strokes curve one way or the other as they travel. 0 keeps them straight.")
     val LEAN = Tip("Lean", "How much all strokes lean toward one direction instead of straight out from the icon.")
@@ -183,7 +183,7 @@ object Tips {
     val STROKE_DIRECTION = Tip("Direction", "Outward from a point flicks the strokes out from the icon's edge. All one way lays them side by side in one direction, like paint swiped across behind the icon.")
     val STROKE_ORIGIN = Tip("Origin", "Where the outward strokes burst from. The middle is the icon itself; move it toward a corner or an edge. Double tap to centre.")
     val STROKE_ANGLE = Tip("Angle", "The direction all the strokes run.")
-    val STROKE_STYLE = Tip("Style", "Painted looks like real paint: pressure at the start, frayed edges and bristle streaks that run dry. Classic is the earlier, smoother look.")
+    val STROKE_STYLE = Tip("Style", "Painted looks like real paint: a thick body with bristle grooves that catch the light, a heavier start, and a tail that breaks up as the brush runs dry. Classic is the earlier, smoother look.")
 
     // Raised edge
     val RAISED = Tip("Raised", "Inside rounds off the icon inside its outline. Across makes it stand up out of the background.")
