@@ -77,7 +77,7 @@ internal object PatternField {
     }
 
     /**
-     * Voronoi F1 and F2 over the 3 x 3 cells around the point, Euclidean. Each cell's point
+     * Voronoi F1 and F2 over the 3 x 3 cells around the point, Euclidean, compared squared. Each cell's point
      * sits at its centre moved by up to half a cell times [Pattern.Cells.randomness].
      */
     fun cells(p: Pattern.Cells, x: Float, y: Float, seed: Int): Float {
@@ -96,7 +96,8 @@ internal object PatternField {
             val py = cy + 0.5f + (Noise.lattice(cx, cy, seed xor POINT_Y) - 0.5f) * p.randomness
             val ex = px - x
             val ey = py - y
-            val d = sqrt(ex * ex + ey * ey)
+            // Squared: the order is the same, and two roots at the end cost less than nine.
+            val d = ex * ex + ey * ey
             if (d < d1) {
                 d2 = d1
                 d1 = d
@@ -105,6 +106,10 @@ internal object PatternField {
             } else if (d < d2) {
                 d2 = d
             }
+        }
+        if (p.feature != CellFeature.CELLS) {
+            d1 = sqrt(d1)
+            d2 = sqrt(d2)
         }
         return when (p.feature) {
             CellFeature.CELLS -> Noise.lattice(cx1, cy1, seed)
