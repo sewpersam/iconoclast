@@ -75,7 +75,7 @@ fun main(args: Array<String>) {
 }
 
 /** One row per theme, one column per sample, each tile over [backdrop] as a wallpaper would show it. */
-private fun write(out: File, rows: List<Pair<String, Theme>>, names: List<String>, tile: Int, backdrop: Int, renderer: IconRenderer, bundle: IconBundle) {
+internal fun write(out: File, rows: List<Pair<String, Theme>>, names: List<String>, tile: Int, backdrop: Int, renderer: IconRenderer, bundle: IconBundle) {
     val label = 26
     val gap = 8
     val w = names.size * (tile + gap) + gap
