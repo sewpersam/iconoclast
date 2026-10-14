@@ -44,7 +44,7 @@ object ThemeTransfer {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         // The clip carries the read grant to the share sheet too, which reads the file for its preview.
         send.clipData = ClipData.newRawUri(doc.name, uri)
-        return Intent.createChooser(send, "Export ${doc.name}")
+        return Intent.createChooser(send, "Share ${doc.name}")
     }
 
     /**

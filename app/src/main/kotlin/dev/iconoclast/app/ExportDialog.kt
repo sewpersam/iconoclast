@@ -27,24 +27,24 @@ fun ExportDialog(name: String, onDismiss: () -> Unit, onExport: (includeKey: Boo
     var warning by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Export $name") },
+        title = { Text("Share $name") },
         text = {
             Column {
-                Text("Shares the theme and its textures as a .zip.")
+                Text("Saves the theme and its images as a .zip file.")
                 Row(
                     Modifier.toggleable(includeKey, role = Role.Checkbox) { on -> if (on) warning = true else includeKey = false },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(checked = includeKey, onCheckedChange = null)
-                    Text("Include the pack signing key", style = MaterialTheme.typography.bodyMedium)
+                    Text("Include my pack key (for moving phones)", style = MaterialTheme.typography.bodyMedium)
                 }
                 Text(
-                    "Only for moving to a new phone or reinstalling: without the key, a reinstalled app cannot update the pack.",
+                    "Only for moving to a new phone or reinstalling. Without it, a reinstalled Iconoclast cannot update your current pack.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onExport(includeKey) }) { Text("Export") } },
+        confirmButton = { TextButton(onClick = { onExport(includeKey) }) { Text("Share") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
     if (warning) KeyWarning(onAccept = { includeKey = true; warning = false }, onCancel = { warning = false })
@@ -55,7 +55,7 @@ fun ExportDialog(name: String, onDismiss: () -> Unit, onExport: (includeKey: Boo
 private fun KeyWarning(onAccept: () -> Unit, onCancel: () -> Unit) {
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Include the signing key?") },
+        title = { Text("Keep this file private") },
         text = {
             Text(
                 "Anyone who has this file can make a pack that installs over yours and changes your icons. " +

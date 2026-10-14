@@ -44,7 +44,7 @@ class CoverageViewModel(app: Application) : AndroidViewModel(app) {
             load()
         } catch (e: IOException) {
             Log.w(TAG, "Coverage not read", e)
-            CoverageUi(loading = false, error = "Coverage could not be read: ${e.message ?: e.javaClass.simpleName}")
+            CoverageUi(loading = false, error = "The app list could not be read: ${e.message ?: e.javaClass.simpleName}")
         }
     }
 

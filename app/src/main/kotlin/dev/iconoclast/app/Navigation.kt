@@ -6,7 +6,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import dev.iconoclast.app.editor.EditorIcons
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,7 +55,7 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
             )
         }
         composable(Routes.COVERAGE) {
-            Scaffold(topBar = { BackBar("Coverage", onBack = { nav.popBackStack() }) }) { padding ->
+            Scaffold(topBar = { BackBar("Apps", onBack = { nav.popBackStack() }) }) { padding ->
                 CoverageScreen(viewModel(), onReapply = {
                     nav.navigate(Routes.APPLY) { popUpTo(Routes.HOME) }
                     apply.apply()
@@ -60,7 +64,7 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
         }
         composable(Routes.SETTINGS) {
             val settings = (LocalContext.current.applicationContext as IconoclastApp).container.settings
-            Scaffold(topBar = { BackBar("Settings and about", onBack = { nav.popBackStack() }) }) { padding ->
+            Scaffold(topBar = { BackBar("Settings", onBack = { nav.popBackStack() }) }) { padding ->
                 AboutScreen(settings, Modifier.padding(padding))
             }
         }
@@ -95,9 +99,16 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
     }
 }
 
-/** A top bar with a text Back button. The app ships no icon library. */
+/** A top bar with a back arrow, drawn by [EditorIcons]: the app ships no icon library. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackBar(title: String, onBack: () -> Unit) {
-    TopAppBar(title = { Text(title) }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
+    TopAppBar(
+        title = { Text(title) },
+        navigationIcon = {
+            IconButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = "Back" }) {
+                Icon(EditorIcons.Back, contentDescription = null)
+            }
+        },
+    )
 }

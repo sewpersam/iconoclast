@@ -54,7 +54,7 @@ fun CoverageScreen(vm: CoverageViewModel, onReapply: () -> Unit, modifier: Modif
         ui.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
         if (ui.newSinceApply.isNotEmpty()) {
             item {
-                Card(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                Card(Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Header("New since last Apply (${ui.newSinceApply.size})")
                         for (r in ui.newSinceApply) Text("${r.label}: ${if (r.drawable != null) "Arcticons has it" else "not in Arcticons"}")
@@ -63,7 +63,7 @@ fun CoverageScreen(vm: CoverageViewModel, onReapply: () -> Unit, modifier: Modif
                             else "None of them is in Arcticons, so Apply would not change their icons.",
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Button(onClick = onReapply, modifier = Modifier.fillMaxWidth()) { Text("Re-apply") }
+                        Button(onClick = onReapply, modifier = Modifier.fillMaxWidth()) { Text("Apply again") }
                     }
                 }
             }
@@ -71,13 +71,13 @@ fun CoverageScreen(vm: CoverageViewModel, onReapply: () -> Unit, modifier: Modif
             item { Text("No Apply yet. After one, apps installed later show here.", Modifier.padding(bottom = 12.dp), style = MaterialTheme.typography.bodySmall) }
         }
         section("Themed", ui.themed) { r -> AppRow(r) }
-        section("Overridden", ui.overridden) { r -> AppRow(r, "Drawn with this theme's per-icon override") }
-        section("Not in Arcticons", ui.notInArcticons, "These keep their own icon. Arcticons takes requests for new icons.") { r ->
-            AppRow(r, action = { TextButton(onClick = request) { Text("Request") } })
+        section("Changed one by one", ui.overridden) { r -> AppRow(r, "Changed for this icon in this theme") }
+        section("No Arcticons icon yet", ui.notInArcticons, "These keep their own icon. Arcticons takes requests for new icons.") { r ->
+            AppRow(r, action = { TextButton(onClick = request) { Text("Request icon") } })
         }
         if (ui.staleOverrides.isNotEmpty()) {
-            section("Overrides kept for missing icons", ui.staleOverrides.map { CoverageRow(it.replace('_', ' '), it, null) },
-                "This Arcticons version lacks these icons or their swap targets. The overrides stay in the theme.") { r ->
+            section("Saved changes for missing icons", ui.staleOverrides.map { CoverageRow(it.replace('_', ' '), it, null) },
+                "This Arcticons version lacks these icons or the drawings they use. The changes stay in the theme.") { r ->
                 Text(r.label, style = MaterialTheme.typography.bodyMedium)
             }
         }

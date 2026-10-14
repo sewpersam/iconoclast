@@ -30,6 +30,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -56,10 +57,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.iconoclast.app.theme.ThemeDocument
+import dev.iconoclast.app.ui.theme.PreviewBackdrop
 import dev.iconoclast.pack.KeyState
 
-/** Mid grey: shows white line art and black backgrounds alike. */
-private val PreviewBackdrop = Color(0xFF3C4043)
 
 /** The themes home, spec 2.2 screen 1. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,10 +95,10 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
                     TextButton(
                         onClick = onCoverage,
                         modifier = Modifier.semantics {
-                            if (newApps > 0) contentDescription = "Coverage, $newApps new since the last Apply"
+                            if (newApps > 0) contentDescription = "Apps, $newApps new since the last Apply"
                         },
                     ) {
-                        Text("Coverage")
+                        Text("Apps")
                         if (newApps > 0) Badge(Modifier.padding(start = 6.dp)) { Text("$newApps") }
                     }
                     TextButton(onClick = onApply) { Text("Apply") }
@@ -108,14 +108,19 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
                         }
                         DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
                             DropdownMenuItem(text = { Text("Import theme") }, onClick = { overflow = false; pick.launch(ThemeTransfer.IMPORT_TYPES) })
-                            DropdownMenuItem(text = { Text("Settings and about") }, onClick = { overflow = false; onSettings() })
+                            DropdownMenuItem(text = { Text("Settings") }, onClick = { overflow = false; onSettings() })
                         }
                     }
                 },
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { model.create() }) { Text("New theme") }
+            ExtendedFloatingActionButton(
+                onClick = { model.create() },
+                containerColor = MaterialTheme.colorScheme.onSurface,
+                contentColor = MaterialTheme.colorScheme.surface,
+                elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
+            ) { Text("New theme") }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -158,7 +163,7 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete ${doc.name}?") },
-            text = { Text("This theme is removed from the phone. An installed pack keeps working.") },
+            text = { Text("This deletes the theme. Icons already installed stay as they are.") },
             confirmButton = { TextButton(onClick = { model.delete(doc.id); deleting = null }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
         )
@@ -178,24 +183,24 @@ private fun ThemeCard(
     var menu by remember { mutableStateOf(false) }
     Card(
         onClick = onOpen,
-        border = if (active) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
-        colors = CardDefaults.cardColors(),
+        border = if (active) BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface) else null,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
     ) {
         PreviewGrid(doc, model)
         Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(doc.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (active) Text("Active", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                if (active) Text("In use", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Box {
                 IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = "More actions for ${doc.name}" }) {
                     Text("⋮", style = MaterialTheme.typography.titleLarge)
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    if (!active) DropdownMenuItem(text = { Text("Set active") }, onClick = { menu = false; model.setActive(doc.id) })
+                    if (!active) DropdownMenuItem(text = { Text("Use this theme") }, onClick = { menu = false; model.setActive(doc.id) })
                     DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
                     DropdownMenuItem(text = { Text("Duplicate") }, onClick = { menu = false; model.duplicate(doc.id) })
-                    DropdownMenuItem(text = { Text("Export") }, onClick = { menu = false; onExport() })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onExport() })
                     DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
                 }
             }
