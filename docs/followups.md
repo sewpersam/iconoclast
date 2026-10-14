@@ -265,6 +265,7 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 
 ### Deferred
 - Neo keeps an app's cached icon until that app updates if the pack is switched before a restart. The guidance gives the order; the pack cannot clear Neo's cache.
+- Ruling (2026-10-14, pack-coverage): "apps from Obtainium, Aurora, GrapheneOS Store and system apps stay unthemed" is this Neo cache, not pack content. On icondesign36 the pack themed GOS Camera 93, VLC 3.7.1, Metro 6.1.0 and Mullvad 2026.12 once Neo was restarted and the pack switched. Each Apply updates the pack in place under the same name. Neo keeps the first-parsed appfilter in memory for the life of its process (`IconPackProvider` never evicts), and its icon cache key holds the pack's name, not its version. A switch made before a real restart re-caches the old icons, and only an app update clears them. Play auto-updates heal Play apps; the rest stay stale. Reproduced: stale after restart alone, healed by `install -r` of that app alone, and the restart-then-switch order themed all 20. No pack change was made. The durable fix is a new pack package name per Apply, which costs an install and an uninstall prompt and a pack re-pick in every launcher; that trade is open — cost if wrong: his phone needs the restart-then-switch order once per Apply.
 - The "Request icon" link left with the coverage screen.
 - Apply's status line counts apps by package; a work-profile copy of an app counts once.
 
