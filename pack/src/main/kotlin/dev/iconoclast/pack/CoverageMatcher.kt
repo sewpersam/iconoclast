@@ -12,7 +12,16 @@ class CoveragePlan(
     val drawables: List<Int>,
     val items: List<Pair<String, Int>>,
     val unmatched: List<String>,
-)
+) {
+    /** Apps, by package, with at least one themed component: the count a launcher shows themed. */
+    val themedApps: Int get() = items.mapTo(HashSet()) { it.first.substringBefore('/') }.size
+
+    /** Apps, by package, with no themed component: they keep their own icon. */
+    val uncoveredApps: Int get() {
+        val themed = items.mapTo(HashSet()) { it.first.substringBefore('/') }
+        return unmatched.mapTo(HashSet()) { it.substringBefore('/') }.count { it !in themed }
+    }
+}
 
 class TooManyIconsException(val needed: Int, val available: Int) :
     IllegalStateException("$needed icons are needed but the pack has $available slots")

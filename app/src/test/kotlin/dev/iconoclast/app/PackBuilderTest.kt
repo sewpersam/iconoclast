@@ -121,6 +121,26 @@ class PackBuilderTest {
     }
 
     /**
+     * An installed app whose launcher activity Arcticons does not list under that name is
+     * themed through its package, under the exact component the phone reports; and every
+     * Arcticons entry of a drawn drawable is in the appfilter, so other builds match too.
+     */
+    @Test
+    fun renamedActivitiesAreThemedUnderTheirInstalledName() {
+        val renamed = "org.mozilla.firefox/org.mozilla.fenix.RenamedActivity"
+        val p = CoverageMatcher.match(listOf(renamed, "org.fdroid.fdroid/org.fdroid.fdroid.views.main.MainActivity", "com.unknown/com.unknown.Main"), PackBuilder.slotCount(template), source::resolveApp)
+        assertEquals(2, p.themedApps)
+        assertEquals(1, p.uncoveredApps)
+        val filter = PackBuilder(source, IconRenderer()).appfilter(p)
+        val firefox = PackBuilder.slotName(p.items.first { it.first == renamed }.second)
+        assertEquals(renamed to firefox, filter.first { it.first == renamed })
+        assertTrue(("org.mozilla.firefox/org.mozilla.fenix.HomeActivity" to firefox) in filter)
+        assertTrue(("org.mozilla.firefox/org.mozilla.fenix.IntentReceiverActivity" to firefox) in filter)
+        assertTrue(filter.none { it.first.startsWith("org.thoughtcrime") || it.first.startsWith("com.unknown") })
+        assertEquals(filter.size, filter.map { it.first }.toSet().size, "each component once")
+    }
+
+    /**
      * Readiness item 4: each slot draws its own effective theme and geometry, seeded by its
      * own name. fdroid is thicker, camera draws signal's line art, signal itself is plain,
      * and a swap to a name the icon set lacks draws the slot's own geometry.

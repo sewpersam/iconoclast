@@ -4,7 +4,7 @@ Iconoclast is an Android app for building your own icon pack from the
 Arcticons line icons. You style the icons on the phone: stroke weight, fill,
 background, textures and effects. The app then generates a real icon pack
 APK, signs it on the device and installs it, so any launcher that supports
-icon packs can use it. It needs no network and no Google services.
+icon packs can use it. It needs no Google services, and uses the network only when you paste an image link.
 
 ## Build
 

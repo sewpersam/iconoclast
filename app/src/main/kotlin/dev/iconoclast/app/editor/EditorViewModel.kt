@@ -193,11 +193,16 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         val recent = withContext(Dispatchers.IO) { container.textures.recent() }
         _ui.value = EditorUi(loading = false, name = doc.name, theme = doc.theme, items = items, recentTextures = recent)
         refresh()
+        // An image shared to the app becomes a new image layer, straight into the crop step.
+        container.takeSharedImage()?.let {
+            textureTarget = TextureTarget.NewLayer
+            useTexture(it, crop = true)
+        }
     }
 
     /** Installed launchable apps that Arcticons covers, one cell per drawable, named by app. */
     private fun installedItems(app: Application, icons: IconSource): List<PreviewItem> {
-        val plan = CoverageMatcher.match(InstalledApps.launchableComponents(app), Int.MAX_VALUE, icons::resolve)
+        val plan = CoverageMatcher.match(InstalledApps.launchableComponents(app), Int.MAX_VALUE, icons::resolveApp)
         val pm = app.packageManager
         val labels = HashMap<Int, String>()
         for ((component, slot) in plan.items) {
@@ -378,10 +383,20 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
     /** Imports a picked image as a texture, then uses it. */
     fun importTexture(uri: Uri) {
         Log.i(TAG, "texture picked: $uri")
+        importWith { TextureImport.import(getApplication(), uri, container.textures) }
+    }
+
+    /** Downloads the image at [link] as a texture, then uses it. */
+    fun importTextureLink(link: String) {
+        Log.i(TAG, "texture link: $link")
+        importWith { TextureImport.importLink(getApplication(), link, container.textures) }
+    }
+
+    private fun importWith(read: () -> String) {
         _ui.value = _ui.value.copy(choosingTexture = false, importingTexture = true)
         viewModelScope.launch {
             try {
-                val hash = withContext(Dispatchers.IO) { TextureImport.import(getApplication(), uri, container.textures) }
+                val hash = withContext(Dispatchers.IO) { read() }
                 // A new photo goes straight to the crop step.
                 useTexture(hash, crop = true)
             } catch (e: TextureImportException) {

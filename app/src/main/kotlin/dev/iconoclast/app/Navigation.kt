@@ -18,7 +18,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import dev.iconoclast.app.coverage.CoverageScreen
 import dev.iconoclast.app.editor.EditorScreen
 import dev.iconoclast.app.settings.AboutScreen
 import dev.iconoclast.app.editor.EditorViewModel
@@ -33,7 +32,6 @@ import androidx.navigation.navArgument
 object Routes {
     const val HOME = "home"
     const val APPLY = "apply"
-    const val COVERAGE = "coverage"
     const val SETTINGS = "settings"
     const val EDITOR = "editor/{id}"
     fun editor(id: String) = "editor/$id"
@@ -50,17 +48,8 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
                 home,
                 onOpen = { nav.navigate(Routes.editor(it)) { launchSingleTop = true } },
                 onApply = { nav.navigate(Routes.APPLY) { launchSingleTop = true } },
-                onCoverage = { nav.navigate(Routes.COVERAGE) { launchSingleTop = true } },
                 onSettings = { nav.navigate(Routes.SETTINGS) { launchSingleTop = true } },
             )
-        }
-        composable(Routes.COVERAGE) {
-            Scaffold(topBar = { BackBar("Apps", onBack = { nav.popBackStack() }) }) { padding ->
-                CoverageScreen(viewModel(), onReapply = {
-                    nav.navigate(Routes.APPLY) { popUpTo(Routes.HOME) }
-                    apply.apply()
-                }, Modifier.padding(padding))
-            }
         }
         composable(Routes.SETTINGS) {
             val settings = (LocalContext.current.applicationContext as IconoclastApp).container.settings
@@ -78,6 +67,8 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
         composable(Routes.APPLY) {
             val state by apply.state.collectAsState()
             val active by apply.active.collectAsState()
+            val status by apply.status.collectAsState()
+            LaunchedEffect(active) { apply.refreshStatus() }
             // Restoring a damaged key is a theme import: home runs it and asks about the key.
             val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                 if (uri != null) {
@@ -87,11 +78,10 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
             }
             Scaffold(topBar = { BackBar("Apply", onBack = { nav.popBackStack() }) }) { padding ->
                 ApplyScreen(
-                    active, state, apply::apply, apply::fix,
+                    active, state, status, apply::apply, apply::resumed,
                     onRestoreKey = { restore.launch(ThemeTransfer.IMPORT_TYPES) },
                     onNewKey = apply::newKey,
                     onAppInfo = apply::openAppInfo,
-                    onCoverage = { nav.navigate(Routes.COVERAGE) { launchSingleTop = true } },
                     modifier = Modifier.padding(padding),
                 )
             }

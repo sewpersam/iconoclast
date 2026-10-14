@@ -20,7 +20,7 @@ object CoverageScan {
         CoverageReport.of(
             installed,
             container.coverage.read(),
-            { c -> source.resolve(c).takeIf { it >= 0 }?.let(source.names::name) },
+            { c -> source.resolveApp(c).takeIf { it >= 0 }?.let(source.names::name) },
             overridden,
         )
     }

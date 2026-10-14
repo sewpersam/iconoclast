@@ -16,6 +16,8 @@ import dev.iconoclast.render.OutputResolution
 import dev.iconoclast.app.theme.ThemeDocument
 import dev.iconoclast.pack.RestoreResult
 import dev.iconoclast.pack.backup
+import dev.iconoclast.app.texture.TextureImport
+import dev.iconoclast.app.texture.TextureImportException
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.ThemeFormatException
 import dev.iconoclast.render.Theme
@@ -60,7 +62,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     val resolution: StateFlow<OutputResolution> = container.settings.resolution
 
     private val _newSinceApply = MutableStateFlow(0)
-    /** Launchable apps installed since the last Apply, spec 2.5: the home badge. */
+    /** Apps installed since the last Apply that Arcticons covers, by package, spec 2.5: the badge on Apply. */
     val newSinceApply: StateFlow<Int> = _newSinceApply
 
     private val _keyPrompt = MutableStateFlow<KeyState?>(null)
@@ -98,6 +100,29 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun duplicate(id: String) = act("Not duplicated") { repo.duplicate(id) }
 
+    /**
+     * An image shared to the app from another one: imported, then opened in the editor of
+     * the theme in use as a new image layer, at the crop step.
+     */
+    fun receiveImage(uri: Uri) = act("Image not added") {
+        _message.value = "Adding the shared image"
+        val hash = try {
+            withContext(Dispatchers.IO) { TextureImport.import(getApplication(), uri, container.textures) }
+        } catch (e: TextureImportException) {
+            Log.w(TAG, "Shared image not imported", e)
+            _message.value = "Image not added. ${e.message}"
+            return@act
+        }
+        repo.load()
+        val target = repo.active() ?: repo.themes.value.firstOrNull()
+        if (target == null) {
+            _message.value = "Image not added. There is no theme to add it to."
+            return@act
+        }
+        container.shareImage(hash)
+        opens.trySend(target.id)
+    }
+
     fun rename(id: String, name: String) = act("Not renamed") { repo.rename(id, name) }
 
     fun delete(id: String) = act("Not deleted") { repo.delete(id) }
@@ -125,7 +150,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /** Re-runs the coverage diff, spec 2.5: called whenever home is shown. */
     fun refreshCoverage() = viewModelScope.launch {
         _newSinceApply.value = try {
-            CoverageScan.report(getApplication(), container).installedSinceApply.size
+            CoverageScan.report(getApplication(), container).reapplyWouldTheme.mapTo(HashSet()) { it.substringBefore('/') }.size
         } catch (e: IOException) {
             Log.w(TAG, "Coverage not read", e)
             0

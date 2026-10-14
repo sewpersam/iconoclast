@@ -29,6 +29,9 @@ class IconSource(val bundle: IconBundle, val names: DrawableNames, val component
     /** Drawable index for a launcher component string, or -1. See [ComponentIndex.resolve]. */
     fun resolve(component: String): Int = components.resolve(component)
 
+    /** Drawable index for an installed app's component, with the package fallback. See [ComponentIndex.resolveApp]. */
+    fun resolveApp(component: String): Int = components.resolveApp(component)
+
     companion object {
         const val ASSET_DIR = "arcticons"
 
