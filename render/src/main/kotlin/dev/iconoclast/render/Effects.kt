@@ -121,9 +121,9 @@ sealed interface Effect {
     data class BrushStrokes(
         /** 1 to 400 strokes. */
         val count: Int = 90,
-        /** 0.02 to 0.5 of the canvas: how far a stroke reaches. */
+        /** 0.02 to 1.2 of the canvas, schema 8 up to 0.5: how far a stroke reaches. */
         val length: Float = 0.2f,
-        /** 0.002 to 0.08 of the canvas: a stroke's width at its base. */
+        /** 0.002 to 0.2 of the canvas, schema 8 up to 0.08: a stroke's width at its base. */
         val width: Float = 0.02f,
         /** 0 to 1: from crisp edges and bristles to soft ones. */
         val softness: Float = 0.3f,
@@ -161,8 +161,8 @@ sealed interface Effect {
         init {
             require(originX in 0f..1f && originY in 0f..1f) { "brush stroke origin $originX,$originY" }
             require(count in 1..400) { "brush stroke count $count" }
-            require(length in 0.02f..0.5f) { "brush stroke length $length" }
-            require(width in 0.002f..0.08f) { "brush stroke width $width" }
+            require(length in 0.02f..1.2f) { "brush stroke length $length" }
+            require(width in 0.002f..0.2f) { "brush stroke width $width" }
             require(softness in 0f..1f) { "brush stroke softness $softness" }
             require(blur in 0f..1f) { "brush stroke blur $blur" }
             require(fade in 0f..1f) { "brush stroke fade $fade" }

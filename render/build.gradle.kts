@@ -101,3 +101,17 @@ tasks.register<JavaExec>("brushContactSheet") {
         providers.gradleProperty("tile").getOrElse("216"),
     )
 }
+
+// ./gradlew :render:feedbackSheets -Pout=<dir> writes the phone feedback round 1 contact sheets.
+tasks.register<JavaExec>("feedbackSheets") {
+    group = "verification"
+    description = "Renders the feedback looks, brush strokes before and after, and the knockout sheets."
+    classpath = verify.runtimeClasspath
+    mainClass = "dev.iconoclast.render.verify.FeedbackSheetKt"
+    maxHeapSize = "1g"
+    systemProperty("java.awt.headless", "true")
+    args(
+        layout.projectDirectory.file("src/test/resources/golden/samples.bin").asFile.path,
+        providers.gradleProperty("out").getOrElse(rootProject.layout.projectDirectory.dir("docs/verification/feedback-1").asFile.path),
+    )
+}

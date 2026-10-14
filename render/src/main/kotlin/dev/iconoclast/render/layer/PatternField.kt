@@ -121,7 +121,7 @@ internal object PatternField {
      */
     fun waves(p: Pattern.Waves, x: Float, y: Float, seed: Int): Float {
         var phase = if (p.kind == WaveKind.BANDS) x else sqrt(x * x + y * y)
-        if (p.distortion > 0f) phase += p.distortion * (fractal(x * WAVE_NOISE, y * WAVE_NOISE, p.detail, 0.5f, false, seed) * 2f - 1f) / WAVE_NOISE
+        if (p.distortion > 0f) phase += p.distortion * WAVE_BEND * (fractal(x * WAVE_NOISE, y * WAVE_NOISE, p.detail, 0.5f, false, seed) * 2f - 1f)
         return (0.5 - 0.5 * StrictMath.cos(2.0 * StrictMath.PI * phase)).toFloat()
     }
 
@@ -139,6 +139,7 @@ internal object PatternField {
     private const val POINT_Y = 0x5BD1E995
     /** An edge line's anti-aliasing ramp, in cells. */
     private const val EDGE_SOFT = 0.03f
-    /** Distortion noise cells per wave period. */
-    private const val WAVE_NOISE = 2f
+    /** Distortion noise cells per wave period, and periods of bend per unit of distortion. */
+    private const val WAVE_NOISE = 0.35f
+    private const val WAVE_BEND = 0.5f
 }

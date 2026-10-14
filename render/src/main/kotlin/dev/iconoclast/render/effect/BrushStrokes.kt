@@ -321,8 +321,9 @@ internal object BrushStrokes {
             val tb = (k + 1).toFloat() / STEPS
             val ha = st.halfWidth * if (painted) paintedWidth(st, ta) else taper(ta)
             val hb = st.halfWidth * if (painted) paintedWidth(st, tb) else taper(tb)
-            val pa = pow(1f - ta, fadeExp)
-            val pb = pow(1f - tb, fadeExp)
+            // Painted: the load holds, then runs out over the last two thirds; the bristles break it up.
+            val pa = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.3f, 1f, ta) else pow(1f - ta, fadeExp)
+            val pb = if (painted) 1f - e.fade * PAINTED_FADE * smoothstep(0.3f, 1f, tb) else pow(1f - tb, fadeExp)
             val m = maxOf(ha, hb) * (1f + SOFT_BAND * e.softness + tipBlur + (if (painted) RAGGED else 0f)) + 1.5f
             val i0 = maxOf(sx0, floor(minOf(ax, ax + ex) - m).toInt())
             val i1 = minOf(sx1, ceil(maxOf(ax, ax + ex) + m).toInt())
@@ -355,7 +356,8 @@ internal object BrushStrokes {
                     val lane = (s * 0.5f + 0.5f) * PAINTED_BRISTLES + st.bristleShift
                     val load = Noise.value(lane, 0.5f, st.bristleSeed xor LOAD_SALT)
                     val b = Noise.value(lane, t * PAINTED_ALONG, st.bristleSeed)
-                    v *= 1f - e.bristles * PAINTED_STREAK * (1f - b) * (0.4f + load)
+                    // Lanes that carry little paint leave dark streaks the whole way along.
+                    v *= 1f - e.bristles * PAINTED_STREAK * (1f - smoothstep(0.2f, 0.6f, b)) * (1.2f - load)
                     val th = e.bristles * ((t - PAINTED_DRY_START) / (1f - PAINTED_DRY_START)).coerceIn(0f, 1f) * (1.3f - 0.6f * load)
                     if (th > 0f) v *= smoothstep(th - dryWidth, th + dryWidth, b * 0.6f + load * 0.4f)
                     // Paint pooled where the brush came down.
@@ -415,9 +417,10 @@ internal object BrushStrokes {
      * slow swell and pinch along the stroke from its own noise, then lifted off.
      */
     private fun paintedWidth(st: Stroke, t: Float): Float {
-        val press = PRESS + (1f - PRESS) * smoothstep(0f, 0.1f, t)
+        val press = PRESS + (1f - PRESS) * smoothstep(0f, 0.08f, t)
         val swell = 1f + SWELL * (Noise.value(t * SWELL_ALONG + st.bristleShift, 3.5f, st.bristleSeed xor FRAY_SALT) * 2f - 1f)
-        return press * swell * pow(1f - t, 0.45f)
+        val lift = 1f - LIFT * smoothstep(0.65f, 1f, t)
+        return press * swell * lift
     }
 
     /** Pressed on at the icon, full at a quarter of the way, lifted off to a point. */
@@ -510,6 +513,8 @@ internal object BrushStrokes {
     private const val FRAY_ALONG = 22f
     private const val OVERLAP = 0.22f
     private const val POOL = 0.35f
+    private const val LIFT = 0.85f
+    private const val PAINTED_FADE = 0.7f
     /** Painted bristles: lanes across, rate along, streak depth, and where they start to run dry. */
     private const val PAINTED_BRISTLES = 14f
     private const val PAINTED_ALONG = 0.7f
