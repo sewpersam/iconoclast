@@ -50,7 +50,7 @@ fun AddSheet(onDismiss: () -> Unit, onEffect: (Effect) -> Unit, onOverlay: () ->
             Heading("Effects")
             for ((effect, detail) in EFFECTS) Item(LayerStack.effectName(effect), detail) { onEffect(effect) }
             Heading("Overlay")
-            Item("Overlay", "Paint over the whole icon, for example a gradient wash across everything. Pick a colour, gradient, image or pattern on its page.", onOverlay)
+            Item("Colour, gradient, image or pattern", "Paint over the whole icon, for example a gradient wash across everything. Pick the kind on its page.", onOverlay)
         }
     }
 }

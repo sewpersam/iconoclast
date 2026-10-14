@@ -310,6 +310,11 @@ internal object BrushStrokes {
         val fadeExp = FADE * e.fade
         val dryWidth = DRY_EDGE + DRY_SOFT * e.softness
         val painted = e.style == StrokeStyle.PAINTED
+        // Painted: each side's fraying along the stroke and each bristle lane's load, as
+        // tables read with linear steps, so a pixel costs one noise lookup as Classic's does.
+        val frayL = if (painted) FloatArray(FRAY_N + 1) { Noise.value(it.toFloat() / FRAY_N * FRAY_ALONG + st.bristleShift, 0.5f, st.bristleSeed xor FRAY_SALT) } else null
+        val frayR = if (painted) FloatArray(FRAY_N + 1) { Noise.value(it.toFloat() / FRAY_N * FRAY_ALONG + st.bristleShift, 7.5f, st.bristleSeed xor FRAY_SALT) } else null
+        val loads = if (painted) FloatArray(LOAD_N + 1) { Noise.value(it.toFloat() / LOAD_N * PAINTED_BRISTLES + st.bristleShift, 0.5f, st.bristleSeed xor LOAD_SALT) } else null
         val tipBlur = if (e.direction == StrokeDirection.PARALLEL) e.blur * TIP_BLUR else 0f
         for (k in 0 until STEPS) {
             val ax = xs[k]
@@ -343,7 +348,7 @@ internal object BrushStrokes {
                 if (painted && l2 > 0f) {
                     // Ragged edges: each side of the stroke frays by its own noise along it.
                     val side = (qx * ey - qy * ex)
-                    val fray = Noise.value(t * FRAY_ALONG + st.bristleShift, if (side > 0f) 0.5f else 7.5f, st.bristleSeed xor FRAY_SALT)
+                    val fray = table(if (side > 0f) frayL!! else frayR!!, t)
                     hw *= 1f - RAGGED * (1f - e.softness * 0.5f) * fray
                 }
                 val edge = ((hw - dist) / soft + 0.5f).coerceIn(0f, 1f)
@@ -353,15 +358,18 @@ internal object BrushStrokes {
                     val side = (qx * ey - qy * ex) / sqrt(l2)
                     val s = (side / maxOf(hw, 0.5f)).coerceIn(-1f, 1f)
                     // Bristles along the stroke: each its own load, long streaks, the tail breaking up first.
-                    val lane = (s * 0.5f + 0.5f) * PAINTED_BRISTLES + st.bristleShift
-                    val load = Noise.value(lane, 0.5f, st.bristleSeed xor LOAD_SALT)
+                    val across = s * 0.5f + 0.5f
+                    val lane = across * PAINTED_BRISTLES + st.bristleShift
+                    val load = table(loads!!, across)
                     val b = Noise.value(lane, t * PAINTED_ALONG, st.bristleSeed)
                     // Lanes that carry little paint leave dark streaks the whole way along.
                     v *= 1f - e.bristles * PAINTED_STREAK * (1f - smoothstep(0.2f, 0.6f, b)) * (1.2f - load)
                     val th = e.bristles * ((t - PAINTED_DRY_START) / (1f - PAINTED_DRY_START)).coerceIn(0f, 1f) * (1.3f - 0.6f * load)
                     if (th > 0f) v *= smoothstep(th - dryWidth, th + dryWidth, b * 0.6f + load * 0.4f)
                     // Paint pooled where the brush came down.
-                    v = minOf(1f, v * (1f + POOL * pow(1f - t, 6f)))
+                    val q = 1f - t
+                    val q2 = q * q
+                    v = minOf(1f, v * (1f + POOL * q2 * q2 * q2))
                 } else if (e.bristles > 0f && l2 > 0f) {
                     // Signed position across the stroke, -1 to 1.
                     val side = (qx * ey - qy * ex) / sqrt(l2)
@@ -421,6 +429,15 @@ internal object BrushStrokes {
         val swell = 1f + SWELL * (Noise.value(t * SWELL_ALONG + st.bristleShift, 3.5f, st.bristleSeed xor FRAY_SALT) * 2f - 1f)
         val lift = 1f - LIFT * smoothstep(0.65f, 1f, t)
         return press * swell * lift
+    }
+
+    /** [tab] sampled evenly over 0 to 1, read at [x] with linear steps. */
+    private fun table(tab: FloatArray, x: Float): Float {
+        val n = tab.size - 1
+        val f = x.coerceIn(0f, 1f) * n
+        val i = minOf(f.toInt(), n - 1)
+        val w = f - i
+        return tab[i] + (tab[i + 1] - tab[i]) * w
     }
 
     /** Pressed on at the icon, full at a quarter of the way, lifted off to a point. */
@@ -521,6 +538,9 @@ internal object BrushStrokes {
     private const val PAINTED_STREAK = 0.55f
     private const val PAINTED_DRY_START = 0.2f
     private const val FRAY_SALT = 0x3C6EF372
+    /** Painted tables: samples along a stroke for its fraying, across it for its bristle loads. */
+    private const val FRAY_N = 96
+    private const val LOAD_N = 64
     private const val LOAD_SALT = 0x0A54FF53
 
     /** Coverage below this is dropped: under half an 8-bit step. */

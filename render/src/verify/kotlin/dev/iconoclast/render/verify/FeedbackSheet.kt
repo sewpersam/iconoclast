@@ -5,6 +5,8 @@ import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.GoldenSet
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.Marble
+import dev.iconoclast.render.Paint
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.StrokeStyle
 import dev.iconoclast.render.Theme
 import dev.iconoclast.render.format.IconBundle
@@ -53,6 +55,19 @@ fun main(args: Array<String>) {
         "All one way: 30 fine, Classic" to styled(swipes) { it.copy(count = 30, width = 0.02f, style = StrokeStyle.CLASSIC) },
         "Outward from bottom-left corner" to GoldenSet.FEEDBACK.getValue("fb_strokes_corner"),
     ), tile = 200)
+
+    // Edit latency on the JVM: the 24 samples at the 128 px preview size, masks warm, one thread.
+    val bench = listOf("plain (reference)" to GoldenSet.PRESETS.getValue("plain"), "jade (reference)" to jade) + GoldenSet.FEEDBACK.toList()
+    for ((title, theme) in bench) {
+        val r = IconRenderer().also { it.textures.put(Marble.PNG) }
+        // Each pass a new pattern seed, as a pattern slider drag gives: no cached field.
+        fun pass(k: Int) = theme.copy(layers = theme.layers.map { l ->
+            if (l is PaintLayer && l.source is Paint.Noise) l.copy(source = (l.source as Paint.Noise).copy(seed = k)) else l
+        }).let { t -> GoldenSet.SAMPLES.forEach { n -> r.render(n, bundle.icon(GoldenSet.SAMPLES.indexOf(n)), t, 128) } }
+        pass(100)
+        val times = (1..5).map { val t0 = System.nanoTime(); pass(it); (System.nanoTime() - t0) / 1_000_000 }.sorted()
+        println("bench $title: 24 icons at 128 px, median ${times[2]} ms")
+    }
 
     val knock = GoldenSet.FEEDBACK.getValue("fb_knockout")
     sheet("knockout.png", listOf("Lines cut through, light wallpaper" to knock), backdrop = 0xFFE9E4D8.toInt())
