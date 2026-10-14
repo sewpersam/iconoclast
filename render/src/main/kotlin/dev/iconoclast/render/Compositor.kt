@@ -104,6 +104,8 @@ class IconRenderer(
             cache = cache,
             iconKey = iconKey(geometryName, theme, size, masks),
             cacheNoise = size < minOf(noiseCacheBelow, resolution.px),
+            iconSeed = IconSeed.of(seedName),
+            pinned = theme.textureOffset != null,
         )
     }
 

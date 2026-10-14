@@ -41,8 +41,8 @@ fun BackgroundPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit
     layer?.let {
         val dl = defaultsOf(it)
         fun withL(l: PaintLayer) = LayerStack.replace(theme, l)
-        PaintControl(Tips.BACKGROUND_COLOUR, it.source, dl.source, { p -> drag(withL(withSource(it, p))) }, done, { p -> commit(withL(withSource(it, p))) },
-            memory = it.id, textures = textures, more = more.value)
+        PaintControl(Tips.BACKGROUND_COLOUR, it, dl.source, { l -> drag(withL(l)) }, done, { l -> commit(withL(l)) }, textures = textures, more = more.value)
+        LayerOpacity(it, theme, Tips.BACKGROUND_OPACITY, drag, done, commit)
     }
     Section("Border")
     SliderControl(Tips.BORDER_WIDTH, border.width, 0f..0.1f, 0f, percent,
@@ -50,7 +50,7 @@ fun BackgroundPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit
     MoreOptions(more) {
         SliderControl(Tips.BACKGROUND_SIZE, b.size, 0.7f..1f, d.size, percent,
             { drag(with(b.copy(size = it))) }, done, { commit(with(b.copy(size = d.size))) })
-        layer?.let { OpacityAndMix(it, theme, Tips.BACKGROUND_OPACITY, Tips.BACKGROUND_MIX, drag, done, commit) }
+        layer?.let { BlendControl(Tips.BACKGROUND_MIX, it.blend, defaultsOf(it).blend) { b -> commit(LayerStack.replace(theme, it.copy(blend = b))) } }
         if (border.width > 0f) {
             ColorControl(Tips.BORDER_COLOUR, border.argb, NO_BORDER.argb,
                 { drag(withBorder(border.copy(argb = it))) }, done, { commit(withBorder(border.copy(argb = it))) })

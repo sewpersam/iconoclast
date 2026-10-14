@@ -44,12 +44,18 @@ fun IconPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (The
     }
     if (lines) {
         Section("Lines")
-        linesLayer?.let { IconPaint(it, theme, Tips.LINE_COLOUR, drag, done, commit, textures(it.id), more.value) }
+        linesLayer?.let {
+            IconPaint(it, theme, Tips.LINE_COLOUR, drag, done, commit, textures(it.id), more.value)
+            LayerOpacity(it, theme, Tips.LINES_OPACITY, drag, done, commit)
+        }
         thickness()
     }
     if (body) {
         Section("Fill")
-        fillLayer?.let { IconPaint(it, theme, Tips.FILL_COLOUR, drag, done, commit, textures(it.id), more.value) }
+        fillLayer?.let {
+            IconPaint(it, theme, Tips.FILL_COLOUR, drag, done, commit, textures(it.id), more.value)
+            LayerOpacity(it, theme, Tips.FILL_OPACITY, drag, done, commit)
+        }
         if (!lines) thickness()
     }
     Section("Size and position")
@@ -69,7 +75,7 @@ fun IconPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (The
             }
             ChoiceControl(Tips.DOT_SIZE, listOf(DotMode.SCALE_WITH_STROKE to "Match line thickness", DotMode.KEEP_ORIGINAL to "Keep original"),
                 s.dots, ds.dots, { commit(shape(s.copy(dots = it))) })
-            if (lines) linesLayer?.let { OpacityAndMix(it, theme, Tips.LINES_OPACITY, Tips.LINES_MIX, drag, done, commit) }
+            if (lines) linesLayer?.let { BlendControl(Tips.LINES_MIX, it.blend, defaultsOf(it).blend) { b -> commit(LayerStack.replace(theme, it.copy(blend = b))) } }
         }
         if (body) {
             Section("Fill")
@@ -84,7 +90,7 @@ fun IconPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (The
                     { drag(fill(f.copy(fallbackThreshold = it))) }, done, { commit(fill(f.copy(fallbackThreshold = df.fallbackThreshold))) })
                 SwitchControl(Tips.KEEP_LOOSE_LINES, f.keepLoneLines, df.keepLoneLines) { commit(fill(f.copy(keepLoneLines = it))) }
             }
-            fillLayer?.let { OpacityAndMix(it, theme, Tips.FILL_OPACITY, Tips.FILL_MIX, drag, done, commit) }
+            fillLayer?.let { BlendControl(Tips.FILL_MIX, it.blend, defaultsOf(it).blend) { b -> commit(LayerStack.replace(theme, it.copy(blend = b))) } }
         }
         Section("Position")
         SliderControl(Tips.MOVE_X, s.offsetX, -0.1f..0.1f, ds.offsetX, signedPercent,
@@ -108,16 +114,14 @@ private fun IconPaint(
 ) {
     val d = defaultsOf(layer)
     fun with(l: PaintLayer) = LayerStack.replace(theme, l)
-    PaintControl(tip, layer.source, d.source, { drag(with(withSource(layer, it))) }, done, { commit(with(withSource(layer, it))) },
-        memory = layer.id, textures = textures, more = more)
+    PaintControl(tip, layer, d.source, { drag(with(it)) }, done, { commit(with(it)) }, textures = textures, more = more)
 }
 
-/** A base layer's opacity and mix mode, under its page's More options. */
+/** A base layer's opacity, in view on its page: how see-through it is. */
 @Composable
-internal fun OpacityAndMix(layer: PaintLayer, theme: Theme, opacity: Tip, mix: Tip, drag: (Theme) -> Unit, done: () -> Unit, commit: (Theme) -> Unit) {
+internal fun LayerOpacity(layer: PaintLayer, theme: Theme, tip: Tip, drag: (Theme) -> Unit, done: () -> Unit, commit: (Theme) -> Unit) {
     val d = defaultsOf(layer)
     fun with(l: PaintLayer) = LayerStack.replace(theme, l)
-    SliderControl(opacity, layer.opacity, 0f..1f, d.opacity, percent,
+    SliderControl(tip, layer.opacity, 0f..1f, d.opacity, percent,
         { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = d.opacity))) })
-    BlendControl(mix, layer.blend, d.blend) { commit(with(layer.copy(blend = it))) }
 }

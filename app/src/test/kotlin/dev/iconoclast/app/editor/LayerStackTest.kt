@@ -154,7 +154,7 @@ class LayerStackTest {
         assertEquals("Streaks", LayerStack.label(t, streaks))
         assertEquals("Raised edge", LayerStack.label(t, bevel))
         val two = LayerStack.insertEffect(t, LayerStack.newEffect(t, Effect.Grain()))
-        assertEquals("Film grain 1", LayerStack.label(two, grain))
+        assertEquals("Grain 1", LayerStack.label(two, grain))
         assertEquals(ids(t) - grain.id, ids(LayerStack.remove(t, grain.id)))
     }
 

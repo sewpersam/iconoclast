@@ -3,8 +3,6 @@ package dev.iconoclast.app.editor
 import androidx.compose.runtime.Composable
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
-import dev.iconoclast.render.Mapping
-import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.Matte
 import dev.iconoclast.render.MatteMode
 import dev.iconoclast.render.Paint
@@ -32,18 +30,15 @@ fun clipName(clip: ClipTarget): String = CLIP_NAMES.getValue(clip)
 
 /**
  * The page of an added colour, gradient, image or pattern layer, docs/naming-spec.md 1.3:
- * what it paints, how solid, and where, in view; how an image sits, the brightness
- * cut-out and the mix mode under More options, with the "Effects below" target.
+ * what it paints, how solid, and where, in view; an image's placement with its fill; the
+ * brightness cut-out and the mix mode under More options, with the "Effects below" target.
  */
 @Composable
 fun LayerPage(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (Theme) -> Unit, textures: TextureActions) {
     val d = defaultsOf(layer)
     fun with(l: PaintLayer) = LayerStack.replace(theme, l)
     val more = rememberMore(layer.id)
-    PaintControl(
-        Tips.FILL, layer.source, d.source, { drag(with(withSource(layer, it))) }, done, { commit(with(withSource(layer, it))) },
-        memory = layer.id, textures = textures, more = more.value,
-    )
+    PaintControl(Tips.FILL, layer, d.source, { drag(with(it)) }, done, { commit(with(it)) }, textures = textures, more = more.value)
     SliderControl(Tips.OPACITY, layer.opacity, 0f..1f, d.opacity, percent,
         { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = d.opacity))) })
     val targets = CLIP_NAMES.toList().filter { it.first != ClipTarget.EFFECTS || more.value || layer.clip == ClipTarget.EFFECTS }
@@ -55,11 +50,6 @@ fun LayerPage(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: () -
         enabled = { !it || layer.clip != ClipTarget.CANVAS },
     )
     MoreOptions(more) {
-        if (layer.source is Paint.Texture || layer.source is Paint.Noise) {
-            val dm = if (layer.source is Paint.Texture) LayerStack.NEW_TEXTURE_MAPPING else Mapping()
-            MappingControls(layer.mapping, dm, layer.source is Paint.Texture,
-                { drag(with(layer.copy(mapping = it))) }, done, { commit(with(layer.copy(mapping = it))) })
-        }
         MatteControls(layer.matte, { drag(with(layer.copy(matte = it))) }, done, { commit(with(layer.copy(matte = it))) })
         BlendControl(Tips.MIX, layer.blend, d.blend) { commit(with(layer.copy(blend = it))) }
     }
@@ -75,19 +65,6 @@ internal fun defaultsOf(layer: PaintLayer): PaintLayer =
         ?: if (layer.id == LayerStack.BACKGROUND_TEXTURE_ID) layer.copy(clip = ClipTarget.BACKGROUND, clipInverse = false,
             blend = BlendMode.NORMAL, opacity = 1f, mapping = LayerStack.NEW_TEXTURE_MAPPING, matte = null)
         else LayerStack.newLayer(Paint.Solid(0xFFFFFFFF.toInt())).copy(id = layer.id)
-
-@Composable
-private fun MappingControls(m: Mapping, d: Mapping, image: Boolean, onDrag: (Mapping) -> Unit, onDone: () -> Unit, onCommit: (Mapping) -> Unit) {
-    Section(if (image) "Image" else "Pattern")
-    if (image) {
-        ChoiceControl(Tips.IMAGE_PLACEMENT, listOf(MappingMode.FIT to "Show whole image", MappingMode.FILL to "Cover the tile", MappingMode.TILE to "Repeat"),
-            m.mode, d.mode, { onCommit(m.copy(mode = it)) })
-    }
-    SliderControl(Tips.ZOOM, m.scale, 0.25f..4f, d.scale, decimals(2, "×"), { onDrag(m.copy(scale = it)) }, onDone, { onCommit(m.copy(scale = d.scale)) })
-    SliderControl(Tips.ROTATE, m.rotation, -180f..180f, d.rotation, decimals(0, "°"),
-        { onDrag(m.copy(rotation = it)) }, onDone, { onCommit(m.copy(rotation = d.rotation)) })
-    SwitchControl(Tips.SAME_PART, m.lockOffset, d.lockOffset) { onCommit(m.copy(lockOffset = it)) }
-}
 
 /** Levels keep black below white by at least [GAP], so a drag cannot make an invalid matte. */
 @Composable

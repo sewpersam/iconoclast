@@ -239,3 +239,18 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 
 ### Open for him
 - Invert fill with every layer hidden but Icon lines shows only lone lines (antennas, dots, stubs). The outlines in Invert are the gaps in the fill, not painted lines. Outline presets show full outlines. Pinned by `LinesOnlyTest`. Taste call: keep, or rename the row in Invert, or change what the lines layer means there.
+
+## Look pass (2026-10-13)
+
+### Rulings
+- Ruling: random placement seeds from the slot's drawable name (IconSeed) plus the mapping's `seed`, not the package name. One drawable is drawn once and shared by every package that maps to it, spec 2.5; a package seed would break that — cost if wrong: one more input to `Mappings.place` and per-package slots.
+- Ruling: `lockOffset`, zoom, rotate and the per-icon offset absorbed into one placement set, schema 8: `randomShift` 0/1 is the old lock; old themes render byte-identically (`ThemeMigrationTest.version7MappingsBecomeRandomShiftAndRenderTheSame`) — cost if wrong: none to old themes.
+- Ruling: crop is stored as fractions in the mapping, never as a re-encoded image; a new photo opens the crop step at once, Crop on the image row reopens it — cost if wrong: a dialog flow.
+- Ruling: Glass is a one-tap look in the Add sheet built from ordinary layers (`render/.../Glass.kt`), not a starter theme. A starter needs his taste call.
+- Ruling: Blur blurs only the theme's own layers below it; help text and the Add sheet say it cannot blur the wallpaper.
+
+### Deferred
+- The open colour picker's square takes vertical drags, so a swipe that starts on it recolours instead of scrolling. Scrolling works from the bars, labels and rows around it.
+- Blur set to Everywhere softens the background shape's own edge from inside; the shape clip keeps the outline crisp.
+- Pinch in the crop step: fingers apart shrinks the frame (zooms in on the image). Corner drags are the main path.
+- Latency was measured with the emulator's 30 launchable apps, not 150; the editor draws only on-screen cells, so the count changes scrolling, not edit latency.

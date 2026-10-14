@@ -5,11 +5,11 @@ One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
 shares a `.zip` holding that JSON as `theme.json`, the textures it uses and,
 only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
-## Schema version 7
+## Schema version 8
 
 ```json
 {
-    "schemaVersion": 7,
+    "schemaVersion": 8,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -33,7 +33,7 @@ only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/
             { "type": "paint", "id": "background",
               "source": { "type": "solid", "color": "#FF000000" },
               "clip": "BACKGROUND", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
-              "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "lockOffset": false },
+              "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "randomShift": 1.0, "randomRotation": 0.0, "randomScale": 0.0, "seed": 0, "crop": null },
               "matte": null, "visible": true },
             { "type": "effects", "id": "effects" },
             { "type": "effect", "id": "streaks", "enabled": true, "blend": "NORMAL", "opacity": 0.35,
@@ -44,12 +44,12 @@ only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/
             { "type": "paint", "id": "icon-fill",
               "source": { "type": "solid", "color": "#FF00A86B" },
               "clip": "ICON_FILL", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
-              "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "lockOffset": false },
+              "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "randomShift": 1.0, "randomRotation": 0.0, "randomScale": 0.0, "seed": 0, "crop": null },
               "matte": null, "visible": true },
             { "type": "paint", "id": "icon-lines",
               "source": { "type": "solid", "color": "#FF00A86B" },
               "clip": "ICON_LINES", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
-              "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "lockOffset": false },
+              "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "randomShift": 1.0, "randomRotation": 0.0, "randomScale": 0.0, "seed": 0, "crop": null },
               "matte": null, "visible": true }
         ]
     },
@@ -113,7 +113,7 @@ it). Each effect is its own `effect` layer, below.
 | `clipInverse` | `true` uses `1 - coverage`. |
 | `blend` | `NORMAL`, `MULTIPLY`, `SCREEN`, `OVERLAY`, `DARKEN`, `LIGHTEN`, `COLOR_DODGE`, `COLOR_BURN`, `HARD_LIGHT`, `SOFT_LIGHT`, `DIFFERENCE`, `EXCLUSION`, `HUE`, `SATURATION`, `COLOR`, `LUMINOSITY`, `ADD`. W3C Compositing and Blending Level 1. The platform names: `NORMAL` is `SRC_OVER`, `ADD` is `PLUS`, the rest are equal; all 17 exist in `android.graphics.BlendMode` at compileSdk 37. |
 | `opacity` | 0.0 to 1.0. |
-| `mapping` | Texture and noise placement; ignored by solid and gradient sources. `mode`: `FIT` (all of the texture shows), `FILL` (covers the canvas, crops), `TILE` (short side spans the canvas, repeats). `scale` 0.25 to 4.0, above 1 zooms in. `rotation` -180.0 to 180.0 degrees about the canvas centre. `lockOffset`: `false` gives each icon its own patch, seeded by its drawable name; `true` gives every icon the centred patch. The per-icon offset: `TILE` translates the texture plane by the offset times the texture size, wrapped; `FIT` and `FILL` move the canvas window within the room between it and the texture, `FILL` only where the texture is larger so the patch never leaves it, `FIT` either way so a smaller texture moves inside the canvas and stays whole. A square texture at scale 1 under `FILL` leaves no room, so the editor starts every new texture layer at `scale` 2.0. Noise shifts its field by the offset. |
+| `mapping` | Texture and noise placement, schema 8; ignored by solid and gradient sources. `mode`: `FIT` (all of the texture shows), `FILL` (covers the canvas, crops), `TILE` (short side spans the canvas, repeats). `scale` 0.25 to 4.0, above 1 zooms in. `rotation` -180.0 to 180.0 degrees about the canvas centre. Per icon: `randomShift` 0.0 to 1.0 scales how far the icon's patch moves from the centre by its per-icon offset, `0.5 + (o - 0.5) shift`: 0 every icon the centred patch (schema 7's `lockOffset` true), 1 the offset itself (`lockOffset` false); `randomRotation` 0.0 to 180.0 degrees, each icon turned by up to that either way; `randomScale` 0.0 to 1.0, each icon zoomed by `2^((2r - 1) randomScale)`; `seed` any 32-bit integer, the editor's Shuffle. The draws are four SplitMix64 floats seeded with the slot's IconSeed when `seed` is 0, else with `IconSeed xor mix64(seed)`: offset x, offset y, turn, zoom. At seed 0 the first two are the per-icon offset itself, so schema 7 placements are unchanged; a pinned override offset is used as given at any seed. `crop`: `null` or `{ "left", "top", "right", "bottom" }`, fractions of the texture, each side at least 0.02, snapped to whole texels: the texture is that rectangle for placing, tiling and clamping. The per-icon offset: `TILE` translates the texture plane by the offset times the texture size, wrapped; `FIT` and `FILL` move the canvas window within the room between it and the texture, `FILL` only where the texture is larger so the patch never leaves it, `FIT` either way so a smaller texture moves inside the canvas and stays whole. A square texture at scale 1 under `FILL` leaves no room, so the editor starts every new texture layer at `scale` 2.0. Noise shifts its field by the offset. Code: `render/.../layer/Mapping.kt`, `Mappings.place`. |
 | `matte` | `null`, or mask adjustments that turn the source's luminance into alpha: `{ "mode", "black", "white", "threshold", "invert", "feather" }`. `mode` `LEVELS` maps `black` to 0 and `white` to 1 (both 0.0 to 1.0, black below white); `THRESHOLD` gives 1 where luminance reaches `threshold` (0.0 to 1.0). `invert` flips it. `feather` 0.0 to 0.05 of the canvas is a Gaussian blur radius. Luminance is read before any gradient map: `0.3 r + 0.59 g + 0.11 b` of the premultiplied texels for a texture (transparent reads as black), the raw noise value for noise, the colour's for solids and gradients. So a black-and-white texture with single-colour `stops` paints that colour wherever the texture is light. |
 | `visible` | Schema 6. `false` paints nothing, whatever the opacity: the editor's eye. An effect linked to the layer still reads its source. |
 
@@ -265,6 +265,24 @@ the area average of the cells under it, and the per-icon offset is whole
 cells. So a 432 px pack render has one cell per pixel, and a 128 px preview
 is that render box-filtered down rather than a coarser, harsher grain.
 
+`blur` (schema 8): a Gaussian blur of everything painted below it, mixed back in through
+a clip. It blurs only the icon's own layers: a pack icon is a still image and cannot blur
+the wallpaper. Each premultiplied channel goes through `mask/Blur.gaussian` (exact taps to
+sigma 3, three extended box passes above) with the outside read as 0, divided by the same
+blur of an all-ones plane, so the tile's rim keeps its strength. Then
+`out = in + (blurred - in) clip opacity`. No blend mode; it adds nothing to the `EFFECTS`
+target. Code: `layer/StackEvaluator.kt`.
+
+| Field | Values |
+|---|---|
+| `radius` | 0.001 to 0.1 of the canvas: Gaussian radius, sigma half of it. |
+| `clip`, `clipInverse` | Where it shows, as a paint layer's. |
+
+The Glass look (`render/.../Glass.kt`, the editor's Add sheet) is not a type: it sets the
+background layer to 30% and the icon layers to 55% opacity, a white border, a blur behind
+the icon at the effects marker, and on top a soft raised edge, a white inner glow and
+grain. Golden: `look_glass`, `look_glass_marble`.
+
 ### Paints
 
 `source` objects, tagged by `type`:
@@ -273,6 +291,7 @@ is that render box-filtered down rather than a coarser, harsher grain.
 - `linear`: `x0`, `y0`, `x1`, `y1`, `stops`. `radial`: `cx`, `cy`, `radius`
   (above 0), `stops`. Coordinates are fractions of the canvas. A stop is
   `{ "offset": 0.0, "color": "#FF000000" }`, offsets ascending, at least one.
+- `angular` (schema 8): `cx`, `cy`, `angle` 0.0 to 360.0, `stops`: the stops run once round the centre, clockwise on screen, starting at `angle` degrees (0 right, 90 down, as a linear gradient's direction), `t = ((atan2(v - cy, u - cx) - angle) mod 360) / 360` with StrictMath.
 - `texture`: `sha256`, the lowercase hex SHA-256 of the texture file, 64
   characters; `stops`: `null` keeps the texture's colours, a list maps its
   luminance through the stops and keeps its alpha.
@@ -390,6 +409,15 @@ which never meets the cut-out lines, so `ThemeMigrationTest` and `PresetsTest`
 render their goldens byte for byte after the move. The preset assets stay at
 schema 5 and migrate on every seed.
 
+Version 7 had `mapping.lockOffset` and no angular gradient or blur. `v7ToV8`
+(`MigrationV7ToV8.kt`) replaces `lockOffset` in every mapping with `randomShift` 0 (locked)
+or 1, `randomRotation` 0, `randomScale` 0, `seed` 0 and `crop` null, and sets
+`schemaVersion` to 8. `Mappings.place` returns exactly the old scale, rotation and offset
+for those values, so every theme renders the same bytes: `ThemeMigrationTest` writes every
+look and blend golden theme at schema 7 with `lockOffset`, migrates it, requires the JSON
+and theme to equal the current ones and renders the goldens byte for byte. A mapping
+without `lockOffset` at schema 7 is damaged.
+
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture
 and a test, and update this file.
@@ -424,7 +452,7 @@ and a test, and update this file.
 
 | Entry | When | Content |
 |---|---|---|
-| `theme.json` | always, first | The document, schema 6. |
+| `theme.json` | always, first | The document, current schema. |
 | `textures/<sha256>.png` | one per non-built-in hash in `Theme.textureHashes()` | The canonical texture file. |
 | `key/pack.p12` | only with the key | The signing key's PKCS12 store, the stored file's bytes. |
 | `key/password` | only with the key | Its password, UTF-8, the stored file's bytes. |

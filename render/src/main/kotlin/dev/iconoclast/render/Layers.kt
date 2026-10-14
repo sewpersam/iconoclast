@@ -81,18 +81,51 @@ enum class MappingMode { FIT, FILL, TILE }
 
 /**
  * Texture and noise placement. [scale] above 1 zooms in. [rotation] in degrees turns the
- * source about the canvas centre. Every icon gets its own patch of the source, picked by
- * a seed from its drawable name; [lockOffset] gives every icon the same, centred patch.
+ * source about the canvas centre. [crop] limits a texture to a rectangle of it.
+ *
+ * Per icon, schema 8: [randomShift] scales how far each icon's patch moves from the centre
+ * by its per-icon offset, 0 every icon the same centred patch, 1 anywhere (schema 7's
+ * unlocked offset); [randomRotation] turns each icon by up to that many degrees either way;
+ * [randomScale] zooms each icon by up to 2^randomScale either way. Each icon's draws come
+ * from its seed name and [seed]: seed 0 draws the shift from the icon's one per-icon
+ * offset, as every schema 7 theme did; Shuffle picks another [seed], a new arrangement.
  */
 data class Mapping(
     val mode: MappingMode = MappingMode.FILL,
     val scale: Float = 1f,
     val rotation: Float = 0f,
-    val lockOffset: Boolean = false,
+    /** 0 to 1: how far each icon's patch moves. Schema 7's lockOffset true is 0, false is 1. */
+    val randomShift: Float = 1f,
+    /** 0 to 180 degrees: each icon turned by up to this much, either way. */
+    val randomRotation: Float = 0f,
+    /** 0 to 1: each icon zoomed by up to 2^this, in or out. */
+    val randomScale: Float = 0f,
+    /** Picks the arrangement. 0 is the icon's own per-icon offset. */
+    val seed: Int = 0,
+    /** Textures only. Null: the whole texture. */
+    val crop: Crop? = null,
 ) {
     init {
         require(scale in 0.25f..4f) { "mapping scale $scale" }
         require(rotation in -180f..180f) { "mapping rotation $rotation" }
+        require(randomShift in 0f..1f) { "mapping random shift $randomShift" }
+        require(randomRotation in 0f..180f) { "mapping random rotation $randomRotation" }
+        require(randomScale in 0f..1f) { "mapping random scale $randomScale" }
+    }
+}
+
+/**
+ * The part of a texture a layer shows, fractions of its width and height, y down. The
+ * renderer snaps the edges to whole texels. At least [MIN] on each side.
+ */
+data class Crop(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+    init {
+        require(left >= 0f && top >= 0f && right <= 1f && bottom <= 1f) { "crop $left,$top,$right,$bottom" }
+        require(right - left >= MIN && bottom - top >= MIN) { "crop too small: $left,$top,$right,$bottom" }
+    }
+
+    companion object {
+        const val MIN = 0.02f
     }
 }
 

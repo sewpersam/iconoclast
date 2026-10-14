@@ -22,6 +22,8 @@ import dev.iconoclast.render.format.IconBundle
 import java.io.File
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import java.nio.ByteBuffer
 
@@ -220,11 +222,61 @@ class ThemeMigrationTest {
         return JsonObject(iconTogether(withVisible(o)) + mapOf("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA), "overrides" to JsonObject(emptyMap())))
     }
 
-    /** [doc] with its layers in schema 7's order, nothing between the icon's fill and lines. */
+    /**
+     * [doc] with its layers in schema 7's order, nothing between the icon's fill and lines,
+     * and schema 8's mappings: lockOffset as randomShift, no random turn or zoom, no crop.
+     */
     private fun iconTogether(doc: JsonObject): JsonObject {
         val theme = doc["theme"] as JsonObject
-        val layers = JsonArray(iconTogether((theme["layers"] as JsonArray).toList()))
+        val layers = JsonArray(iconTogether((theme["layers"] as JsonArray).toList()).map(::v8Mapping))
         return JsonObject(doc + ("theme" to JsonObject(theme + ("layers" to layers))))
+    }
+
+    private fun v8Mapping(layer: JsonElement): JsonElement {
+        val l = layer as JsonObject
+        val m = l["mapping"] as? JsonObject ?: return l
+        val lock = (m["lockOffset"] as JsonPrimitive).content.toBoolean()
+        return JsonObject(l + ("mapping" to JsonObject(m - "lockOffset" + mapOf(
+            "randomShift" to JsonPrimitive(if (lock) 0.0 else 1.0), "randomRotation" to JsonPrimitive(0.0),
+            "randomScale" to JsonPrimitive(0.0), "seed" to JsonPrimitive(0), "crop" to JsonNull,
+        ))))
+    }
+
+    /** Schema 8's mapping as schema 7 wrote it: randomShift 0 or 1 back to lockOffset. */
+    private fun v7Mapping(layer: JsonElement): JsonElement {
+        val l = layer as JsonObject
+        val m = l["mapping"] as? JsonObject ?: return l
+        val shift = (m["randomShift"] as JsonPrimitive).content.toDouble()
+        return JsonObject(l + ("mapping" to JsonObject(m - listOf("randomShift", "randomRotation", "randomScale", "seed", "crop") +
+            ("lockOffset" to JsonPrimitive(shift == 0.0)))))
+    }
+
+    /**
+     * The schema 8 migration test: every look golden that has textures and noise, written as
+     * schema 7 with lockOffset, locked and unlocked, migrates to the same theme and renders
+     * its goldens byte for byte.
+     */
+    @Test
+    fun version7MappingsBecomeRandomShiftAndRenderTheSame() {
+        val goldens = File(requireNotNull(System.getProperty("golden.dir")))
+        val bundle = IconBundle(ByteBuffer.wrap(File(goldens, "samples.bin").readBytes()))
+        val renderer = IconRenderer()
+        renderer.textures.put(File(goldens, GoldenSet.TEXTURE_FILE).readBytes())
+        for ((dir, theme) in GoldenSet.LOOKS + GoldenSet.BLENDS) {
+            val current = json(ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = theme).toJson()) as JsonObject
+            val t = current["theme"] as JsonObject
+            val v7 = JsonObject(current + mapOf("schemaVersion" to JsonPrimitive(7),
+                "theme" to JsonObject(t + ("layers" to JsonArray((t["layers"] as JsonArray).map(::v7Mapping))))))
+            assertTrue("lockOffset" in v7.toString())
+            val migrated = migrate(v7.toString(), now = { error("no clock") }, newId = { error("no id") })
+            assertEquals(theme, migrated.theme, dir)
+            assertEquals(current, json(migrated.toJson()))
+            val samples = if (dir in GoldenSet.LOOKS) GoldenSet.LOOK_SAMPLES else GoldenSet.BLEND_SAMPLES
+            for (name in samples) {
+                val png = renderer.renderPng(name, bundle.icon(GoldenSet.SAMPLES.indexOf(name)), migrated.theme, OUTPUT_SIZE)
+                assertContentEquals(File(goldens, "$dir/$name.png").readBytes(), png, "$dir/$name")
+            }
+        }
     }
 
     /**
@@ -245,7 +297,7 @@ class ThemeMigrationTest {
         assertEquals(ThemeDocument.CURRENT_SCHEMA, migrated.schemaVersion)
         val out = json(migrated.toJson()) as JsonObject
         assertEquals(listOf("background", "effects", "strokes", "icon-fill", "icon-lines", "veins"), order(out))
-        assertEquals(JsonObject(iconTogether(json(v6) as JsonObject) + ("schemaVersion" to JsonPrimitive(7))), out, "only the order and the version change")
+        assertEquals(JsonObject(iconTogether(json(v6) as JsonObject) + ("schemaVersion" to JsonPrimitive(ThemeDocument.CURRENT_SCHEMA))), out, "only the order, the mappings and the version change")
         assertEquals(GoldenSet.STARTERS.getValue("preset_jade"), migrated.theme)
         val renderer = IconRenderer()
         for ((i, name) in GoldenSet.SAMPLES.withIndex()) {

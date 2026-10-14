@@ -233,6 +233,26 @@ sealed interface Effect {
     }
 
     /**
+     * A Gaussian blur of everything painted below it in the stack, schema 8: the icon tile
+     * as drawn so far, softened, then mixed back in through [clip] (or its inverse) times
+     * the layer's opacity. It blurs only this icon's own layers; a pack icon is a still
+     * image and cannot see or blur the wallpaper behind it. The edges of the tile are
+     * read as if they continued, so a full background does not fade at its rim. No blend
+     * mode: it replaces what is below, as a mix. It adds nothing to the EFFECTS target.
+     */
+    data class Blur(
+        /** 0.001 to 0.1 of the canvas: Gaussian radius, sigma half of it. */
+        val radius: Float = 0.02f,
+        /** Where the blur shows, as a paint layer's clip. */
+        val clip: ClipTarget = ClipTarget.CANVAS,
+        val clipInverse: Boolean = false,
+    ) : Effect {
+        init {
+            require(radius in 0.001f..0.1f) { "blur radius $radius" }
+        }
+    }
+
+    /**
      * Monochrome noise over the whole canvas: grey around mid-grey, so a contrast blend
      * such as overlay or soft light leaves the average alone. Each icon gets its own
      * patch from its one per-icon offset, [TextureOffset], so grain follows a texture

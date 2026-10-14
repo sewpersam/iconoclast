@@ -31,6 +31,12 @@ object Paints {
                     val dy = v - paint.cy
                     sample(paint.stops, sqrt(dx * dx + dy * dy) / paint.radius, c)
                 }
+                is Paint.AngularGradient -> {
+                    // Degrees clockwise on screen from the right, y down, then from the start angle.
+                    val a = StrictMath.atan2((v - paint.cy).toDouble(), (u - paint.cx).toDouble()) * (180.0 / StrictMath.PI)
+                    val t = ((a - paint.angle) % 360.0 + 360.0) % 360.0 / 360.0
+                    sample(paint.stops, t.toFloat(), c)
+                }
                 is Paint.Texture, is Paint.Noise -> throw IllegalArgumentException("$paint is placed per icon")
             }
             c.copyInto(out, (y * size + x) * 4)

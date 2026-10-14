@@ -5,6 +5,7 @@ import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Effect
 import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
+import dev.iconoclast.render.Glass
 import dev.iconoclast.render.Layer
 import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.NoiseKind
@@ -161,8 +162,17 @@ object LayerStack {
      */
     fun withTexture(layer: PaintLayer, hash: String): PaintLayer {
         val old = layer.source as? Paint.Texture
-        return layer.copy(source = Paint.Texture(hash, old?.stops), mapping = if (old != null) layer.mapping else NEW_TEXTURE_MAPPING)
+        val mapping = when {
+            old == null -> NEW_TEXTURE_MAPPING
+            // A crop belongs to its image.
+            old.sha256 != hash -> layer.mapping.copy(crop = null)
+            else -> layer.mapping
+        }
+        return layer.copy(source = Paint.Texture(hash, old?.stops), mapping = mapping)
     }
+
+    /** The Glass look over [theme], one change: dev.iconoclast.render.Glass. */
+    fun withGlass(theme: Theme): Theme = Glass.apply(theme) { UUID.randomUUID().toString() }
 
     /** [layer] clipped to [clip]. The whole canvas has no outside, so its inverse is dropped. */
     fun withClip(layer: PaintLayer, clip: ClipTarget): PaintLayer =
@@ -189,7 +199,7 @@ object LayerStack {
         is EffectLayer -> effectName(layer.effect)
         is PaintLayer -> when (val source = layer.source) {
             is Paint.Solid -> "Colour"
-            is Paint.LinearGradient, is Paint.RadialGradient -> "Gradient"
+            is Paint.LinearGradient, is Paint.RadialGradient, is Paint.AngularGradient -> "Gradient"
             is Paint.Texture -> "Image"
             is Paint.Noise -> patternName(source.kind)
         }
@@ -204,7 +214,8 @@ object LayerStack {
         is Effect.InnerShadow -> "Inner shadow"
         is Effect.OuterGlow -> "Glow"
         is Effect.InnerGlow -> "Inner glow"
-        is Effect.Grain -> "Film grain"
+        is Effect.Grain -> "Grain"
+        is Effect.Blur -> "Blur"
     }
 
     fun patternName(kind: NoiseKind): String = when (kind) {
@@ -240,7 +251,7 @@ object LayerStack {
      * bevel, inner shadow, inner glow and grain on top of the stack.
      */
     fun insertEffect(theme: Theme, layer: EffectLayer): Theme = when (layer.effect) {
-        is Effect.Streaks, is Effect.BrushStrokes, is Effect.DropShadow, is Effect.OuterGlow -> theme.withEffect(layer)
+        is Effect.Streaks, is Effect.BrushStrokes, is Effect.DropShadow, is Effect.OuterGlow, is Effect.Blur -> theme.withEffect(layer)
         else -> theme.copy(layers = theme.layers + layer)
     }
 

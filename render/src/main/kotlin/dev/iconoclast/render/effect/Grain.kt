@@ -2,7 +2,6 @@ package dev.iconoclast.render.effect
 
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.Effect
-import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.NoiseKind
 import dev.iconoclast.render.layer.Mappings
 import dev.iconoclast.render.layer.StackEvaluator.EffectOutput
@@ -20,7 +19,7 @@ import dev.iconoclast.render.layer.StackInput
 internal object Grain {
 
     fun paint(e: Effect.Grain, blend: BlendMode, input: StackInput): EffectOutput {
-        val n = Mappings.noise(NoiseKind.GRAIN, 1, e.seed, Mapping(scale = e.size), input.offset, input.size, input.grainCells)
+        val n = Mappings.noise(NoiseKind.GRAIN, 1, e.seed, Mappings.grain(e.size, input.offset), input.size, input.grainCells)
         val px = FloatArray(4 * n.size)
         for (i in n.indices) {
             val g = 0.5f + (n[i] - 0.5f) * e.amount

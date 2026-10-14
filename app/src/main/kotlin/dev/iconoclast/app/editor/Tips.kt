@@ -75,7 +75,11 @@ object Tips {
     val IMAGE_PLACEMENT = Tip("Image placement", "Show whole image fits all of it inside the tile and may leave empty edges. Cover fills the tile and crops the rest. Repeat tiles it like wallpaper.")
     val ZOOM = Tip("Zoom", "Above 1× zooms in on the image; below 1× shrinks it.")
     val ROTATE = Tip("Rotate", "Turns the image around the centre of the tile.")
-    val SAME_PART = Tip("Same part on every icon", "On: every icon shows the same middle part of the image. Off: each icon shows a different part, so they all look a little different.")
+    val CROP = Tip("Crop", "Pick the part of the image to use. Drag the frame to move it, drag a corner or pinch to resize it.")
+    val RANDOM_SHIFT = Tip("Random shift", "How far each icon's part of the image moves away from the middle, so icons look different. 0% gives every icon the same middle part.")
+    val RANDOM_ROTATION = Tip("Random rotation", "Turns the image on each icon by up to this much, either way. 0° turns none.")
+    val RANDOM_SIZE = Tip("Random size", "Zooms the image on each icon in or out by a random amount, up to double or half at 100%. 0% keeps one size.")
+    val SHUFFLE_PLACEMENT = Tip("Shuffle placement", "A new random arrangement: every icon gets a different part, turn and size. Reset goes back to the first one.")
     val CUT_OUT = Tip("Cut out by brightness", "Hides this layer where its own colours are dark and keeps it where they are light. Good for turning a photo or pattern into a stencil. (Experts: a luminance matte.)")
     val EDGES = Tip("Edges", "Soft fades in from dark to light. Hard is fully on or fully off, with nothing in between.")
     val HIDDEN_BELOW = Tip("Fully hidden below", "Soft edges only. Parts darker than this are completely hidden.")
@@ -86,13 +90,17 @@ object Tips {
 
     // Paint
     val COLOUR = Tip("Colour", "The colour this layer paints.")
-    val GRADIENT_SHAPE = Tip("Gradient shape", "Straight runs from one side to the other. Round spreads out from a centre point.")
+    val GRADIENT_TYPE = Tip("Gradient type", "Linear runs from one side to the other. Radial spreads out in rings from a centre point. Angular sweeps once around a centre point, like a colour wheel.")
     val DIRECTION = Tip("Direction", "Which way the gradient runs across the tile.")
     val CENTRE_X = Tip("Centre left–right", "Moves the middle of the round gradient sideways.")
     val CENTRE_Y = Tip("Centre up–down", "Moves the middle of the round gradient up or down.")
     val GRADIENT_SIZE = Tip("Size", "How far the round gradient spreads before reaching its last colour.")
-    val START_COLOUR = Tip("Start colour", "The colour the gradient begins with.")
-    val END_COLOUR = Tip("End colour", "The colour the gradient ends with.")
+    val START_ANGLE = Tip("Start angle", "Angular only. Where the sweep of colours begins and ends around the centre.")
+    val SWEEP_CENTRE_X = Tip("Centre left–right", "Moves the middle of the angular gradient sideways.")
+    val SWEEP_CENTRE_Y = Tip("Centre up–down", "Moves the middle of the angular gradient up or down.")
+    val GRADIENT_COLOURS = Tip("Colours", "Tap the bar to add a colour. Drag a marker to move it, drag it off or hold it to remove it, tap it to change its colour.")
+    val DARK_TO_LIGHT = Tip("Colours, dark to light", "The colours the image or pattern takes, from its darkest parts on the left to its lightest on the right. Tap the bar to add a colour; drag a marker to move it, drag it off or hold it to remove it.")
+    val STOP_COLOUR = Tip("Marker colour", "The colour of the marker picked on the bar above.")
     val CHANGE_IMAGE = Tip("Change image", "Pick a different image for this layer.")
     val IMAGE_COLOURS = Tip("Image colours", "Original keeps the image's colours. Tint makes its light parts one colour you pick. Recolour swaps the image's darks and lights for the colours you pick.")
     val TINT_COLOUR = Tip("Tint colour", "The colour the light parts of the image take.")
@@ -104,6 +112,8 @@ object Tips {
     val HUE = Tip("Hue", "Hue picks the colour, Intensity how strong it is, Brightness how light.")
     val INTENSITY = Tip("Intensity", "How strong the colour is. 0% is grey.")
     val BRIGHTNESS = Tip("Brightness", "How light the colour is. 0% is black.")
+    val SEE_THROUGH = Tip("See-through", "How see-through the colour is. Left is invisible, right is solid.")
+    val RECENT_COLOURS = Tip("Recent colours", "Colours you picked lately, anywhere in the app. Tap one to use it again.")
     val HEX = Tip("Hex code", "Type a colour code like FF8800. Add two more digits in front to set see-through.")
 
     // Effects, shared
@@ -160,7 +170,11 @@ object Tips {
     val GLOW_SOLIDITY = Tip("Glow solidity", "Low is a soft haze. High stays solid further out before fading.")
     val GLOW_COLOUR = Tip("Glow colour", "The colour of the glow.")
 
-    // Film grain
+    // Blur
+    val BLUR_AMOUNT = Tip("Blur amount", "How soft everything below this layer becomes. It blurs your own layers, like an image background; it cannot blur your wallpaper.")
+    val BLUR_WHERE = Tip("Blur where", "Where the blur shows. Whole icon to blur only behind the icon, like frosted glass, or Everywhere for the whole tile.")
+
+    // Grain
     val GRAIN_AMOUNT = Tip("Amount", "How strong the grain is. Heavy grain makes the icon pack larger.")
     val GRAIN_SIZE = Tip("Grain size", "Size of each speck. 1 is the finest.")
     val SHUFFLE_GRAIN = Tip("Shuffle grain", "A new random grain pattern.")

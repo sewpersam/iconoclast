@@ -15,8 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.ColorStop
+import dev.iconoclast.render.Mapping
+import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.NoiseKind
 import dev.iconoclast.render.Paint
+import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.texture.BuiltInBrushes
 import java.io.File
 import kotlin.math.atan2
@@ -25,40 +28,47 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 
-/** The kinds of paint a fill can be. The seam for the next pass's image fill and gradient ramp. */
+/** The kinds of paint a fill can be. */
 enum class PaintKind { SOLID, GRADIENT, IMAGE, PATTERN }
 
-private enum class GradientShape { STRAIGHT, ROUND }
+/** A gradient's type: the toggle under the one Gradient choice. */
+enum class GradientType { LINEAR, RADIAL, ANGULAR }
 
 private enum class ImageColours { ORIGINAL, TINT, RECOLOUR }
 
-/** What an image source needs from the editor: open the image chooser, and an image's file for its thumbnail. */
-class TextureActions(val choose: () -> Unit, val file: (String) -> File)
+/**
+ * What an image source needs from the editor: open the image chooser, an image's file for
+ * its thumbnail, and the crop step for the layer's image.
+ */
+class TextureActions(val choose: () -> Unit, val file: (String) -> File, val crop: () -> Unit = {})
 
 /**
- * A fill: a solid colour, a gradient, and with [textures] also an image or a pattern.
- * [tip] names the fill on its page: "Line colour", "Background colour", "Fill".
+ * A layer's fill: a solid colour, a gradient, and with [textures] also an image or a
+ * pattern. [tip] names the fill on its page: "Line colour", "Background colour", "Fill".
+ * Edits come back as the whole [layer], since an image's placement is the layer's mapping.
  *
- * Switching kinds never loses work: the last paint of each kind is remembered under
- * [memory], one per layer, and switching back restores it. A gradient edits its first and
- * last colours; a straight one is set by its direction, a round one by its size, and with
- * [more] its centre. A pattern's detail shows with [more] too.
+ * Switching kinds never loses work: the last paint of each kind is remembered per layer,
+ * and switching back restores it. A gradient is one choice with a type toggle and a colour
+ * ramp. An image shows its picture, Change and Crop, its colours, and how it sits on each
+ * icon, random placement included. A pattern's placement is under [more].
  */
 @Composable
 fun PaintControl(
     tip: Tip,
-    paint: Paint,
+    layer: PaintLayer,
     default: Paint,
-    onDrag: (Paint) -> Unit,
+    onDrag: (PaintLayer) -> Unit,
     onDone: () -> Unit,
-    onCommit: (Paint) -> Unit,
-    memory: String,
+    onCommit: (PaintLayer) -> Unit,
     textures: TextureActions? = null,
     more: Boolean = false,
 ) {
+    val paint = layer.source
     val kind = kindOf(paint)
-    val last = remember(memory) { HashMap<PaintKind, Paint>() }
+    val last = remember(layer.id) { HashMap<PaintKind, Paint>() }
     last[kind] = paint
+    val dragP: (Paint) -> Unit = { onDrag(withSource(layer, it)) }
+    val commitP: (Paint) -> Unit = { onCommit(withSource(layer, it)) }
     val kinds = listOf(PaintKind.SOLID to "Solid", PaintKind.GRADIENT to "Gradient") +
         if (textures != null || kind == PaintKind.IMAGE || kind == PaintKind.PATTERN) listOf(PaintKind.IMAGE to "Image", PaintKind.PATTERN to "Pattern") else emptyList()
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -68,18 +78,26 @@ fun PaintControl(
                 val remembered = last[it]
                 when {
                     it == kind -> Unit
-                    remembered != null -> onCommit(remembered)
+                    remembered != null -> commitP(remembered)
                     it == PaintKind.IMAGE -> textures?.choose?.invoke()
-                    else -> onCommit(convert(paint, it))
+                    else -> commitP(convert(paint, it))
                 }
             },
         )
         when (paint) {
             is Paint.Solid -> ColorControl(Tips.COLOUR, paint.argb, (default as? Paint.Solid)?.argb ?: DEFAULT_COLOR,
-                { onDrag(Paint.Solid(it)) }, onDone, { onCommit(Paint.Solid(it)) })
-            is Paint.LinearGradient, is Paint.RadialGradient -> GradientSource(paint, onDrag, onDone, onCommit, more)
-            is Paint.Texture -> ImageSource(paint, textures, onDrag, onDone, onCommit)
-            is Paint.Noise -> PatternSource(paint, onDrag, onDone, onCommit, more)
+                { dragP(Paint.Solid(it)) }, onDone, { commitP(Paint.Solid(it)) })
+            is Paint.LinearGradient, is Paint.RadialGradient, is Paint.AngularGradient -> GradientSource(paint, dragP, onDone, commitP, more)
+            is Paint.Texture -> {
+                ImageSource(paint, textures, dragP, onDone, commitP)
+                PlacementControls(layer.mapping, LayerStack.NEW_TEXTURE_MAPPING, image = true, more = more,
+                    { onDrag(layer.copy(mapping = it)) }, onDone, { onCommit(layer.copy(mapping = it)) })
+            }
+            is Paint.Noise -> {
+                PatternSource(paint, dragP, onDone, commitP, more)
+                if (more) PlacementControls(layer.mapping, Mapping(), image = false, more = true,
+                    { onDrag(layer.copy(mapping = it)) }, onDone, { onCommit(layer.copy(mapping = it)) })
+            }
         }
     }
 }
@@ -87,10 +105,10 @@ fun PaintControl(
 @Composable
 private fun GradientSource(paint: Paint, onDrag: (Paint) -> Unit, onDone: () -> Unit, onCommit: (Paint) -> Unit, more: Boolean) {
     val stops = stopsOf(paint)
-    val shape = if (paint is Paint.RadialGradient) GradientShape.ROUND else GradientShape.STRAIGHT
+    val type = typeOf(paint)
     ChoiceControl(
-        Tips.GRADIENT_SHAPE, listOf(GradientShape.STRAIGHT to "Straight", GradientShape.ROUND to "Round"), shape, GradientShape.STRAIGHT,
-        { if (it != shape) onCommit(if (it == GradientShape.ROUND) Paint.RadialGradient(0.5f, 0.5f, DEFAULT_RADIUS, stops) else linear(DEFAULT_ANGLE, stops)) },
+        Tips.GRADIENT_TYPE, listOf(GradientType.LINEAR to "Linear", GradientType.RADIAL to "Radial", GradientType.ANGULAR to "Angular"),
+        type, GradientType.LINEAR, { if (it != type) onCommit(gradient(it, paint, stops)) },
     )
     when (paint) {
         is Paint.LinearGradient -> {
@@ -106,14 +124,43 @@ private fun GradientSource(paint: Paint, onDrag: (Paint) -> Unit, onDone: () -> 
                 SliderControl(Tips.CENTRE_Y, paint.cy, 0f..1f, 0.5f, percent, { onDrag(paint.copy(cy = it)) }, onDone, { onCommit(paint.copy(cy = 0.5f)) })
             }
         }
+        is Paint.AngularGradient -> {
+            SliderControl(Tips.START_ANGLE, paint.angle, 0f..360f, DEFAULT_START, decimals(0, "°"),
+                { onDrag(paint.copy(angle = it)) }, onDone, { onCommit(paint.copy(angle = DEFAULT_START)) })
+            if (more || paint.cx != 0.5f || paint.cy != 0.5f) {
+                SliderControl(Tips.SWEEP_CENTRE_X, paint.cx, 0f..1f, 0.5f, percent, { onDrag(paint.copy(cx = it)) }, onDone, { onCommit(paint.copy(cx = 0.5f)) })
+                SliderControl(Tips.SWEEP_CENTRE_Y, paint.cy, 0f..1f, 0.5f, percent, { onDrag(paint.copy(cy = it)) }, onDone, { onCommit(paint.copy(cy = 0.5f)) })
+            }
+        }
         else -> Unit
     }
-    Stops(stops, Tips.START_COLOUR, Tips.END_COLOUR, { onDrag(withStops(paint, it)) }, onDone, { onCommit(withStops(paint, it)) })
+    GradientRamp(Tips.GRADIENT_COLOURS, stops, { onDrag(withStops(paint, it)) }, onDone, { onCommit(withStops(paint, it)) })
+}
+
+private fun typeOf(p: Paint) = when (p) {
+    is Paint.RadialGradient -> GradientType.RADIAL
+    is Paint.AngularGradient -> GradientType.ANGULAR
+    else -> GradientType.LINEAR
+}
+
+/** The gradient of [type] with [stops]; a radial or angular one keeps the centre it had. */
+private fun gradient(type: GradientType, from: Paint, stops: List<ColorStop>): Paint {
+    val (cx, cy) = when (from) {
+        is Paint.RadialGradient -> from.cx to from.cy
+        is Paint.AngularGradient -> from.cx to from.cy
+        else -> 0.5f to 0.5f
+    }
+    return when (type) {
+        GradientType.LINEAR -> linear(DEFAULT_ANGLE, stops)
+        GradientType.RADIAL -> Paint.RadialGradient(cx, cy, DEFAULT_RADIUS, stops)
+        GradientType.ANGULAR -> Paint.AngularGradient(cx, cy, DEFAULT_START, stops)
+    }
 }
 
 private fun withStops(p: Paint, stops: List<ColorStop>): Paint = when (p) {
     is Paint.LinearGradient -> p.copy(stops = stops)
     is Paint.RadialGradient -> p.copy(stops = stops)
+    is Paint.AngularGradient -> p.copy(stops = stops)
     is Paint.Noise -> p.copy(stops = stops)
     is Paint.Texture -> p.copy(stops = stops)
     is Paint.Solid -> p
@@ -122,11 +169,14 @@ private fun withStops(p: Paint, stops: List<ColorStop>): Paint = when (p) {
 @Composable
 private fun ImageSource(paint: Paint.Texture, textures: TextureActions?, onDrag: (Paint) -> Unit, onDone: () -> Unit, onCommit: (Paint) -> Unit) {
     HelpAnchor(Tips.CHANGE_IMAGE) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp), verticalAlignment = Alignment.CenterVertically) {
             val name = imageName(paint.sha256)
-            textures?.let { TextureThumbnail(paint.sha256, it.file, "Image: $name") }
+            textures?.let { TextureThumbnail(paint.sha256, it.file, "Image: $name", 56.dp) }
             Text(name, Modifier.weight(1f).padding(start = 12.dp), style = MaterialTheme.typography.bodyMedium)
-            if (textures != null) TextButton(onClick = textures.choose) { Text(Tips.CHANGE_IMAGE.label) }
+            if (textures != null) {
+                TextButton(onClick = textures.crop) { Text(Tips.CROP.label) }
+                TextButton(onClick = textures.choose) { Text(Tips.CHANGE_IMAGE.label) }
+            }
         }
     }
     val colours = when (paint.stops?.size) {
@@ -140,8 +190,38 @@ private fun ImageSource(paint: Paint.Texture, textures: TextureActions?, onDrag:
         colours, ImageColours.ORIGINAL,
         { onCommit(paint.copy(stops = imageStops(it, paint.stops))) },
     )
-    paint.stops?.let { stops -> Stops(stops, Tips.DARK_COLOUR, Tips.LIGHT_COLOUR, { onDrag(paint.copy(stops = it)) }, onDone, { onCommit(paint.copy(stops = it)) }) }
+    paint.stops?.let { stops -> Stops(stops, { onDrag(paint.copy(stops = it)) }, onDone, { onCommit(paint.copy(stops = it)) }) }
 }
+
+/**
+ * How an image or pattern sits on each icon: zoom and turn for all, then how far each
+ * icon's own patch moves, turns and zooms at random, and Shuffle for a new arrangement.
+ * An image shows them in view; its placement mode is under More options.
+ */
+@Composable
+private fun PlacementControls(
+    m: Mapping, d: Mapping, image: Boolean, more: Boolean,
+    onDrag: (Mapping) -> Unit, onDone: () -> Unit, onCommit: (Mapping) -> Unit,
+) {
+    Section(if (image) "Placement" else "Pattern placement")
+    if (image && more) {
+        ChoiceControl(Tips.IMAGE_PLACEMENT, listOf(MappingMode.FILL to "Cover the tile", MappingMode.FIT to "Show whole image", MappingMode.TILE to "Repeat"),
+            m.mode, d.mode, { onCommit(m.copy(mode = it)) })
+    }
+    SliderControl(Tips.ZOOM, m.scale, 0.25f..4f, d.scale, decimals(2, "×"), { onDrag(m.copy(scale = it)) }, onDone, { onCommit(m.copy(scale = d.scale)) })
+    SliderControl(Tips.ROTATE, m.rotation, -180f..180f, d.rotation, decimals(0, "°"),
+        { onDrag(m.copy(rotation = it)) }, onDone, { onCommit(m.copy(rotation = d.rotation)) })
+    SliderControl(Tips.RANDOM_SHIFT, m.randomShift, 0f..1f, d.randomShift, percent,
+        { onDrag(m.copy(randomShift = it)) }, onDone, { onCommit(m.copy(randomShift = d.randomShift)) })
+    SliderControl(Tips.RANDOM_ROTATION, m.randomRotation, 0f..180f, d.randomRotation, decimals(0, "°"),
+        { onDrag(m.copy(randomRotation = it)) }, onDone, { onCommit(m.copy(randomRotation = d.randomRotation)) })
+    SliderControl(Tips.RANDOM_SIZE, m.randomScale, 0f..1f, d.randomScale, percent,
+        { onDrag(m.copy(randomScale = it)) }, onDone, { onCommit(m.copy(randomScale = d.randomScale)) })
+    ShuffleControl(Tips.SHUFFLE_PLACEMENT, m.seed != d.seed, { onCommit(m.copy(seed = newSeed())) }, { onCommit(m.copy(seed = d.seed)) })
+}
+
+/** A new arrangement; never 0, which is each icon's own. */
+private fun newSeed(): Int = Random.nextInt().let { if (it == 0) 1 else it }
 
 /** A built-in image by its name; an imported one is "Your image". */
 fun imageName(sha256: String): String = if (BuiltInBrushes.isBuiltIn(sha256)) textureName(sha256) else "Your image"
@@ -158,24 +238,23 @@ private fun PatternSource(paint: Paint.Noise, onDrag: (Paint) -> Unit, onDone: (
             { onDrag(paint.copy(octaves = it.roundToInt().coerceIn(1, 8))) }, onDone, { onCommit(paint.copy(octaves = d.octaves)) })
     }
     ShuffleControl(Tips.SHUFFLE_PATTERN, paint.seed != d.seed, { onCommit(paint.copy(seed = Random.nextInt())) }, { onCommit(paint.copy(seed = d.seed)) })
-    Stops(paint.stops, Tips.DARK_COLOUR, Tips.LIGHT_COLOUR, { onDrag(paint.copy(stops = it)) }, onDone, { onCommit(paint.copy(stops = it)) })
+    Stops(paint.stops, { onDrag(paint.copy(stops = it)) }, onDone, { onCommit(paint.copy(stops = it)) })
 }
 
+/** An image's or pattern's colours: one tint colour, or a ramp from its darks to its lights. */
 @Composable
-private fun Stops(stops: List<ColorStop>, first: Tip, last: Tip, onDrag: (List<ColorStop>) -> Unit, onDone: () -> Unit, onCommit: (List<ColorStop>) -> Unit) {
-    fun withFirst(c: Int) = listOf(stops.first().copy(argb = c)) + stops.drop(1)
-    fun withLast(c: Int) = stops.dropLast(1) + stops.last().copy(argb = c)
+private fun Stops(stops: List<ColorStop>, onDrag: (List<ColorStop>) -> Unit, onDone: () -> Unit, onCommit: (List<ColorStop>) -> Unit) {
     if (stops.size == 1) {
+        fun withFirst(c: Int) = listOf(stops.first().copy(argb = c))
         ColorControl(Tips.TINT_COLOUR, stops.first().argb, WHITE, { onDrag(withFirst(it)) }, onDone, { onCommit(withFirst(it)) })
         return
     }
-    ColorControl(first, stops.first().argb, DEFAULT_COLOR, { onDrag(withFirst(it)) }, onDone, { onCommit(withFirst(it)) })
-    ColorControl(last, stops.last().argb, DEFAULT_END, { onDrag(withLast(it)) }, onDone, { onCommit(withLast(it)) })
+    GradientRamp(Tips.DARK_TO_LIGHT, stops, onDrag, onDone, onCommit)
 }
 
 fun kindOf(p: Paint) = when (p) {
     is Paint.Solid -> PaintKind.SOLID
-    is Paint.LinearGradient, is Paint.RadialGradient -> PaintKind.GRADIENT
+    is Paint.LinearGradient, is Paint.RadialGradient, is Paint.AngularGradient -> PaintKind.GRADIENT
     is Paint.Texture -> PaintKind.IMAGE
     is Paint.Noise -> PaintKind.PATTERN
 }
@@ -184,9 +263,10 @@ private fun stopsOf(p: Paint): List<ColorStop> = when (p) {
     is Paint.Solid -> listOf(ColorStop(0f, p.argb), ColorStop(1f, DEFAULT_END))
     is Paint.LinearGradient -> p.stops
     is Paint.RadialGradient -> p.stops
+    is Paint.AngularGradient -> p.stops
     is Paint.Texture -> p.stops?.takeIf { it.size > 1 } ?: listOf(ColorStop(0f, DEFAULT_END), ColorStop(1f, WHITE))
     is Paint.Noise -> p.stops
-}
+}.let { if (it.size >= 2) it else listOf(it.first().copy(offset = 0f), it.first().copy(offset = 1f)) }
 
 /** A first visit to a kind keeps the colours: a solid colour becomes a gradient from it to black. */
 private fun convert(p: Paint, to: PaintKind): Paint {
@@ -221,6 +301,7 @@ fun angleOf(p: Paint.LinearGradient): Float {
 }
 
 private const val DEFAULT_ANGLE = 90f
+private const val DEFAULT_START = 270f
 private const val DEFAULT_RADIUS = 0.75f
 private val RADIUS_RANGE = 0.1f..1.5f
 private const val DEFAULT_COLOR = 0xFF202124.toInt()

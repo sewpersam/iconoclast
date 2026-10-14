@@ -152,6 +152,21 @@ sealed interface Paint {
     }
 
     /**
+     * An angular (conic) gradient, schema 8: the stops run once round the centre ([cx],
+     * [cy]), clockwise on screen from [angle] degrees, where 0 points right and 90 down,
+     * as a linear gradient's direction does.
+     */
+    data class AngularGradient(
+        val cx: Float, val cy: Float, val angle: Float,
+        val stops: List<ColorStop>,
+    ) : Paint {
+        init {
+            require(angle in 0f..360f) { "angle $angle" }
+            requireStops(stops)
+        }
+    }
+
+    /**
      * A texture from the [TextureStore][dev.iconoclast.render.texture.TextureStore] by the
      * lowercase hex SHA-256 of its canonical PNG. With [stops], the texture's luminance is
      * gradient-mapped through them and its alpha kept; null keeps its own colours.

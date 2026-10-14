@@ -104,7 +104,7 @@ class LayerStackTest {
         val px = ByteArray(size * size * 4) { val p = it / 4; if (it % 4 == 3) -1 else if ((p % size / 8 + p / size / 8) % 2 == 0) -1 else 0 }
         val hash = r.textures.put(TextureStore.encode(size, size, px))
         val layer = PaintLayer("t", Paint.Texture(hash, listOf(dev.iconoclast.render.ColorStop(0f, red))),
-            mapping = Mapping(lockOffset = true), matte = Matte())
+            mapping = Mapping(randomShift = 0f), matte = Matte())
         val img = render(Theme(background = clear, layers = listOf(Theme().layers[1], layer)), r = r)
         for (i in 0 until size * size) {
             val white = px[4 * i] != 0.toByte()
@@ -123,7 +123,7 @@ class LayerStackTest {
         val a = render(theme, "fdroid", r)
         assertContentEquals(a.pixels, render(theme, "fdroid", r).pixels)
         assertFalse(a.pixels.contentEquals(render(theme, "camera", r).pixels), "another icon, another patch")
-        val locked = with(layer.copy(mapping = layer.mapping.copy(lockOffset = true)), base = Theme())
+        val locked = with(layer.copy(mapping = layer.mapping.copy(randomShift = 0f)), base = Theme())
         assertContentEquals(render(locked, "fdroid", r).pixels, render(locked, "camera", r).pixels)
         assertFailsWith<IllegalStateException> { render(theme, "fdroid") }
     }

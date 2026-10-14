@@ -18,6 +18,7 @@ import dev.iconoclast.app.texture.TextureImportException
 import dev.iconoclast.app.texture.TexturePresence
 import dev.iconoclast.app.theme.IconOverride
 import dev.iconoclast.app.theme.applyTo
+import dev.iconoclast.render.Crop
 import dev.iconoclast.render.TextureOffset
 import kotlinx.coroutines.CoroutineStart
 import dev.iconoclast.iconsource.IconSource
@@ -76,6 +77,8 @@ data class EditorUi(
     val choosingTexture: Boolean = false,
     val recentTextures: List<String> = emptyList(),
     val importingTexture: Boolean = false,
+    /** The crop step is open for this layer's image. */
+    val cropping: CropRequest? = null,
     /** Drawables with an override in this theme: the preview badges them. */
     val overridden: Set<Int> = emptySet(),
     /** The drawable the big preview shows: the last icon tapped, else the first. */
@@ -84,6 +87,9 @@ data class EditorUi(
     val overriding: PreviewItem? = null,
     val override: IconOverride = IconOverride.NONE,
 )
+
+/** The crop step for [layerId]'s image [sha256], starting from [crop]; null is the whole image. */
+data class CropRequest(val layerId: String, val sha256: String, val crop: Crop?)
 
 /**
  * The theme editor, spec 2.2 screen 2. Holds the working theme and its history, drives
@@ -376,7 +382,8 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         viewModelScope.launch {
             try {
                 val hash = withContext(Dispatchers.IO) { TextureImport.import(getApplication(), uri, container.textures) }
-                useTexture(hash)
+                // A new photo goes straight to the crop step.
+                useTexture(hash, crop = true)
             } catch (e: TextureImportException) {
                 Log.w(TAG, "Texture not imported", e)
                 say("Image not added. ${e.message}")
@@ -392,7 +399,9 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
     }
 
     /** Uses an imported texture or a built-in brush for the target the chooser was opened with. */
-    fun useTexture(hash: String) {
+    fun useTexture(hash: String) = useTexture(hash, crop = false)
+
+    private fun useTexture(hash: String, crop: Boolean) {
         Log.i(TAG, "texture chosen: $hash for $textureTarget")
         _ui.value = _ui.value.copy(choosingTexture = false)
         viewModelScope.launch {
@@ -403,9 +412,13 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
             val recent = withContext(Dispatchers.IO) { container.textures.recent() }
             _ui.value = _ui.value.copy(recentTextures = recent)
             when (val t = textureTarget) {
-                TextureTarget.NewLayer -> addLayer(Paint.Texture(hash))
+                TextureTarget.NewLayer -> {
+                    addLayer(Paint.Texture(hash))
+                    _ui.value.page?.let { if (crop) openCrop(it) }
+                }
                 is TextureTarget.Source -> (LayerStack.layer(h.theme, t.layerId) as? PaintLayer)?.let { l ->
                     commit(LayerStack.replace(h.theme, LayerStack.withTexture(l, hash)))
+                    if (crop) openCrop(l.id)
                 }
                 is TextureTarget.Breakup -> (LayerStack.layer(h.theme, t.layerId) as? EffectLayer)?.let { l ->
                     val e = l.effect as? Effect.Streaks ?: return@let
@@ -414,6 +427,38 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
                 }
             }
         }
+    }
+
+    /** Opens the crop step for layer [layerId]'s image. */
+    fun openCrop(layerId: String) {
+        val l = history?.theme?.let { LayerStack.layer(it, layerId) } as? PaintLayer ?: return
+        val t = l.source as? Paint.Texture ?: return
+        _ui.value = _ui.value.copy(cropping = CropRequest(layerId, t.sha256, l.mapping.crop))
+    }
+
+    fun closeCrop() {
+        _ui.value = _ui.value.copy(cropping = null)
+    }
+
+    /** Sets the cropping layer's crop, null the whole image, one undo step. */
+    fun applyCrop(crop: Crop?) {
+        val req = _ui.value.cropping ?: return
+        closeCrop()
+        val h = history ?: return
+        val l = LayerStack.layer(h.theme, req.layerId) as? PaintLayer ?: return
+        if ((l.source as? Paint.Texture)?.sha256 != req.sha256) return
+        commit(LayerStack.replace(h.theme, l.copy(mapping = l.mapping.copy(crop = crop))))
+    }
+
+    /** The canonical PNG of [hash], for the crop step's picture. Slow; off the main thread. */
+    fun texturePng(hash: String): ByteArray? = container.textures.store.bytes(hash)
+
+    /** The Glass look over the whole theme, one undo step. */
+    fun addGlass() {
+        val h = history ?: return
+        _ui.value = _ui.value.copy(adding = false)
+        commit(LayerStack.withGlass(h.theme))
+        say("Glass added: see-through tile, blur, bright edge and grain. Undo takes it back.")
     }
 
     /** Applies a history operation; if it changed the theme, publishes and queues a save. */

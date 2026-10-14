@@ -137,7 +137,7 @@ object GoldenSet {
                 EffectsLayer(),
                 PaintLayer(Layer.ICON_FILL_ID, Paint.Solid(0xFFF2C14E.toInt()), clip = ClipTarget.ICON_FILL),
                 PaintLayer("fill-tex", Paint.Texture(TEXTURE), clip = ClipTarget.ICON_FILL, blend = BlendMode.DIFFERENCE, opacity = 0.6f,
-                    mapping = Mapping(MappingMode.FIT, rotation = 45f, lockOffset = true)),
+                    mapping = Mapping(MappingMode.FIT, rotation = 45f, randomShift = 0f)),
                 PaintLayer("hue-shift", Paint.Noise(NoiseKind.FBM, 2, 5, stops(0xFFFF0000.toInt(), 0xFF0000FF.toInt())), clip = ClipTarget.ICON,
                     blend = BlendMode.HUE, opacity = 0.5f),
                 PaintLayer(Layer.ICON_LINES_ID, Paint.Solid(WHITE), clip = ClipTarget.ICON_LINES),
@@ -369,6 +369,73 @@ object GoldenSet {
     }
 
     /**
+     * The look pass, schema 8: the procedural [Marble] as the icon lines and the icon fill
+     * with per-icon random shift, turn and zoom and a crop; the three gradient types with
+     * more than two stops, off even spacing; the blur; and [Glass]. Every case reads the
+     * marble, so both golden tests put [Marble.PNG] in the store.
+     */
+    val LOOK_PASS: Map<String, Theme> by lazy {
+        val marble = Marble.HASH
+        val dark = Paint.Solid(0xFF15181C.toInt())
+        var n = 0
+        val glassBase = Theme(
+            shape = ShapeParams(strokeWeight = 1.5f),
+            fill = FillParams(mode = FillMode.INVERT),
+            background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.24f)),
+            layers = Theme.baseLayers(Paint.LinearGradient(0f, 0f, 1f, 1f, listOf(ColorStop(0f, 0xFF6A8CFF.toInt()), ColorStop(0.5f, 0xFFB86BFF.toInt()),
+                ColorStop(1f, 0xFFFF8A65.toInt()))), body = WHITE, line = WHITE),
+        )
+        mapOf(
+            "look_marble_lines" to Theme(
+                shape = ShapeParams(strokeWeight = 3f),
+                background = BackgroundParams(shape = BackgroundShape.Circle),
+                layers = Theme.baseLayers(dark).map { l ->
+                    if (l.id != Layer.ICON_LINES_ID) l
+                    else (l as PaintLayer).copy(source = Paint.Texture(marble), mapping = Mapping(MappingMode.FILL, scale = 2f,
+                        randomRotation = 90f, randomScale = 0.4f, crop = Crop(0.1f, 0.05f, 0.75f, 0.9f)))
+                },
+            ),
+            "look_marble_fill" to Theme(
+                fill = FillParams(mode = FillMode.INVERT),
+                background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+                layers = Theme.baseLayers(dark, line = WHITE).map { l ->
+                    if (l.id != Layer.ICON_FILL_ID) l
+                    else (l as PaintLayer).copy(source = Paint.Texture(marble, stops(0xFF20302A.toInt(), 0xFFE8F5EE.toInt())),
+                        mapping = Mapping(MappingMode.TILE, scale = 0.8f, randomShift = 0.5f, randomRotation = 180f, seed = 7,
+                            crop = Crop(0.5f, 0.25f, 1f, 1f)))
+                },
+            ),
+            "look_ramp" to Theme(
+                background = BackgroundParams(shape = BackgroundShape.Squircle()),
+                layers = Theme.baseLayers(Paint.LinearGradient(0.5f, 0f, 0.5f, 1f, listOf(ColorStop(0f, 0xFF0B132B.toInt()),
+                    ColorStop(0.15f, 0xFF3A506B.toInt()), ColorStop(0.7f, 0xFF5BC0BE.toInt()), ColorStop(1f, 0xFFF4F1BB.toInt())))),
+            ),
+            "look_radial" to Theme(
+                background = BackgroundParams(shape = BackgroundShape.Circle),
+                layers = Theme.baseLayers(Paint.RadialGradient(0.4f, 0.35f, 0.8f, listOf(ColorStop(0f, 0xFFFFE29A.toInt()),
+                    ColorStop(0.3f, 0xFFFF7B54.toInt()), ColorStop(1f, 0xFF3D1E6D.toInt()))), body = WHITE, line = 0xFF1A1A1A.toInt()),
+            ),
+            "look_angular" to Theme(
+                background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.3f)),
+                layers = Theme.baseLayers(Paint.AngularGradient(0.5f, 0.5f, 270f, listOf(ColorStop(0f, 0xFFFF5F6D.toInt()),
+                    ColorStop(0.25f, 0xFFFFC371.toInt()), ColorStop(0.5f, 0xFF47CF73.toInt()), ColorStop(0.8f, 0xFF4A90E2.toInt()),
+                    ColorStop(1f, 0xFFFF5F6D.toInt())))),
+            ),
+            "effect_blur" to Theme(
+                fill = FillParams(mode = FillMode.INVERT),
+                background = BackgroundParams(shape = BackgroundShape.RoundedSquare(0.2f)),
+                layers = Theme.baseLayers(Paint.Texture(marble), body = 0x66FFFFFF, line = WHITE).map { l ->
+                    if (l.id == Layer.BACKGROUND_ID) (l as PaintLayer).copy(mapping = Mapping(scale = 2f)) else l
+                }.let { Theme(layers = it).withEffect(EffectLayer("blur", Effect.Blur(radius = 0.05f, clip = ClipTarget.ICON))).layers },
+            ),
+            "look_glass" to Glass.apply(glassBase) { "glass-${n++}" },
+            "look_glass_marble" to Glass.apply(glassBase.copy(layers = glassBase.layers.map { l ->
+                if (l.id == Layer.BACKGROUND_ID) (l as PaintLayer).copy(source = Paint.Texture(marble), mapping = Mapping(scale = 2f)) else l
+            })) { "glass-${n++}" },
+        )
+    }
+
+    /**
      * The compact output resolution, readiness item 7: Plain and the Jade starter on every
      * sample at 324 px, rendered as a 324 px pack. Kept apart from [CASES], which are 432 px.
      */
@@ -388,5 +455,6 @@ object GoldenSet {
             STARTERS.flatMap { (dir, theme) -> SAMPLES.map { Triple(dir, theme, it) } } +
             LOOK_SAMPLES.map { Triple("brush_background", BRUSH_BACKGROUND, it) } +
             SAMPLES.map { Triple("jade_m6", JADE_M6, it) } +
-            BRUSH_VARIANTS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
+            BRUSH_VARIANTS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
+            LOOK_PASS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
 }

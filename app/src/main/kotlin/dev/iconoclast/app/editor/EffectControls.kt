@@ -51,12 +51,13 @@ fun EffectPage(layer: EffectLayer, theme: Theme, drag: (Theme) -> Unit, done: ()
                 { s, sp, c -> dragE(Effect.InnerGlow(s, sp, c)) }, done, { s, sp, c -> commitE(Effect.InnerGlow(s, sp, c)) }, o)
         }
         is Effect.Grain -> GrainControls(e, dragE, done, commitE, o)
+        is Effect.Blur -> BlurControls(e, dragE, done, commitE, o)
     }
     SliderControl(Tips.STRENGTH, layer.opacity, 0f..1f, 1f, percent,
         { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = 1f))) })
     MoreOptions(more) {
         o.rare.forEach { it() }
-        if (e !is Effect.Bevel) {
+        if (e !is Effect.Bevel && e !is Effect.Blur) {
             val d = if (e is Effect.Grain) BlendMode.OVERLAY else BlendMode.NORMAL
             BlendControl(Tips.EFFECT_MIX, layer.blend, d) { commit(with(layer.copy(blend = it))) }
         }
@@ -206,8 +207,21 @@ private fun GlowControls(
     }
 }
 
+/** Blur: how much, and where it shows; its outside under More options. */
+@Composable
+private fun BlurControls(e: Effect.Blur, onDrag: (Effect) -> Unit, onDone: () -> Unit, onCommit: (Effect) -> Unit, o: Open) {
+    val d = Effect.Blur()
+    SliderControl(Tips.BLUR_AMOUNT, e.radius, 0.001f..0.1f, d.radius, canvas, { onDrag(e.copy(radius = it)) }, onDone, { onCommit(e.copy(radius = d.radius)) })
+    DropdownControl(Tips.BLUR_WHERE, CLIP_NAMES.toList(), e.clip, d.clip,
+        { onCommit(e.copy(clip = it, clipInverse = e.clipInverse && it != dev.iconoclast.render.ClipTarget.CANVAS)) })
+    o.more {
+        ChoiceControl(Tips.INSIDE_OUTSIDE, listOf(false to "Inside", true to "Outside"), e.clipInverse, d.clipInverse,
+            { onCommit(e.copy(clipInverse = it)) }, enabled = { !it || e.clip != dev.iconoclast.render.ClipTarget.CANVAS })
+    }
+}
+
 /**
- * Film grain. Its cost, measured by PhoneBudgetTest.applyOf300IconsGrain: about 330 KB per
+ * Grain. Its cost, measured by PhoneBudgetTest.applyOf300IconsGrain: about 330 KB per
  * icon at full amount, docs/verification/m6.md. The Amount help says so in words.
  */
 @Composable

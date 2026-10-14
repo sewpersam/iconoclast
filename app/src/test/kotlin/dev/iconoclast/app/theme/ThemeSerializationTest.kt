@@ -9,6 +9,7 @@ import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.ColorStop
+import dev.iconoclast.render.Crop
 import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.Matte
@@ -87,10 +88,13 @@ class ThemeSerializationTest {
         val layers = Theme.baseLayers().toMutableList()
         layers.add(1, PaintLayer(
             "tex", Paint.Texture("ab".repeat(32), stops), clip = ClipTarget.ICON, clipInverse = true,
-            blend = BlendMode.SOFT_LIGHT, opacity = 0.4f, mapping = Mapping(MappingMode.TILE, 2f, -30f, lockOffset = true),
+            blend = BlendMode.SOFT_LIGHT, opacity = 0.4f, mapping = Mapping(MappingMode.TILE, 2f, -30f, randomShift = 0.3f, randomRotation = 45f, randomScale = 0.5f, seed = -7,
+                crop = Crop(0.1f, 0.2f, 0.9f, 0.6f)),
             matte = Matte(MatteMode.THRESHOLD, threshold = 0.6f, invert = true, feather = 0.01f),
         ))
         layers.add(PaintLayer("noise", Paint.Noise(NoiseKind.RIDGED, 6, 42, stops), blend = BlendMode.ADD, opacity = 0.25f))
+        layers.add(PaintLayer("sweep", Paint.AngularGradient(0.3f, 0.6f, 45f, stops + ColorStop(1f, 0x80FF0000.toInt()))))
+        layers.add(EffectLayer("blur", Effect.Blur(0.05f, ClipTarget.ICON_FILL, clipInverse = true), opacity = 0.7f))
         layers.add(PaintLayer("tex2", Paint.Texture("cd".repeat(32)), clip = ClipTarget.EFFECTS, matte = Matte(black = 0.1f, white = 0.9f)))
         val original = doc(Theme(layers = layers))
         val parsed = migrate(original.toJson())
