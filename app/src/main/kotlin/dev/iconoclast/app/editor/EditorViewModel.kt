@@ -453,12 +453,13 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
     /** The canonical PNG of [hash], for the crop step's picture. Slow; off the main thread. */
     fun texturePng(hash: String): ByteArray? = container.textures.store.bytes(hash)
 
-    /** The Glass look over the whole theme, one undo step. */
-    fun addGlass() {
+    /** The Add sheet's Overlay: a wash on top of everything, its page opened to pick its kind. */
+    fun addOverlay() {
         val h = history ?: return
+        val layer = LayerStack.newOverlay()
         _ui.value = _ui.value.copy(adding = false)
-        commit(LayerStack.withGlass(h.theme))
-        say("Glass added: see-through tile, blur, bright edge and grain. Undo takes it back.")
+        commit(LayerStack.insertAbove(h.theme, layer, null))
+        openPage(layer.id)
     }
 
     /** Applies a history operation; if it changed the theme, publishes and queues a save. */

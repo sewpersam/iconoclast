@@ -23,7 +23,13 @@ import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.MappingMode
 import dev.iconoclast.render.Matte
 import dev.iconoclast.render.MatteMode
-import dev.iconoclast.render.NoiseKind
+import dev.iconoclast.render.Pattern
+import dev.iconoclast.render.CellFeature
+import dev.iconoclast.render.WaveKind
+import dev.iconoclast.render.Adjust
+import dev.iconoclast.render.Finish
+import dev.iconoclast.render.StrokeDirection
+import dev.iconoclast.render.StrokeStyle
 import dev.iconoclast.render.Paint
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.ShapeParams
@@ -87,12 +93,49 @@ private sealed interface PaintJson {
     @Serializable @SerialName("angular")
     data class Angular(val cx: JFloat, val cy: JFloat, val angle: JFloat, val stops: List<StopJson>) : PaintJson
 
+    /** Schema 9 added adjust. */
     @Serializable @SerialName("texture")
-    data class Texture(val sha256: String, val stops: List<StopJson>?) : PaintJson
+    data class Texture(val sha256: String, val stops: List<StopJson>?, val adjust: AdjustJson?) : PaintJson
 
-    @Serializable @SerialName("noise")
-    data class Noise(val kind: NoiseKind, val octaves: Int, val seed: Int, val stops: List<StopJson>) : PaintJson
+    /** Schema 9: schema 8's noise, with one of three generators. */
+    @Serializable @SerialName("pattern")
+    data class Pattern(val pattern: PatternJson, val seed: Int, val stops: List<StopJson>) : PaintJson
 }
+
+@Serializable
+private data class AdjustJson(val brightness: JFloat, val contrast: JFloat, val saturation: JFloat, val warmth: JFloat)
+
+/** Schema 9. Tagged by "type"; field names are the :render parameter names. */
+@Serializable
+private sealed interface PatternJson {
+    @Serializable @SerialName("noise")
+    data class Noise(
+        val size: JFloat, val detail: JFloat, val roughness: JFloat, val distortion: JFloat,
+        val stretch: JFloat, val stretchAngle: JFloat, val ridges: Boolean,
+    ) : PatternJson
+
+    @Serializable @SerialName("cells")
+    data class Cells(val size: JFloat, val randomness: JFloat, val edgeWidth: JFloat, val feature: CellFeature) : PatternJson
+
+    @Serializable @SerialName("waves")
+    data class Waves(val kind: WaveKind, val size: JFloat, val distortion: JFloat, val detail: JFloat) : PatternJson
+}
+
+private fun Pattern.toJson(): PatternJson = when (this) {
+    is Pattern.Noise -> PatternJson.Noise(size, detail, roughness, distortion, stretch, stretchAngle, ridges)
+    is Pattern.Cells -> PatternJson.Cells(size, randomness, edgeWidth, feature)
+    is Pattern.Waves -> PatternJson.Waves(kind, size, distortion, detail)
+}
+
+private fun PatternJson.toPattern(): Pattern = when (this) {
+    is PatternJson.Noise -> Pattern.Noise(size, detail, roughness, distortion, stretch, stretchAngle, ridges)
+    is PatternJson.Cells -> Pattern.Cells(size, randomness, edgeWidth, feature)
+    is PatternJson.Waves -> Pattern.Waves(kind, size, distortion, detail)
+}
+
+/** Schema 9. */
+@Serializable
+private data class FinishJson(val frost: JFloat, val grain: JFloat, val rim: JFloat, val cut: JFloat)
 
 @Serializable
 private data class StopJson(val offset: JFloat, val color: Argb)
@@ -106,7 +149,7 @@ private sealed interface ShapeJson {
     @Serializable @SerialName("roundedSquare") data class RoundedSquare(val cornerRadius: JFloat) : ShapeJson
 }
 
-/** The sealed [Paint], tagged by "type": solid, linear, radial, texture or noise. */
+/** The sealed [Paint], tagged by "type": solid, linear, radial, angular, texture or pattern. */
 object PaintSerializer : KSerializer<Paint> {
     private val surrogate = PaintJson.serializer()
     override val descriptor = surrogate.descriptor
@@ -173,6 +216,8 @@ private sealed interface LayerJson {
         val matte: MatteJson?,
         /** Schema 6. */
         val visible: Boolean,
+        /** Schema 9. */
+        val finish: FinishJson,
     ) : LayerJson
 
     @Serializable @SerialName("effects")
@@ -207,6 +252,8 @@ private sealed interface EffectJson {
         val count: Int, val length: JFloat, val width: JFloat, val softness: JFloat, val blur: JFloat, val fade: JFloat,
         val randomness: JFloat, val bend: JFloat, val bristles: JFloat, val drift: JFloat, val angle: JFloat,
         val paintLayer: String?, val color: Argb, val seed: Int,
+        /** Schema 9. */
+        val direction: StrokeDirection, val originX: JFloat, val originY: JFloat, val style: StrokeStyle,
     ) : EffectJson
 
     @Serializable @SerialName("bevel")
@@ -243,6 +290,7 @@ private fun Effect.toJson(): EffectJson = when (this) {
     )
     is Effect.BrushStrokes -> EffectJson.BrushStrokes(
         count, length, width, softness, blur, fade, randomness, bend, bristles, drift, angle, paintLayer, color, seed,
+        direction, originX, originY, style,
     )
     is Effect.Bevel -> EffectJson.Bevel(style, lightAngle, depth, size, softness, highlight, highlightBlend, shadow, shadowBlend)
     is Effect.DropShadow -> EffectJson.DropShadow(angle, distance, blur, color)
@@ -261,6 +309,7 @@ private fun EffectJson.toEffect(): Effect = when (this) {
     )
     is EffectJson.BrushStrokes -> Effect.BrushStrokes(
         count, length, width, softness, blur, fade, randomness, bend, bristles, drift, angle, paintLayer, color, seed,
+        direction, originX, originY, style,
     )
     is EffectJson.Bevel -> Effect.Bevel(style, lightAngle, depth, size, softness, highlight, highlightBlend, shadow, shadowBlend)
     is EffectJson.DropShadow -> Effect.DropShadow(angle, distance, blur, color)
@@ -303,8 +352,8 @@ private fun Paint.toJson(): PaintJson = when (this) {
     is Paint.LinearGradient -> PaintJson.Linear(x0, y0, x1, y1, stops.map { StopJson(it.offset, it.argb) })
     is Paint.RadialGradient -> PaintJson.Radial(cx, cy, radius, stops.map { StopJson(it.offset, it.argb) })
     is Paint.AngularGradient -> PaintJson.Angular(cx, cy, angle, stops.map { StopJson(it.offset, it.argb) })
-    is Paint.Texture -> PaintJson.Texture(sha256, stops?.map { StopJson(it.offset, it.argb) })
-    is Paint.Noise -> PaintJson.Noise(kind, octaves, seed, stops.map { StopJson(it.offset, it.argb) })
+    is Paint.Texture -> PaintJson.Texture(sha256, stops?.map { StopJson(it.offset, it.argb) }, adjust?.run { AdjustJson(brightness, contrast, saturation, warmth) })
+    is Paint.Noise -> PaintJson.Pattern(pattern.toJson(), seed, stops.map { StopJson(it.offset, it.argb) })
 }
 
 private fun PaintJson.toPaint(): Paint = when (this) {
@@ -312,8 +361,8 @@ private fun PaintJson.toPaint(): Paint = when (this) {
     is PaintJson.Linear -> Paint.LinearGradient(x0, y0, x1, y1, stops.map { ColorStop(it.offset, it.color) })
     is PaintJson.Radial -> Paint.RadialGradient(cx, cy, radius, stops.map { ColorStop(it.offset, it.color) })
     is PaintJson.Angular -> Paint.AngularGradient(cx, cy, angle, stops.map { ColorStop(it.offset, it.color) })
-    is PaintJson.Texture -> Paint.Texture(sha256, stops?.map { ColorStop(it.offset, it.color) })
-    is PaintJson.Noise -> Paint.Noise(kind, octaves, seed, stops.map { ColorStop(it.offset, it.color) })
+    is PaintJson.Texture -> Paint.Texture(sha256, stops?.map { ColorStop(it.offset, it.color) }, adjust?.run { Adjust(brightness, contrast, saturation, warmth) })
+    is PaintJson.Pattern -> Paint.Noise(pattern.toPattern(), seed, stops.map { ColorStop(it.offset, it.color) })
 }
 
 private fun Layer.toJson(): LayerJson = when (this) {
@@ -324,6 +373,7 @@ private fun Layer.toJson(): LayerJson = when (this) {
         mapping.run { MappingJson(mode, scale, rotation, randomShift, randomRotation, randomScale, seed, crop?.run { CropJson(left, top, right, bottom) }) },
         matte?.run { MatteJson(mode, black, white, threshold, invert, feather) },
         visible,
+        finish.run { FinishJson(frost, grain, rim, cut) },
     )
 }
 
@@ -335,6 +385,7 @@ private fun LayerJson.toLayer(): Layer = when (this) {
         mapping.run { Mapping(mode, scale, rotation, randomShift, randomRotation, randomScale, seed, crop?.run { Crop(left, top, right, bottom) }) },
         matte?.run { Matte(mode, black, white, threshold, invert, feather) },
         visible,
+        finish.run { Finish(frost, grain, rim, cut) },
     )
 }
 

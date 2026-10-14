@@ -16,6 +16,14 @@ package dev.iconoclast.render
  * [newId] names the added effect layers.
  */
 object Glass {
+    /**
+     * Schema 9: Glass as a fill's starting point, the editor's Glass button on any fill. The
+     * layer at [FILL_OPACITY], so 55% see-through, frosted, grained, with a light rim. The
+     * look below, [apply], is no longer offered; themes that used it keep its layers.
+     */
+    val FILL_FINISH = Finish(frost = 0.04f, grain = 0.35f, rim = 0.6f)
+    const val FILL_OPACITY = 0.45f
+
     const val BACKGROUND_OPACITY = 0.3f
     const val ICON_OPACITY = 0.55f
 

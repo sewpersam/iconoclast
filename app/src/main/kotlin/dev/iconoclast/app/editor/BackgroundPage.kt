@@ -42,7 +42,7 @@ fun BackgroundPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit
         val dl = defaultsOf(it)
         fun withL(l: PaintLayer) = LayerStack.replace(theme, l)
         PaintControl(Tips.BACKGROUND_COLOUR, it, dl.source, { l -> drag(withL(l)) }, done, { l -> commit(withL(l)) }, textures = textures, more = more.value)
-        LayerOpacity(it, theme, Tips.BACKGROUND_OPACITY, drag, done, commit)
+        FinishControls(it, theme, drag, done, commit, cut = false, more = more.value)
     }
     Section("Border")
     SliderControl(Tips.BORDER_WIDTH, border.width, 0f..0.1f, 0f, percent,

@@ -13,10 +13,11 @@ object Tips {
     // Editor shell and the layer list
     val THEME_NAME = Tip("Theme name", "Tap to rename this theme.")
     val BACK = Tip("Back to themes", "Goes back to your themes. Your changes are already saved.")
+    val DONE = Tip("Done", "Closes this theme and goes back to your themes. Every change is already saved.")
     val UNDO = Tip("Undo", "Takes back your last change.")
     val REDO = Tip("Redo", "Puts back the change you just undid.")
     val APPLY = Tip("Apply", "Saves this theme, makes it the one in use, and opens the screen that builds and installs your icon pack.")
-    val ADD = Tip("Add", "Adds a new colour, image or effect on top of your icons.")
+    val ADD = Tip("Add", "Adds an effect, or an overlay that paints over your icons.")
     val REORDER = Tip("Reorder", "Drag to move this layer up or down. Higher layers cover lower ones.")
     val HIDE = Tip("Hide", "Hides this layer without deleting it. Tap again to bring it back as it was.")
     val DELETE = Tip("Delete", "Deletes this layer. You can undo from the message that appears.")
@@ -73,7 +74,7 @@ object Tips {
     val INSIDE_OUTSIDE = Tip("Inside or outside", "Inside paints only on the chosen part. Outside paints everywhere except that part, for example everywhere but the icon.")
     val MIX = Tip("Mix mode", MIX_HELP)
     val IMAGE_PLACEMENT = Tip("Image placement", "Show whole image fits all of it inside the tile and may leave empty edges. Cover fills the tile and crops the rest. Repeat tiles it like wallpaper.")
-    val ZOOM = Tip("Zoom", "Above 1× zooms in on the image; below 1× shrinks it.")
+    val SCALE = Tip("Scale", "Above 1× zooms in on the image; below 1× shrinks it. In Cover the image always covers the whole tile, so the smallest scale allows for the random size and shift you set.")
     val ROTATE = Tip("Rotate", "Turns the image around the centre of the tile.")
     val CROP = Tip("Crop", "Pick the part of the image to use. Drag the frame to move it, drag a corner or pinch to resize it.")
     val RANDOM_SHIFT = Tip("Random shift", "How far each icon's part of the image moves away from the middle, so icons look different. 0% gives every icon the same middle part.")
@@ -87,6 +88,36 @@ object Tips {
     val CUT_OFF = Tip("Cut-off brightness", "Hard edges only. Lighter than this is shown, darker is hidden.")
     val KEEP = Tip("Keep", "Picks which parts stay visible: the light ones or the dark ones.")
     val SOFTEN_EDGE = Tip("Soften cut-out edge", "Blurs the edge of the cut-out so it fades instead of stopping sharply.")
+
+    // A fill's finish, every fill
+    val SEE_THROUGH_FILL = Tip("See-through", "How much you can see through this fill. 0% is solid, 100% hides it.")
+    val FROST = Tip("Frost", "Blurs what shows through this fill, and the fill itself, like frosted glass.")
+    val FINISH_GRAIN = Tip("Grain", "Fine film grain on this fill only.")
+    val RIM = Tip("Light rim", "A soft light along the inside of this fill's edge, like the edge of a glass pane.")
+    val GLASS = Tip("Glass", "A starting point: this fill becomes see-through and frosted, with grain and a light rim. Change any of them after.")
+    val CUT_THROUGH = Tip("Cut through to wallpaper", "Erases everything under this part of the tile, so your wallpaper shows through in its shape. Raise See-through to make the part itself clear. Not the Cut-out fill style, which only shapes the fill.")
+    val STAY_INSIDE = Tip("Stay inside the layer below", "On: this layer paints only where the layer right below it in the list is, and follows when you drag it. Off: it covers the whole tile.")
+
+    // Image adjust
+    val IMG_BRIGHTNESS = Tip("Brightness", "Lightens or darkens the image.")
+    val IMG_CONTRAST = Tip("Contrast", "Right makes darks darker and lights lighter; left flattens toward grey.")
+    val IMG_SATURATION = Tip("Saturation", "Right makes colours stronger; all the way left is black and white.")
+    val IMG_WARMTH = Tip("Warmth", "Right is warmer and more orange, left is cooler and bluer.")
+
+    // Pattern
+    val PATTERN_KIND = Tip("Pattern", "Noise makes clouds, smoke and veins. Cells makes stone, crackle and speckle. Waves makes bands and rings, like wood grain.")
+    val PATTERN_START = Tip("Start from", "Ready settings to start from. Each just sets the sliders below; change them as you like.")
+    val PATTERN_SIZE = Tip("Size", "How big the pattern's features are.")
+    val ROUGHNESS = Tip("Roughness", "How strong the fine detail is next to the big shapes.")
+    val DISTORTION = Tip("Distortion", "Swirls the pattern into itself, like smoke or marble.")
+    val STRETCH = Tip("Stretch", "Pulls the pattern out along one direction, for grain, streaks or veins.")
+    val STRETCH_ANGLE = Tip("Stretch direction", "Which way the pattern is pulled.")
+    val RIDGES = Tip("Ridges", "Folds the pattern into sharp lines, like veins in marble.")
+    val RANDOMNESS = Tip("Randomness", "0% lines the cells up in a grid; 100% scatters them.")
+    val CELL_LOOK = Tip("Cells show", "Cells fills each cell with its own shade. Edges draws the lines between cells. Crackle shades each cell from its middle to its edge, like dried mud.")
+    val EDGE_LINE = Tip("Line width", "How thick the lines between the cells are.")
+    val WAVE_SHAPE = Tip("Shape", "Bands run straight across the tile. Rings spread out from the middle.")
+    val WAVE_DISTORTION = Tip("Wobble", "Bends the bands or rings, like the grain in wood.")
 
     // Paint
     val COLOUR = Tip("Colour", "The colour this layer paints.")
@@ -149,6 +180,10 @@ object Tips {
     val STROKE_COLOUR_FROM = Tip("Colour from", "Paint the strokes one colour, or take their colours from one of your image or pattern layers. Each stroke takes the colour where it starts.")
     val STROKE_COLOUR = Tip("Stroke colour", "The colour of the strokes.")
     val SHUFFLE_STROKES = Tip("Shuffle strokes", "A new random arrangement of strokes.")
+    val STROKE_DIRECTION = Tip("Direction", "Outward from a point flicks the strokes out from the icon's edge. All one way lays them side by side in one direction, like paint swiped across behind the icon.")
+    val STROKE_ORIGIN = Tip("Origin", "Where the outward strokes burst from. The middle is the icon itself; move it toward a corner or an edge. Double tap to centre.")
+    val STROKE_ANGLE = Tip("Angle", "The direction all the strokes run.")
+    val STROKE_STYLE = Tip("Style", "Painted looks like real paint: pressure at the start, frayed edges and bristle streaks that run dry. Classic is the earlier, smoother look.")
 
     // Raised edge
     val RAISED = Tip("Raised", "Inside rounds off the icon inside its outline. Across makes it stand up out of the background.")
@@ -162,8 +197,7 @@ object Tips {
     val SHADED_MIX = Tip("Shaded side mix mode", MIX_HELP)
 
     // Shadows and glows
-    val SHADOW_LIGHT = Tip("Light direction", "Where the light comes from. The shadow falls the other way.")
-    val DISTANCE = Tip("Distance", "How far the shadow sits from the icon.")
+    val SHADOW_OFFSET = Tip("Offset", "Drag the dot to where the shadow falls. The middle puts it right under the icon. Double tap to centre.")
     val SHADOW_SOFTNESS = Tip("Softness", "How blurry the shadow's edge is.")
     val SHADOW_COLOUR = Tip("Shadow colour", "The colour of the shadow.")
     val GLOW_SIZE = Tip("Glow size", "How far the glow reaches from the edge.")

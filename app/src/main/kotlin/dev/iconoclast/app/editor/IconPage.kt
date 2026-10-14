@@ -1,6 +1,26 @@
 package dev.iconoclast.app.editor
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.DotMode
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.FillParams
@@ -43,20 +63,24 @@ fun IconPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (The
             { drag(shape(s.copy(strokeWeight = it))) }, done, { commit(shape(s.copy(strokeWeight = ds.strokeWeight))) })
     }
     if (lines) {
-        Section("Lines")
-        linesLayer?.let {
-            IconPaint(it, theme, Tips.LINE_COLOUR, drag, done, commit, textures(it.id), more.value)
-            LayerOpacity(it, theme, Tips.LINES_OPACITY, drag, done, commit)
+        Panel("Lines (the outlines)", IconPart.LINES) {
+            linesLayer?.let { IconPaint(it, theme, Tips.LINE_COLOUR, drag, done, commit, textures(it.id), more.value) }
+            thickness()
+            linesLayer?.let {
+                Section("Finish")
+                FinishControls(it, theme, drag, done, commit, cut = true, more = more.value)
+            }
         }
-        thickness()
     }
     if (body) {
-        Section("Fill")
-        fillLayer?.let {
-            IconPaint(it, theme, Tips.FILL_COLOUR, drag, done, commit, textures(it.id), more.value)
-            LayerOpacity(it, theme, Tips.FILL_OPACITY, drag, done, commit)
+        Panel("Fill (inside the shape)", IconPart.FILL) {
+            fillLayer?.let { IconPaint(it, theme, Tips.FILL_COLOUR, drag, done, commit, textures(it.id), more.value) }
+            if (!lines) thickness()
+            fillLayer?.let {
+                Section("Finish")
+                FinishControls(it, theme, drag, done, commit, cut = true, more = more.value)
+            }
         }
-        if (!lines) thickness()
     }
     Section("Size and position")
     SliderControl(Tips.ICON_SIZE, s.iconScale, 0.5f..MAX_ICON_SCALE, ds.iconScale, iconSize,
@@ -115,6 +139,48 @@ private fun IconPaint(
     val d = defaultsOf(layer)
     fun with(l: PaintLayer) = LayerStack.replace(theme, l)
     PaintControl(tip, layer, d.source, { drag(with(it)) }, done, { commit(with(it)) }, textures = textures, more = more)
+}
+
+/** Which part of the icon a panel edits, for its thumbnail. */
+enum class IconPart { LINES, FILL }
+
+/**
+ * One part of the icon, phone feedback round 1: a big heading with a small picture of an
+ * icon whose edited part is solid and the other faint, in its own bordered panel with
+ * clear space around it, so lines and fill never read as one list.
+ */
+@Composable
+private fun Panel(title: String, part: IconPart, content: @Composable () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().padding(top = 20.dp).border(1.dp, c.outline, RoundedCornerShape(12.dp)).padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            PartThumbnail(part)
+            Text(title, Modifier.padding(start = 12.dp).semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+        }
+        content()
+    }
+}
+
+/** A circle drawn as the icon: the part being edited strong, the other faint and dashed. */
+@Composable
+fun PartThumbnail(part: IconPart) {
+    val c = MaterialTheme.colorScheme
+    Canvas(Modifier.size(40.dp).clearAndSetSemantics {}) {
+        val r = size.minDimension / 2
+        val centre = Offset(size.width / 2, size.height / 2)
+        val ring = r * 0.72f
+        val stroke = r * 0.22f
+        if (part == IconPart.FILL) {
+            drawCircle(c.onSurface, ring, centre)
+            drawCircle(c.outlineVariant, ring, centre, style = Stroke(stroke * 0.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 4f))))
+        } else {
+            drawCircle(c.surfaceVariant, ring, centre)
+            drawCircle(c.onSurface, ring, centre, style = Stroke(stroke))
+        }
+    }
 }
 
 /** A base layer's opacity, in view on its page: how see-through it is. */

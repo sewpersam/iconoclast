@@ -1,6 +1,11 @@
 package dev.iconoclast.app.editor
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Matte
@@ -24,14 +29,17 @@ val BLEND_NAMES: Map<BlendMode, String> = linkedMapOf(
 val CLIP_NAMES: Map<ClipTarget, String> = linkedMapOf(
     ClipTarget.ICON to "Whole icon", ClipTarget.ICON_FILL to "Icon fill", ClipTarget.ICON_LINES to "Icon lines",
     ClipTarget.BACKGROUND to "Background", ClipTarget.CANVAS to "Everywhere", ClipTarget.EFFECTS to "Effects below",
+    ClipTarget.BELOW to "Layer below",
 )
 
 fun clipName(clip: ClipTarget): String = CLIP_NAMES.getValue(clip)
 
 /**
- * The page of an added colour, gradient, image or pattern layer, docs/naming-spec.md 1.3:
- * what it paints, how solid, and where, in view; an image's placement with its fill; the
- * brightness cut-out and the mix mode under More options, with the "Effects below" target.
+ * The page of an added layer, phone feedback round 1: what it paints, its finish
+ * (see-through, frost, grain, Glass), and one switch, Stay inside the layer below, in
+ * place of the old Show on choice; the brightness cut-out and the mix mode under More
+ * options. A layer saved with an older Show on target that the switch cannot express keeps
+ * it and says so; turning the switch on or off replaces it.
  */
 @Composable
 fun LayerPage(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (Theme) -> Unit, textures: TextureActions) {
@@ -39,16 +47,19 @@ fun LayerPage(layer: PaintLayer, theme: Theme, drag: (Theme) -> Unit, done: () -
     fun with(l: PaintLayer) = LayerStack.replace(theme, l)
     val more = rememberMore(layer.id)
     PaintControl(Tips.FILL, layer, d.source, { drag(with(it)) }, done, { commit(with(it)) }, textures = textures, more = more.value)
-    SliderControl(Tips.OPACITY, layer.opacity, 0f..1f, d.opacity, percent,
-        { drag(with(layer.copy(opacity = it))) }, done, { commit(with(layer.copy(opacity = d.opacity))) })
-    val targets = CLIP_NAMES.toList().filter { it.first != ClipTarget.EFFECTS || more.value || layer.clip == ClipTarget.EFFECTS }
-    DropdownControl(Tips.SHOW_ON, targets, layer.clip, d.clip, { commit(with(LayerStack.withClip(layer, it))) })
-    // Outside everything is nothing: Outside is greyed out for Everywhere.
-    ChoiceControl(
-        Tips.INSIDE_OUTSIDE, listOf(false to "Inside", true to "Outside"), layer.clipInverse, d.clipInverse,
-        { commit(with(layer.copy(clipInverse = it))) },
-        enabled = { !it || layer.clip != ClipTarget.CANVAS },
-    )
+    Section("Finish")
+    FinishControls(layer, theme, drag, done, commit, cut = false, more = more.value)
+    Section("Where")
+    SwitchControl(Tips.STAY_INSIDE, layer.clip == ClipTarget.BELOW, true) {
+        commit(with(layer.copy(clip = if (it) ClipTarget.BELOW else ClipTarget.CANVAS, clipInverse = false)))
+    }
+    if (layer.clip != ClipTarget.BELOW && layer.clip != ClipTarget.CANVAS || layer.clipInverse) {
+        val where = CLIP_NAMES.getValue(layer.clip)
+        Text(
+            "Older setting: shows ${if (layer.clipInverse) "outside" else "on"} ${where.lowercase()}. The switch replaces it.",
+            Modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     MoreOptions(more) {
         MatteControls(layer.matte, { drag(with(layer.copy(matte = it))) }, done, { commit(with(layer.copy(matte = it))) })
         BlendControl(Tips.MIX, layer.blend, d.blend) { commit(with(layer.copy(blend = it))) }

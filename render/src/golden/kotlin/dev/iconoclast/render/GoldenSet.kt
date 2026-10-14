@@ -440,8 +440,8 @@ object GoldenSet {
         map { if (it.id == id) f(it as PaintLayer) else it }
 
     /** The Glass starting point of a fill, schema 9: see-through, frosted, grained, with a light rim. */
-    val GLASS_FINISH = Finish(frost = 0.04f, grain = 0.35f, rim = 0.6f)
-    const val GLASS_OPACITY = 0.45f
+    private val GLASS_FINISH = Glass.FILL_FINISH
+    private const val GLASS_OPACITY = Glass.FILL_OPACITY
 
     /**
      * Phone feedback round 1, schema 9: the three pattern generators and their features, an

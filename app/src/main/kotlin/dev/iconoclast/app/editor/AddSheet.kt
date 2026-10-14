@@ -15,39 +15,31 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.iconoclast.render.ColorStop
 import dev.iconoclast.render.Effect
-import dev.iconoclast.render.NoiseKind
-import dev.iconoclast.render.Paint
 
-/** A source a new layer can start from. Null paint: an image, which the chooser supplies. */
-private class Option(val name: String, val detail: String, val paint: Paint?)
-
-private val PAINTS = listOf(
-    Option("Colour", "One flat colour over your icons", Paint.Solid(0xFFFFFFFF.toInt())),
-    Option("Gradient", "Colours blending into each other", linear(90f, listOf(ColorStop(0f, 0xFFFFFFFF.toInt()), ColorStop(1f, 0xFF000000.toInt())))),
-    Option("Image", "A photo or pattern laid over your icons", null),
-    Option("Clouds", "Soft random cloudy pattern", Paint.Noise(NoiseKind.FBM)),
-    Option("Veins", "Random lines like marble or rock", Paint.Noise(NoiseKind.RIDGED)),
-    Option("Speckle", "Fine random dots", Paint.Noise(NoiseKind.GRAIN)),
-)
-
+/**
+ * The effects the sheet offers, each acting on the whole icon. Blur is not offered since
+ * schema 9, where every fill has Frost; themes that have one keep it.
+ */
 private val EFFECTS: List<Pair<Effect, String>> = listOf(
-    Effect.Blur() to "Softens everything below it, such as an image background",
-    Effect.Grain() to "Fine grey speckle over the whole icon, like film",
-    Effect.BrushStrokes() to "Painted strokes flicking off the icon",
-    Effect.Streaks() to "Lines trailing off the icon in one direction, like motion",
-    Effect.Bevel() to "Makes the icon look raised, with a lit side and a shaded side",
     Effect.DropShadow() to "The icon's shadow on the background",
-    Effect.InnerShadow() to "Shading inside the icon's edges, so it looks pressed in",
     Effect.OuterGlow() to "A glow around the icon",
+    Effect.Bevel() to "Makes the icon look raised, with a lit side and a shaded side",
+    Effect.InnerShadow() to "Shading inside the icon's edges, so it looks pressed in",
     Effect.InnerGlow() to "Light along the inside of the icon's edges",
+    Effect.BrushStrokes() to "Painted strokes, out from the icon or swiped across behind it",
+    Effect.Streaks() to "Lines trailing off the icon in one direction, like motion",
+    Effect.Grain() to "Fine grey speckle over the whole icon, like film",
 )
 
-/** The one Add sheet: a colour, gradient, image or pattern layer, the Glass look, or an effect, each at its default. */
+/**
+ * The one Add sheet, phone feedback round 1: effects first under a big heading, then one
+ * Overlay entry at the bottom, a layer that paints over the whole icon and picks its kind
+ * (colour, gradient, image or pattern) on its own page like any fill.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddSheet(onDismiss: () -> Unit, onAdd: (Paint) -> Unit, onImage: () -> Unit, onEffect: (Effect) -> Unit, onGlass: () -> Unit) {
+fun AddSheet(onDismiss: () -> Unit, onEffect: (Effect) -> Unit, onOverlay: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -55,21 +47,17 @@ fun AddSheet(onDismiss: () -> Unit, onAdd: (Paint) -> Unit, onImage: () -> Unit,
         tonalElevation = 0.dp,
     ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            Text("Add", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)
-            Group("Colour or image")
-            for (o in PAINTS) Item(o.name, o.detail) { o.paint?.let(onAdd) ?: onImage() }
-            Group("Look")
-            Item("Glass", "See-through frosted tile with a bright edge and light grain. Your wallpaper shows through; it is not blurred.", onGlass)
-            Group("Effect")
+            Heading("Effects")
             for ((effect, detail) in EFFECTS) Item(LayerStack.effectName(effect), detail) { onEffect(effect) }
+            Heading("Overlay")
+            Item("Overlay", "Paint over the whole icon, for example a gradient wash across everything. Pick a colour, gradient, image or pattern on its page.", onOverlay)
         }
     }
 }
 
 @Composable
-private fun Group(title: String) {
-    Text(title, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun Heading(title: String) {
+    Text(title, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp), style = MaterialTheme.typography.headlineSmall)
 }
 
 @Composable

@@ -88,10 +88,11 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, onApply: () -> Unit) {
                         )
                     }
                 },
+                // Done, in words: the only way out of the theme. Undo and redo keep their arrows.
                 navigationIcon = {
-                    NamedIcon(Tips.BACK.label) {
-                        IconButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = Tips.BACK.label }) {
-                            Icon(EditorIcons.Back, contentDescription = null)
+                    HelpAnchor(Tips.DONE) {
+                        TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) {
+                            Text(Tips.DONE.label, style = MaterialTheme.typography.titleSmall)
                         }
                     }
                 },
@@ -153,7 +154,7 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi) {
                 first is EffectLayer -> LayerStack.label(theme, first) to Tips.PAGE_EFFECT
                 else -> LayerStack.label(theme, first) to Tips.PAGE_LAYER
             }
-            PageHeader(title, Tip(title, info.help)) { vm.openPage(null) }
+            Breadcrumb(title, Tip(title, info.help)) { vm.openPage(null) }
             Column(
                 Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 8.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -169,24 +170,25 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi) {
         }
     }
     if (ui.adding) {
-        AddSheet(onDismiss = { vm.showAdd(false) }, onAdd = vm::addLayer, onImage = { vm.chooseTexture(TextureTarget.NewLayer) }, onEffect = vm::addEffect,
-            onGlass = vm::addGlass)
+        AddSheet(onDismiss = { vm.showAdd(false) }, onEffect = vm::addEffect, onOverlay = vm::addOverlay)
     }
     ui.overriding?.let { item -> LiveOverrideSheet(vm, ui, item) }
     ui.cropping?.let { CropDialog(it, vm::texturePng, vm::closeCrop, vm::applyCrop) }
     TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
 }
 
-/** A properties page's header: back to the list, the page's name, and its ⓘ. */
+/**
+ * A properties page's header as a breadcrumb, "Layers › Icon": tap Layers to go back to
+ * the list, as the system back does. No arrow, so the bar keeps one way out, Done.
+ */
 @Composable
-private fun PageHeader(title: String, info: Tip, onBack: () -> Unit) {
+private fun Breadcrumb(title: String, info: Tip, onLayers: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        NamedIcon("Back to layers") {
-            IconButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = "Back to layers" }) {
-                Icon(EditorIcons.Back, contentDescription = null)
-            }
+        TextButton(onClick = onLayers, modifier = Modifier.semantics { contentDescription = "Back to layers" }) {
+            Text("Layers", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(title, Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("›", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(title, Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         InfoButton(info)
     }
 }

@@ -143,6 +143,7 @@ private fun List<Color>.atLeastTwo() = if (size >= 2) this else listOf(first(), 
 private val WHERE: Map<ClipTarget, String> = mapOf(
     ClipTarget.ICON to "whole icon", ClipTarget.ICON_FILL to "icon fill", ClipTarget.ICON_LINES to "icon lines",
     ClipTarget.BACKGROUND to "background", ClipTarget.EFFECTS to "effects below", ClipTarget.CANVAS to "everywhere",
+    ClipTarget.BELOW to "the layer below",
 )
 
 /** The fill styles by their names. */
@@ -169,7 +170,7 @@ fun rowSummary(theme: Theme, row: LayerStack.Row): String {
             if (layer.id != Layer.BACKGROUND_ID) {
                 val where = WHERE.getValue(layer.clip)
                 parts += when {
-                    layer.clip == ClipTarget.CANVAS -> "Everywhere"
+                    layer.clip == ClipTarget.CANVAS -> "Whole tile"
                     layer.clipInverse -> "Outside $where"
                     else -> "Inside $where"
                 }

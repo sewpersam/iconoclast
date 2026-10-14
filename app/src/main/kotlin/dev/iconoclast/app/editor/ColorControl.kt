@@ -56,6 +56,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * A colour, docs/naming-spec.md 2.10: at rest one row, the name and a swatch; a tap opens
@@ -199,7 +200,12 @@ private fun PickerBar(desc: String, fraction: Float, value: String, paint: DrawS
     )
 }
 
-/** Tap or drag anywhere: [onMove] gets the pointer as fractions of the box, clamped; [onEnd] when it lifts. */
+/**
+ * Tap or drag anywhere: [onMove] gets the pointer as fractions of the box, clamped; [onEnd]
+ * when it lifts. A drag that starts mostly up or down within the touch slop is a scroll of
+ * the page and is left to it, unless the finger first rested for [HOLD_MS]: a deliberate
+ * press, after which any drag picks. Sideways drags and taps pick at once.
+ */
 @Composable
 private fun Modifier.drag2d(onMove: (Float, Float) -> Unit, onEnd: () -> Unit): Modifier {
     // The gesture outlives recompositions; it calls whatever the latest composition passed.
@@ -208,8 +214,31 @@ private fun Modifier.drag2d(onMove: (Float, Float) -> Unit, onEnd: () -> Unit): 
     return pointerInput(Unit) { awaitEachGesture {
         val down = awaitFirstDown()
         fun send(p: Offset) = move((p.x / size.width).coerceIn(0f, 1f), (p.y / size.height).coerceIn(0f, 1f))
-        send(down.position)
-        down.consume()
+        val slop = viewConfiguration.touchSlop
+        var owned = false
+        val deadline = down.uptimeMillis + HOLD_MS
+        var last = down.uptimeMillis
+        var at = down.position
+        while (!owned) {
+            val e = if (deadline <= last) null else withTimeoutOrNull(deadline - last) { awaitPointerEvent() }
+            if (e == null) { owned = true; break }
+            val c = e.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+            last = c.uptimeMillis
+            at = c.position
+            if (!c.pressed) {
+                // A tap picks where it landed.
+                send(down.position)
+                end()
+                return@awaitEachGesture
+            }
+            if (c.isConsumed) return@awaitEachGesture
+            val d = c.position - down.position
+            if (d.getDistance() > slop) {
+                if (abs(d.y) > abs(d.x)) return@awaitEachGesture
+                owned = true
+            }
+        }
+        send(at)
         while (true) {
             val e = awaitPointerEvent()
             val c = e.changes.firstOrNull { it.id == down.id } ?: break
@@ -220,6 +249,9 @@ private fun Modifier.drag2d(onMove: (Float, Float) -> Unit, onEnd: () -> Unit): 
         end()
     } }
 }
+
+/** How long a finger rests on the picker before a vertical drag picks instead of scrolling. */
+private const val HOLD_MS = 250L
 
 /**
  * The last [MAX] colours picked anywhere, newest first, kept in preferences. One per
