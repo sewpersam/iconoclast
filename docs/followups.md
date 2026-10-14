@@ -267,3 +267,24 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Neo keeps an app's cached icon until that app updates if the pack is switched before a restart. The guidance gives the order; the pack cannot clear Neo's cache.
 - The "Request icon" link left with the coverage screen.
 - Apply's status line counts apps by package; a work-profile copy of an app counts once.
+
+## Phone feedback round 1, editor side (2026-10-13)
+
+### Rulings made without him (he said decide)
+- Paint swipes became Brush strokes' Direction, All one way, per the later ruling; switching to it starts from the picked sheet default: three broad diagonal swipes at 30 degrees (`EffectControls.SWIPES`). New strokes are Painted; schema 8 strokes migrate as Classic.
+- Realism: option 2, the procedural model. No CC0 brush scans were vendored; the built-in brushes are generated noise, not scans.
+- Frost blurs what is under the fill and the fill itself, so the slider shows on an opaque image too.
+- See-through is the layer's opacity shown the other way; no second transparency field.
+- Cut through to wallpaper erases what is below, then the fill paints at its opacity: 100% cut with 100% See-through is a clean hole.
+- Overlay starts with Stay inside off: it sits on top and its description promises a wash across everything.
+- Cover's smallest scale is `2^randomScale x (1 + 0.5 randomShift)` in the editor (raised with the random sliders); the renderer guarantees only per-icon scale >= 1.
+- Blur is no longer in the Add sheet (Frost replaced it); existing blur layers stay editable.
+- Clip legacy: targets the switch cannot express stay and are named on the page as an older setting.
+
+### Look pass rough edges
+- Colour picker square: a drag that leaves the touch slop mostly up or down scrolls the page; a 250 ms rest first, or a sideways drag, picks. Verified on the AVD.
+- Crop pinch: spreading the fingers already makes the image bigger in the frame (the frame shrinks over the fixed image). Left as is; not exercised on the AVD, adb cannot pinch.
+
+### Deferred
+- The Make it glass button reads grey in the Geist theme; it is enabled.
+- Jade's grid latency is about 240 ms on the AVD before any of this round; Classic strokes are the cost.

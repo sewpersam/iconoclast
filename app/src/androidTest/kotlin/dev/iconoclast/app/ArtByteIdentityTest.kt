@@ -48,7 +48,8 @@ class ArtByteIdentityTest {
         }
         android.util.Log.i("ArtByteIdentity", "compared ${compared.size} PNGs, ${differ.size} differ: $differ")
         assertEquals("PNGs differing from the JVM goldens", emptyList<String>(), differ)
-        assertEquals(316 + 48 + 48, compared.size)
+        // 316 to schema 8, 96 phone feedback round 1 (GoldenSet.FEEDBACK), 48 at 324 px.
+        assertEquals(316 + 96 + 48 + 48, compared.size)
     }
 
     /**
