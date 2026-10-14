@@ -63,8 +63,10 @@ fun GradientRamp(tip: Tip, stops: List<ColorStop>, onDrag: (List<ColorStop>) -> 
     val barHeight = 36.dp
     Column(Modifier.fillMaxWidth()) {
         LabelRow(tip)
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = handle / 2)) {
-            val widthPx = with(density) { maxWidth.toPx() }
+        // The handles' half width is margin either side, so the end handles sit inside the touch area.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val pad = with(density) { (handle / 2).toPx() }
+            val widthPx = with(density) { maxWidth.toPx() } - 2 * pad
             val off = with(density) { 56.dp.toPx() }
             val reach = with(density) { (handle / 2 + 6.dp).toPx() }
             Box(
@@ -74,9 +76,9 @@ fun GradientRamp(tip: Tip, stops: List<ColorStop>, onDrag: (List<ColorStop>) -> 
                         awaitEachGesture {
                             val down = awaitFirstDown()
                             val s = current
-                            val t0 = (down.position.x / widthPx).coerceIn(0f, 1f)
-                            val hit = s.indices.minByOrNull { abs(s[it].offset * widthPx - down.position.x) }
-                                ?.takeIf { abs(s[it].offset * widthPx - down.position.x) <= reach }
+                            val t0 = ((down.position.x - pad) / widthPx).coerceIn(0f, 1f)
+                            val hit = s.indices.minByOrNull { abs(pad + s[it].offset * widthPx - down.position.x) }
+                                ?.takeIf { abs(pad + s[it].offset * widthPx - down.position.x) <= reach }
                             var moved = false
                             var off_ = false
                             var work = s
@@ -114,7 +116,7 @@ fun GradientRamp(tip: Tip, stops: List<ColorStop>, onDrag: (List<ColorStop>) -> 
                                 c.consume()
                                 off_ = abs(c.position.y - down.position.y) > off && s.size > 2
                                 removing = if (off_) hit else -1
-                                val t = (c.position.x / widthPx).coerceIn(0f, 1f)
+                                val t = ((c.position.x - pad) / widthPx).coerceIn(0f, 1f)
                                 work = Ramp.move(s, hit, t)
                                 moved = true
                                 onDrag(work)
@@ -129,7 +131,7 @@ fun GradientRamp(tip: Tip, stops: List<ColorStop>, onDrag: (List<ColorStop>) -> 
             ) {
                 val shape = RoundedCornerShape(8.dp)
                 Box(
-                    Modifier.fillMaxWidth().height(barHeight).clip(shape)
+                    Modifier.padding(horizontal = handle / 2).fillMaxWidth().height(barHeight).clip(shape)
                         .drawBehind {
                             checkerboard()
                             drawRect(Brush.horizontalGradient(*Ramp.brushStops(stops)))
@@ -137,7 +139,7 @@ fun GradientRamp(tip: Tip, stops: List<ColorStop>, onDrag: (List<ColorStop>) -> 
                         .border(1.dp, MaterialTheme.colorScheme.outline, shape),
                 )
                 for ((i, s) in stops.withIndex()) {
-                    val x = with(density) { (s.offset * widthPx).toDp() } - handle / 2
+                    val x = with(density) { (s.offset * widthPx).toDp() }
                     val picked = i == sel
                     Box(
                         Modifier.offset(x = x, y = barHeight + 4.dp).size(handle)
