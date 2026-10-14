@@ -80,6 +80,30 @@ class ComponentTable(private val buf: ByteBuffer) {
         return -1
     }
 
+    /** The component at sorted position [i]. */
+    fun component(i: Int): String {
+        val pos = buf.getInt(ComponentTableFormat.HEADER_SIZE + i * 4)
+        val len = buf.getShort(pos).toInt() and 0xFFFF
+        val bytes = ByteArray(len)
+        for (j in 0 until len) bytes[j] = buf.get(pos + 2 + j)
+        return String(bytes, Charsets.UTF_8)
+    }
+
+    /** The drawable index at sorted position [i]. */
+    fun drawable(i: Int): Int = buf.getShort(ComponentTableFormat.HEADER_SIZE + size * 4 + i * 2).toInt() and 0xFFFF
+
+    /** The first sorted position whose component is not below [prefix]; [size] when none. */
+    fun lowerBound(prefix: String): Int {
+        val key = prefix.toByteArray(Charsets.UTF_8)
+        var lo = 0
+        var hi = size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (compareAt(mid, key) < 0) lo = mid + 1 else hi = mid
+        }
+        return lo
+    }
+
     private fun compareAt(i: Int, key: ByteArray): Int {
         val pos = buf.getInt(ComponentTableFormat.HEADER_SIZE + i * 4)
         val len = buf.getShort(pos).toInt() and 0xFFFF

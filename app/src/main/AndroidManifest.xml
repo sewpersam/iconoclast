@@ -9,6 +9,9 @@
     <!-- Makes the designer the pack's update owner, API 34+, so updates can skip the prompt. -->
     <uses-permission android:name="android.permission.ENFORCE_UPDATE_OWNERSHIP" />
 
+    <!-- Only for "Paste image link": downloads the one image the user names. Nothing else uses the network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <queries>
         <!-- The generated pack: is it installed already? -->
         <package android:name="${packPackage}" />
@@ -34,6 +37,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Share an image here, from a browser or a gallery: it opens as a new image layer. -->
+            <intent-filter android:label="Add to an icon theme">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
         <!-- Theme export: the share sheet reads the JSON from cache/export. -->

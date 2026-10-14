@@ -174,7 +174,7 @@ private fun Editor(vm: EditorViewModel, ui: EditorUi) {
     }
     ui.overriding?.let { item -> LiveOverrideSheet(vm, ui, item) }
     ui.cropping?.let { CropDialog(it, vm::texturePng, vm::closeCrop, vm::applyCrop) }
-    TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::useTexture)
+    TextureSheet(ui.choosingTexture, ui.recentTextures, vm::textureFile, vm::dismissTextureChooser, vm::importTexture, vm::importTextureLink, vm::useTexture)
 }
 
 /**

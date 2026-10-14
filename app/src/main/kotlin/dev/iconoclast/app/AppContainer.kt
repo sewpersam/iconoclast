@@ -59,6 +59,14 @@ class AppContainer(private val app: Application) {
     /** The output resolution, read by Apply and the previews. */
     val settings = AppSettings(app)
 
+    /** An image shared to the app, imported, waiting for the editor to add it as a layer. */
+    private val sharedImage = java.util.concurrent.atomic.AtomicReference<String?>(null)
+
+    fun shareImage(hash: String) = sharedImage.set(hash)
+
+    /** The shared image's texture hash, once; null when none waits. */
+    fun takeSharedImage(): String? = sharedImage.getAndSet(null)
+
     /** The pack signing key, spec 3.5: one instance, so Apply, export and import never race on its files. */
     val packKey = PackKeyStore(app.noBackupFilesDir, "${app.getString(R.string.app_name)} Pack")
 

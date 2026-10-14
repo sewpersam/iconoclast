@@ -23,7 +23,10 @@ import dev.iconoclast.pack.LauncherTable
 import dev.iconoclast.pack.PackInstallSession
 import dev.iconoclast.pack.PackSigner
 import dev.iconoclast.pack.TooManyIconsException
+import dev.iconoclast.render.OutputResolution
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,12 +48,16 @@ sealed interface ApplyState {
 }
 
 enum class Fix {
-    GRANT_INSTALL_PERMISSION,
-    UNINSTALL_OLD_PACK,
-
     /** The signing key is damaged: restore it from a backup, or make a new one. */
     DAMAGED_KEY,
 }
+
+/**
+ * The active theme against the last Apply: [applied] when the installed pack is this
+ * theme as it is now, [newApps] apps installed since then that Arcticons covers, and
+ * [noIcon] apps that have no Arcticons icon yet.
+ */
+data class AppliedStatus(val applied: Boolean = false, val newApps: Int = 0, val noIcon: Int = 0)
 
 /** Apply the active theme: match installed apps, render, rewrite, sign, install, then guide the restart. */
 class ApplyViewModel(app: Application) : AndroidViewModel(app) {
@@ -60,6 +67,12 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
     /** Intents the screen must start: install confirmation, settings, uninstall, App info. */
     private val launches = Channel<Intent>(Channel.UNLIMITED)
     val intents = launches.receiveAsFlow()
+
+    private val _status = MutableStateFlow(AppliedStatus())
+    val status: StateFlow<AppliedStatus> = _status
+
+    /** Completed by [resumed]: the user came back from a system screen Apply sent them to. */
+    private var returned: CompletableDeferred<Unit>? = null
 
     private val container = app.container
     private val appName = app.getString(R.string.app_name)
@@ -86,6 +99,57 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 Log.e(TAG, "Apply failed", e)
                 ApplyState.Problem("Apply failed: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                returned = null
+            }
+            refreshStatus()
+        }
+    }
+
+    /** The Apply screen is showing again. Resumes an Apply waiting on a system screen. */
+    fun resumed() {
+        returned?.complete(Unit)
+        if (_state.value !is ApplyState.Working) refreshStatus()
+    }
+
+    /** Shows [line], gives the user a moment to read it, opens [intent], and waits until they are back. */
+    private suspend fun sendAway(line: String, intent: Intent) {
+        _state.value = ApplyState.Working(line)
+        delay(READ_MS)
+        val back = CompletableDeferred<Unit>().also { returned = it }
+        launches.trySend(intent)
+        back.await()
+        returned = null
+    }
+
+    /** The theme the last result on screen belongs to. */
+    private var shownFor: String? = null
+
+    /** Recomputes [status] for the active theme. A result shown for another theme is cleared. */
+    fun refreshStatus() {
+        val doc = active.value ?: return
+        if (shownFor != doc.id && _state.value !is ApplyState.Working) _state.value = ApplyState.Idle
+        shownFor = doc.id
+        viewModelScope.launch {
+            _status.value = try {
+                withContext(Dispatchers.IO) {
+                    val app = getApplication<Application>()
+                    val icons = container.iconSource()
+                    val installed = InstalledApps.launchableComponents(app)
+                    val now = CoverageMatcher.match(installed, Int.MAX_VALUE, icons::resolveApp)
+                    val last = container.coverage.read()
+                    val same = last != null && isPackInstalled() && last.themeId == doc.id &&
+                        last.look == BuiltPack.look(doc, container.settings.resolution.value)
+                    val newApps = if (last == null) 0 else now.items.map { it.first }.filter { it !in last.components }
+                        .mapTo(HashSet()) { it.substringBefore('/') }.size
+                    AppliedStatus(same, newApps, now.uncoveredApps)
+                }.also {
+                    // After an edit the result of the last Apply no longer describes this theme.
+                    if (!it.applied && _state.value is ApplyState.Installed) _state.value = ApplyState.Idle
+                }
+            } catch (e: IOException) {
+                Log.w(TAG, "Applied status not read", e)
+                AppliedStatus()
             }
         }
     }
@@ -107,13 +171,10 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
                 "Import the theme's .zip again, or delete the image layer in the editor.",
         )
         // Before drawing anything: without the install permission the pack could not be installed.
-        if (!app.packageManager.canRequestPackageInstalls()) return needsPermission()
+        if (!askToInstall()) return needsPermission()
         val components = withContext(Dispatchers.IO) { InstalledApps.launchableComponents(app) }
-        val plan = CoverageMatcher.match(components, PackBuilder.slotCount(template), icons::resolve)
+        val plan = CoverageMatcher.match(components, PackBuilder.slotCount(template), icons::resolveApp)
         val key = withContext(Dispatchers.IO) { container.packKey.loadOrCreate() }
-        // Spec 6.5: a pack from an earlier install of the designer has another key. Say so
-        // before drawing, and before the system offers an update that can only fail.
-        if (installedPackSigner()?.let { !it.contentEquals(key.certificate.encoded) } == true) return mismatch()
         val resolution = container.settings.resolution.value
         val dir = withContext(Dispatchers.IO) { File(app.cacheDir, "pack").apply { mkdirs() } }
         val built = BuiltPack(dir)
@@ -144,28 +205,57 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             "load ${t1 - t0} ms, " +
             (if (drawn) "render+rewrite+sign ${t3 - t1} ms" else "built pack reused in ${t3 - t1} ms") + ", ${apk.length()} bytes")
 
+        val session = PackInstallSession(app)
+        // Spec 6.5: a pack from an earlier install of the designer has another key, and Android
+        // only installs over it once it is gone. The pack is drawn already, so it goes straight in.
+        if (installedPackSigner()?.let { !it.contentEquals(key.certificate.encoded) } == true && !removeOldPack(session)) return mismatch()
         val firstInstall = !isPackInstalled()
         _state.value = ApplyState.Working("Installing")
-        val result = PackInstallSession(app).install(apk, PACK_PACKAGE) { launches.trySend(it) }
+        var result = session.install(apk, PACK_PACKAGE) { launches.trySend(it) }
+        // The checks above can race the system: the switch turned off, or another pack installed meanwhile.
+        if (result == InstallResult.NeedsPermission && askToInstall()) result = session.install(apk, PACK_PACKAGE) { launches.trySend(it) }
+        if (result is InstallResult.SignatureMismatch && removeOldPack(session)) result = session.install(apk, PACK_PACKAGE) { launches.trySend(it) }
         Log.i(TAG, "install: $result in ${SystemClock.elapsedRealtime() - t3} ms")
-        if (result == InstallResult.Success) recordCoverage(doc, components)
+        if (result == InstallResult.Success) recordCoverage(doc, components, resolution)
         return when (result) {
-            InstallResult.Success -> ApplyState.Installed(firstInstall, currentLauncher(), plan.items.size, plan.unmatched.size)
+            InstallResult.Success -> ApplyState.Installed(firstInstall, currentLauncher(), plan.themedApps, plan.uncoveredApps)
             InstallResult.NeedsPermission -> needsPermission()
             is InstallResult.SignatureMismatch -> mismatch()
             is InstallResult.Failed -> ApplyState.Problem(result.message)
         }
     }
 
+    /**
+     * True when the designer may install apps. If not, sends the user to the one switch
+     * in Settings and checks again when they are back.
+     */
+    private suspend fun askToInstall(): Boolean {
+        val app = getApplication<Application>()
+        if (app.packageManager.canRequestPackageInstalls()) return true
+        sendAway(
+            "Android asks you once to let $appName install apps. Turn on the switch, then come back.",
+            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${app.packageName}")),
+        )
+        return app.packageManager.canRequestPackageInstalls()
+    }
+
+    /** Asks Android to uninstall the pack signed with another key, and says why first. True when it is gone. */
+    private suspend fun removeOldPack(session: PackInstallSession): Boolean {
+        _state.value = ApplyState.Working("The installed pack has an older key, so Android asks you to uninstall it first. The new pack installs right after.")
+        delay(READ_MS)
+        val gone = session.uninstall(PACK_PACKAGE) { launches.trySend(it) }
+        Log.i(TAG, "old pack uninstalled: $gone")
+        return gone && !isPackInstalled()
+    }
+
     private fun needsPermission() = ApplyState.Problem(
-        "To install the pack, allow $appName to install apps. Turn on the switch, come back, and tap Apply again.",
-        Fix.GRANT_INSTALL_PERMISSION,
+        "Nothing was installed: $appName may not install apps yet. Tap Apply and turn on the switch when Android asks.",
     )
 
     /** The pack is installed whatever happens here; a failed write only loses the next diff. */
-    private suspend fun recordCoverage(doc: ThemeDocument, components: Set<String>) = withContext(Dispatchers.IO) {
+    private suspend fun recordCoverage(doc: ThemeDocument, components: Set<String>, resolution: OutputResolution) = withContext(Dispatchers.IO) {
         try {
-            container.coverage.write(AppliedCoverage(doc.id, System.currentTimeMillis(), components))
+            container.coverage.write(AppliedCoverage(doc.id, System.currentTimeMillis(), components, BuiltPack.look(doc, resolution)))
         } catch (e: IOException) {
             Log.w(TAG, "Coverage of this Apply was not saved", e)
         }
@@ -192,9 +282,8 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun mismatch() = ApplyState.Problem(
-        "A pack signed with a different key is installed, probably from an earlier install of $appName. " +
-            "Uninstall the old pack, then tap Apply again.",
-        Fix.UNINSTALL_OLD_PACK,
+        "Nothing changed: the older pack is still installed, and Android installs the new one only after it is gone. " +
+            "Tap Apply to try again.",
     )
 
     /** The installed pack's signing certificate, or null when no pack is installed. */
@@ -204,18 +293,6 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             .signingInfo?.apkContentsSigners?.singleOrNull()?.toByteArray()
     } catch (e: PackageManager.NameNotFoundException) {
         null
-    }
-
-    fun fix(fix: Fix) {
-        val pkg = getApplication<Application>().packageName
-        launches.trySend(
-            when (fix) {
-                Fix.GRANT_INSTALL_PERMISSION -> Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$pkg"))
-                Fix.UNINSTALL_OLD_PACK -> Intent(Intent.ACTION_DELETE, Uri.parse("package:$PACK_PACKAGE"))
-                // The screen handles it: restore opens the import picker, the other button is newKey().
-                Fix.DAMAGED_KEY -> return
-            },
-        )
     }
 
     fun openAppInfo(packageName: String) {
@@ -240,6 +317,9 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val TAG = "Iconoclast"
+
+        /** How long a line explaining the next system screen stays before that screen opens. */
+        private const val READ_MS = 1500L
         val PACK_PACKAGE: String = BuildConfig.PACK_PACKAGE
     }
 }

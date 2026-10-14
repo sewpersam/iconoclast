@@ -14,7 +14,7 @@ Save your looks as named themes. When you tap Apply, Iconoclast draws an icon fo
 </ul>
 
 <b>Privacy</b>
-No network access, no Google services, no analytics, no crash reporter. Everything happens on the phone.
+No Google services, no analytics, no crash reporter. Everything happens on the phone. The network is used only to download an image link you paste.
 
 <b>Permissions</b>
 Install unknown apps: needed to install the icon pack it generates. The generated pack is signed with a key that stays on the phone; export it with a theme backup if you want to update the same pack after reinstalling Iconoclast.

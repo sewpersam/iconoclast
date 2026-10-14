@@ -65,7 +65,7 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
                 for (slot in plan.drawables.indices) replacements[slotPath(slot)] = pngs[slot]
                 replacements[PACK_ICON] = pngs.last()
                 replacements[APPFILTER] = File(work, "appfilter.xml").apply {
-                    writeBytes(AppfilterWriter.write(plan.items.map { (c, slot) -> c to slotName(slot) }).toByteArray())
+                    writeBytes(AppfilterWriter.write(appfilter(plan)).toByteArray())
                 }
                 replacements[DRAWABLE_XML] = File(work, "drawable.xml").apply {
                     writeBytes(DrawableXmlWriter.write(plan.drawables.indices.map(::slotName)).toByteArray())
@@ -75,6 +75,19 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
         } finally {
             withContext(NonCancellable + Dispatchers.IO) { work.deleteRecursively() }
         }
+    }
+
+    /**
+     * The pack's appfilter: every installed component of the plan, each under the exact
+     * name the system reports, which is what launchers look up; then Arcticons' own
+     * entries for the same drawables, so another build of a themed app, with its own
+     * activity name, finds its icon too.
+     */
+    fun appfilter(plan: CoveragePlan): List<Pair<String, String>> {
+        val slotOf = plan.drawables.withIndex().associate { (slot, d) -> d to slot }
+        val installed = plan.items.mapTo(HashSet()) { it.first }
+        val extra = source.components.componentsOf(slotOf.keys).filter { it.first !in installed }
+        return plan.items.map { (c, slot) -> c to slotName(slot) } + extra.map { (c, d) -> c to slotName(slotOf.getValue(d)) }
     }
 
     /** One drawable's PNG: its look's geometry and theme, seeded by its own name. */

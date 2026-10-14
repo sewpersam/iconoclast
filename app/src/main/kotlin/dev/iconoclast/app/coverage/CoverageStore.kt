@@ -1,5 +1,6 @@
 package dev.iconoclast.app.coverage
 
+import dev.iconoclast.app.BuiltPack
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -13,10 +14,11 @@ import java.nio.file.StandardCopyOption
  * What the last successful Apply installed, spec 2.5: every launchable component seen
  * then (themed or not, `package/class`), the theme's id and the time in epoch ms. New
  * installs are found by diffing against it when the app opens, since PACKAGE_ADDED never
- * reaches a manifest receiver.
+ * reaches a manifest receiver. [look] is [BuiltPack.look] of what was applied, so Apply
+ * can say the theme is applied until it is edited; empty from before it was stored.
  */
 @Serializable
-data class AppliedCoverage(val themeId: String, val appliedAt: Long, val components: Set<String>)
+data class AppliedCoverage(val themeId: String, val appliedAt: Long, val components: Set<String>, val look: String = "")
 
 /**
  * The last Apply's coverage, one JSON file in [dir], written atomically. A missing or
@@ -28,7 +30,7 @@ class CoverageStore(private val dir: File) {
 
     fun read(): AppliedCoverage? = try {
         if (file.exists()) JSON.decodeFromString(Stored.serializer(), file.readText()).let {
-            if (it.version == VERSION) AppliedCoverage(it.themeId, it.appliedAt, it.components.toSet()) else null
+            if (it.version == VERSION) AppliedCoverage(it.themeId, it.appliedAt, it.components.toSet(), it.look) else null
         } else null
     } catch (e: SerializationException) {
         null
@@ -43,7 +45,7 @@ class CoverageStore(private val dir: File) {
         dir.mkdirs()
         val tmp = File(dir, ".$FILE.tmp")
         FileOutputStream(tmp).use {
-            it.write(JSON.encodeToString(Stored.serializer(), Stored(VERSION, c.themeId, c.appliedAt, c.components.sorted())).toByteArray())
+            it.write(JSON.encodeToString(Stored.serializer(), Stored(VERSION, c.themeId, c.appliedAt, c.components.sorted(), c.look)).toByteArray())
             it.fd.sync()
         }
         Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
@@ -51,7 +53,7 @@ class CoverageStore(private val dir: File) {
 
     /** The file format: sorted components, so one Apply gives one file. */
     @Serializable
-    private class Stored(val version: Int, val themeId: String, val appliedAt: Long, val components: List<String>)
+    private class Stored(val version: Int, val themeId: String, val appliedAt: Long, val components: List<String>, val look: String = "")
 
     private companion object {
         const val FILE = "last-apply.json"

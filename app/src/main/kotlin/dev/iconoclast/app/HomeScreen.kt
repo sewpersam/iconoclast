@@ -64,7 +64,7 @@ import dev.iconoclast.pack.KeyState
 /** The themes home, spec 2.2 screen 1. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Unit, onCoverage: () -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Unit, onSettings: () -> Unit) {
     val themes by model.themes.collectAsState()
     val activeId by model.activeId.collectAsState()
     val message by model.message.collectAsState()
@@ -93,15 +93,14 @@ fun HomeScreen(model: HomeViewModel, onOpen: (String) -> Unit, onApply: () -> Un
                 title = { Text("Themes") },
                 actions = {
                     TextButton(
-                        onClick = onCoverage,
+                        onClick = onApply,
                         modifier = Modifier.semantics {
-                            if (newApps > 0) contentDescription = "Apps, $newApps new since the last Apply"
+                            if (newApps > 0) contentDescription = "Apply, $newApps new ${if (newApps == 1) "app has an icon" else "apps have icons"}"
                         },
                     ) {
-                        Text("Apps")
+                        Text("Apply")
                         if (newApps > 0) Badge(Modifier.padding(start = 6.dp)) { Text("$newApps") }
                     }
-                    TextButton(onClick = onApply) { Text("Apply") }
                     Box {
                         IconButton(onClick = { overflow = true }, modifier = Modifier.semantics { contentDescription = "More" }) {
                             Text("⋮", style = MaterialTheme.typography.titleLarge)

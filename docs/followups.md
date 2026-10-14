@@ -254,3 +254,16 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Blur set to Everywhere softens the background shape's own edge from inside; the shape clip keeps the outline crisp.
 - Pinch in the crop step: fingers apart shrinks the frame (zooms in on the image). Corner drags are the main path.
 - Latency was measured with the emulator's 30 launchable apps, not 150; the editor draws only on-screen cells, so the count changes scrolling, not edit latency.
+
+## Phone feedback round 1, pack side (2026-10-13)
+
+### Rulings
+- Ruling: an installed component with no exact appfilter entry takes the drawable Arcticons uses most for its package, ties to the lower index — cost if wrong: a multi-icon package shows its most common icon.
+- Ruling: http image links are fetched over https, since Android blocks cleartext — cost if wrong: an http-only site fails with a download error.
+- Ruling: one line shows for 1.5 s before each system screen Apply opens — cost if wrong: one constant.
+- Ruling: the share target takes images only, not text links, so Iconoclast stays out of every text share sheet — cost if wrong: one intent filter.
+
+### Deferred
+- Neo keeps an app's cached icon until that app updates if the pack is switched before a restart. The guidance gives the order; the pack cannot clear Neo's cache.
+- The "Request icon" link left with the coverage screen.
+- Apply's status line counts apps by package; a work-profile copy of an app counts once.

@@ -25,6 +25,12 @@ class CoverageTest {
         store.write(c)
         assertEquals(c, store.read())
         assertEquals(c, CoverageStore(dir).read(), "a new store reads the file")
+        val withLook = c.copy(look = "abc")
+        store.write(withLook)
+        assertEquals(withLook, store.read())
+        // A file from before the look was stored reads as an unknown look.
+        File(dir, "last-apply.json").writeText("""{"version":1,"themeId":"t","appliedAt":1,"components":["a/a.A"]}""")
+        assertEquals(AppliedCoverage("t", 1, setOf("a/a.A")), store.read())
         File(dir, "last-apply.json").writeText("{ not json")
         assertNull(store.read())
     }

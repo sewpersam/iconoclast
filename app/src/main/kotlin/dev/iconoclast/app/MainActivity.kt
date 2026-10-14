@@ -1,5 +1,7 @@
 package dev.iconoclast.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,5 +28,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        if (savedInstanceState == null) receive(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        receive(intent)
+    }
+
+    /** An image shared from another app, such as a browser's Share image. */
+    private fun receive(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("image/") != true) return
+        intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let(home::receiveImage)
     }
 }
