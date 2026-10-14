@@ -5,11 +5,11 @@ One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
 shares a `.zip` holding that JSON as `theme.json`, the textures it uses and,
 only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
-## Schema version 8
+## Schema version 9
 
 ```json
 {
-    "schemaVersion": 8,
+    "schemaVersion": 9,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -34,7 +34,8 @@ only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/
               "source": { "type": "solid", "color": "#FF000000" },
               "clip": "BACKGROUND", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
               "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "randomShift": 1.0, "randomRotation": 0.0, "randomScale": 0.0, "seed": 0, "crop": null },
-              "matte": null, "visible": true },
+              "matte": null, "visible": true,
+              "finish": { "frost": 0.0, "grain": 0.0, "rim": 0.0, "cut": 0.0 } },
             { "type": "effects", "id": "effects" },
             { "type": "effect", "id": "streaks", "enabled": true, "blend": "NORMAL", "opacity": 0.35,
               "effect": { "type": "streaks", "angle": 300.0, "length": 0.35, "decay": "EXPONENTIAL",
@@ -45,12 +46,14 @@ only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/
               "source": { "type": "solid", "color": "#FF00A86B" },
               "clip": "ICON_FILL", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
               "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "randomShift": 1.0, "randomRotation": 0.0, "randomScale": 0.0, "seed": 0, "crop": null },
-              "matte": null, "visible": true },
+              "matte": null, "visible": true,
+              "finish": { "frost": 0.0, "grain": 0.0, "rim": 0.0, "cut": 0.0 } },
             { "type": "paint", "id": "icon-lines",
               "source": { "type": "solid", "color": "#FF00A86B" },
               "clip": "ICON_LINES", "clipInverse": false, "blend": "NORMAL", "opacity": 1.0,
               "mapping": { "mode": "FILL", "scale": 1.0, "rotation": 0.0, "randomShift": 1.0, "randomRotation": 0.0, "randomScale": 0.0, "seed": 0, "crop": null },
-              "matte": null, "visible": true }
+              "matte": null, "visible": true,
+              "finish": { "frost": 0.0, "grain": 0.0, "rim": 0.0, "cut": 0.0 } }
         ]
     },
     "overrides": {
@@ -109,13 +112,14 @@ it). Each effect is its own `effect` layer, below.
 |---|---|
 | `id` | Non-blank string, unique in the stack, stable across edits and reordering. The base stack uses `background`, `effects`, `icon-fill`, `icon-lines`; new layers should use a UUID. |
 | `source` | A paint, below. |
-| `clip` | `CANVAS`; `BACKGROUND`: inside the background shape, empty when the background is off (the shape's anti-aliased edge is applied once, by step 5); `ICON`: fill body union lines, `b + l - b l`; `ICON_FILL`, `ICON_LINES`: the fill stage's body and lines alone; `EFFECTS`: the union, `e + c - e c`, of the coverage times opacity of every enabled effect layer below this layer, empty below the first. |
+| `clip` | `CANVAS`; `BACKGROUND`: inside the background shape, empty when the background is off (the shape's anti-aliased edge is applied once, by step 5); `ICON`: fill body union lines, `b + l - b l`; `ICON_FILL`, `ICON_LINES`: the fill stage's body and lines alone; `EFFECTS`: the union, `e + c - e c`, of the coverage times opacity of every enabled effect layer below this layer, empty below the first; `BELOW` (schema 9): the layer directly below in the editor's list, wherever it is dragged, the effects marker passed over: above the icon's fill or lines `ICON`, above a paint layer that layer's own clip times its matte (a hidden layer: its clip alone), above an enabled effect the union of its outputs' coverage (a blur: its clip), above a switched-off effect or at the bottom nothing. The editor's one switch, Stay inside the layer below, is `BELOW` on and `CANVAS` off; every other target is an older setting the editor keeps and names. |
 | `clipInverse` | `true` uses `1 - coverage`. |
 | `blend` | `NORMAL`, `MULTIPLY`, `SCREEN`, `OVERLAY`, `DARKEN`, `LIGHTEN`, `COLOR_DODGE`, `COLOR_BURN`, `HARD_LIGHT`, `SOFT_LIGHT`, `DIFFERENCE`, `EXCLUSION`, `HUE`, `SATURATION`, `COLOR`, `LUMINOSITY`, `ADD`. W3C Compositing and Blending Level 1. The platform names: `NORMAL` is `SRC_OVER`, `ADD` is `PLUS`, the rest are equal; all 17 exist in `android.graphics.BlendMode` at compileSdk 37. |
 | `opacity` | 0.0 to 1.0. |
 | `mapping` | Texture and noise placement, schema 8; ignored by solid and gradient sources. `mode`: `FIT` (all of the texture shows), `FILL` (covers the canvas, crops), `TILE` (short side spans the canvas, repeats). `scale` 0.25 to 4.0, above 1 zooms in. `rotation` -180.0 to 180.0 degrees about the canvas centre. Per icon: `randomShift` 0.0 to 1.0 scales how far the icon's patch moves from the centre by its per-icon offset, `0.5 + (o - 0.5) shift`: 0 every icon the centred patch (schema 7's `lockOffset` true), 1 the offset itself (`lockOffset` false); `randomRotation` 0.0 to 180.0 degrees, each icon turned by up to that either way; `randomScale` 0.0 to 1.0, each icon zoomed by `2^((2r - 1) randomScale)`; `seed` any 32-bit integer, the editor's Shuffle. The draws are four SplitMix64 floats seeded with the slot's IconSeed when `seed` is 0, else with `IconSeed xor mix64(seed)`: offset x, offset y, turn, zoom. At seed 0 the first two are the per-icon offset itself, so schema 7 placements are unchanged; a pinned override offset is used as given at any seed. `crop`: `null` or `{ "left", "top", "right", "bottom" }`, fractions of the texture, each side at least 0.02, snapped to whole texels: the texture is that rectangle for placing, tiling and clamping. The per-icon offset: `TILE` translates the texture plane by the offset times the texture size, wrapped; `FIT` and `FILL` move the canvas window within the room between it and the texture, `FILL` only where the texture is larger so the patch never leaves it, `FIT` either way so a smaller texture moves inside the canvas and stays whole. A square texture at scale 1 under `FILL` leaves no room, so the editor starts every new texture layer at `scale` 2.0. Noise shifts its field by the offset. Code: `render/.../layer/Mapping.kt`, `Mappings.place`. |
 | `matte` | `null`, or mask adjustments that turn the source's luminance into alpha: `{ "mode", "black", "white", "threshold", "invert", "feather" }`. `mode` `LEVELS` maps `black` to 0 and `white` to 1 (both 0.0 to 1.0, black below white); `THRESHOLD` gives 1 where luminance reaches `threshold` (0.0 to 1.0). `invert` flips it. `feather` 0.0 to 0.05 of the canvas is a Gaussian blur radius. Luminance is read before any gradient map: `0.3 r + 0.59 g + 0.11 b` of the premultiplied texels for a texture (transparent reads as black), the raw noise value for noise, the colour's for solids and gradients. So a black-and-white texture with single-colour `stops` paints that colour wherever the texture is light. |
 | `visible` | Schema 6. `false` paints nothing, whatever the opacity: the editor's eye. An effect linked to the layer still reads its source. |
+| `finish` | Schema 9. `{ "frost", "grain", "rim", "cut" }`, over the layer's area, its clip times its matte, in this order around the paint: `cut` 0.0 to 1.0 first multiplies everything painted so far by `1 - area cut`, all four premultiplied channels (destination-out), so the tile turns transparent there and the wallpaper shows through; then the layer paints as usual at its opacity; `frost` 0.0 to 0.1 of the canvas is a Gaussian radius, sigma half of it: the buffer now, below and the layer, blurred as the `blur` effect blurs and mixed in by the area; `grain` 0.0 to 1.0 overlays grain, the `grain` effect's field at size 1 with its own seed, source-atop over the area; `rim` 0.0 to 1.0 screens white, source-atop, by `clamp(2 (area - blur(area)), 0, 1) rim`, the blur's sigma 0.012 of the canvas. Opacity is the editor's See-through, shown as `1 - opacity`. The editor's Glass button sets opacity 0.45, frost 0.04, grain 0.35 and rim 0.6 (`Glass.FILL_FINISH`). A layer at opacity 0 with a finish still runs its finish. |
 
 Per pixel, coverage = clip x matte x opacity, and the source scaled by the
 coverage is blended into the stack. A layer that is not `visible` is skipped.
@@ -198,8 +202,8 @@ same at every size and on every device. Code: `render/.../effect/BrushStrokes.kt
 | Field | Values |
 |---|---|
 | `count` | 1 to 400 strokes. |
-| `length` | 0.02 to 0.5 of the canvas: how far a stroke reaches. |
-| `width` | 0.002 to 0.08 of the canvas: a stroke's width at its base. |
+| `length` | 0.02 to 1.2 of the canvas (0.5 before schema 9): how far a stroke reaches. |
+| `width` | 0.002 to 0.2 of the canvas (0.08 before schema 9): a stroke's width at its base. |
 | `softness` | 0.0 to 1.0: crisp to soft edges and bristles. |
 | `blur` | 0.0 to 1.0: how much the strokes blur with distance from the icon. |
 | `fade` | 0.0 to 1.0: how much paint runs out along a stroke. |
@@ -211,6 +215,9 @@ same at every size and on every device. Code: `render/.../effect/BrushStrokes.kt
 | `paintLayer` | As for `streaks`: each stroke takes the linked source's colour at its start. |
 | `color` | The paint without a link. |
 | `seed` | Any 32-bit integer. |
+| `direction` | Schema 9. `OUTWARD`: as above, from the icon's edge. `PARALLEL`: `count` strokes along `angle`, spread evenly across a band through the origin `min(1.3, count width 1.6)` of the canvas wide, centred on the origin along their length, each drawing its random numbers in the outward order, then its place across and along; they bend and wobble at a quarter of the outward amounts; no holes are kept clear, and `blur` softens each stroke's edge toward its tip (`2.5 blur t` half-widths) instead of the distance blur. `drift` is unused. |
+| `originX`, `originY` | Schema 9. 0.0 to 1.0, y down. Outward: the icon's distance field, flow field and so the burst moved from the centre to there (bilinear, outside reads as far outside); the centre is schema 8's strokes to the bit. All one way: the point the band crosses. |
+| `style` | Schema 9. `CLASSIC`: the mark above. `PAINTED`: pressure from 0.35 to full width over the first tenth, a slow 14% swell from noise along the stroke, lift to 15% over the last third; each side frays by its own noise along the stroke (22 cycles, up to 22% of the width); 14 bristle lanes each with its own load, dark streaks `1 - bristles 0.55 (1 - smoothstep(0.2, 0.6, b))(1.2 - load)` the whole way, running dry from a fifth of the way, earlier in lanes with less load; paint pooled at the start `1 + 0.35 (1 - t)^6`; paint runs out as `1 - fade 0.7 smoothstep(0.3, 1, t)`; and where a stroke crosses paint already there its colour darkens by `1 - 0.22 coverage`. New strokes in the editor are Painted; schema 8 strokes migrate as Classic. |
 
 `bevel`: bevel and emboss from the signed sub-pixel distance to the icon
 mask's edge (anti-aliased EDT after Gustavson and Strand), light at 30
@@ -233,7 +240,7 @@ Code: `effect/DropShadow.kt`, `InnerShadow.kt`.
 | Field | Values |
 |---|---|
 | `angle` | 0.0 to 360.0: where the light comes from; the shadow falls the other way. 120 puts it below right. |
-| `distance` | 0.0 to 0.1 of the canvas. |
+| `distance` | 0.0 to 0.25 of the canvas (0.1 before schema 9). The editor shows angle and distance as one Offset pad: the dot is where the shadow falls, `(-cos a, sin a) distance` on screen; the centre is no offset. |
 | `blur` | 0.0 to 0.1 of the canvas: Gaussian radius, sigma half of it. |
 | `color` | The shadow colour. The layer's `opacity` is the shadow's opacity. |
 
@@ -278,7 +285,10 @@ target. Code: `layer/StackEvaluator.kt`.
 | `radius` | 0.001 to 0.1 of the canvas: Gaussian radius, sigma half of it. |
 | `clip`, `clipInverse` | Where it shows, as a paint layer's. |
 
-The Glass look (`render/.../Glass.kt`, the editor's Add sheet) is not a type: it sets the
+Until schema 9 the editor's Add sheet offered the Glass look. Since schema 9 Glass is a
+starting point inside every fill (`finish` above) and the Add sheet offers neither the look
+nor the blur effect; a theme that has them keeps them, so it needs no migration: the look was
+never a type, only ordinary layers, which render as before. The Glass look (`render/.../Glass.kt`) is not a type: it sets the
 background layer to 30% and the icon layers to 55% opacity, a white border, a blur behind
 the icon at the effects marker, and on top a soft raised edge, a white inner glow and
 grain. Golden: `look_glass`, `look_glass_marble`.
@@ -295,7 +305,13 @@ grain. Golden: `look_glass`, `look_glass_marble`.
 - `texture`: `sha256`, the lowercase hex SHA-256 of the texture file, 64
   characters; `stops`: `null` keeps the texture's colours, a list maps its
   luminance through the stops and keeps its alpha.
-- `noise`: `kind` `FBM`, `RIDGED` or `GRAIN`; `octaves` 1 to 8 (fBm and
+- `texture` (schema 9): also `adjust`: `null` or `{ "brightness", "contrast", "saturation", "warmth" }`, each -1.0 to 1.0, 0 no change. Applied to the sampled texels before `stops`: unpremultiplied, then brightness `c + (1 - c) 0.6 b` up or `c (1 + 0.6 b)` down, contrast `(c - 0.5) f + 0.5` with `f = 1 + k` below 0 and `1 / (1 - 0.8 k)` above, saturation `l + (c - l)(1 + s)` with `l = 0.3 r + 0.59 g + 0.11 b`, warmth red `+ 0.12 w` and blue `- 0.12 w`, clamped and premultiplied again. Code: `layer/Adjustments.kt`.
+- `pattern` (schema 9): `pattern`, `seed`, `stops`, the colours from 0 to 1. `pattern` is one of three generators after Blender's Noise, Voronoi and Wave textures, tagged by `type`; sizes are a cell's side or a wave's period as a fraction of the canvas before the mapping's scale. Code: `layer/PatternField.kt`, `Mappings.pattern`.
+  - `noise`: `size` 0.01 to 1.0; `detail` 0.0 to 8.0, octaves above the first, a fractional part blending one more in (Blender's fractal noise); `roughness` 0.0 to 1.0, gain per octave, lacunarity 2; `distortion` 0.0 to 2.0, coordinates moved by `(2 n - 1) distortion` of two decorrelated value noises; `stretch` 1.0 to 16.0 along `stretchAngle` 0.0 to 180.0 degrees; `ridges`, each octave `(1 - |2 n - 1|)^2`.
+  - `cells`: `size` 0.0 or 0.01 to 1.0, 0 is one pack pixel per cell on an even grid, box-filtered, schema 8's grain field; `randomness` 0.0 to 1.0, how far each cell's point moves from the cell centre, up to half a cell; `edgeWidth` 0.01 to 0.5 of a cell; `feature` `CELLS` (one value per cell, the nearest point's), `EDGES` (`1 - smoothstep(w/2, w/2 + 0.03, (F2 - F1)/2)`), `CRACKLE` (`clamp(F2 - F1)`). F1 and F2 over the 3 x 3 cells around.
+  - `waves`: `kind` `BANDS` or `RINGS`; `size` 0.01 to 1.0, the period; `distortion` 0.0 to 20.0; `detail` 0.0 to 8.0. Value `0.5 - 0.5 cos(2 pi phase)`, phase x in periods (bands, turned by the mapping's rotation) or the distance from the centre (rings, the per-icon offset moving the centre by up to a quarter of the canvas), plus `0.5 distortion (2 fbm(0.35 x, 0.35 y) - 1)`.
+  The editor's starting points Clouds, Veins, Marble, Speckles, Stone, Crackle and Wood are only values of these.
+- `noise` (schema 8 and older, migrated to `pattern`): `kind` `FBM`, `RIDGED` or `GRAIN`; `octaves` 1 to 8 (fBm and
   ridged); `seed`, any 32-bit integer; `stops`, the colours from noise 0 to 1.
   Default stops are black to white.
 
@@ -417,6 +433,20 @@ for those values, so every theme renders the same bytes: `ThemeMigrationTest` wr
 look and blend golden theme at schema 7 with `lockOffset`, migrates it, requires the JSON
 and theme to equal the current ones and renders the goldens byte for byte. A mapping
 without `lockOffset` at schema 7 is damaged.
+
+Version 8 had noise paints, no image adjust, no finish, no clip to the layer below and no
+stroke direction or style. `v8ToV9` (`MigrationV8ToV9.kt`) writes every one so it renders
+the same bytes: a `noise` paint becomes a `pattern` (fBm and ridged: `noise` at size 0.125,
+detail `octaves - 1`, roughness 0.5, `ridges` for ridged; grain: `cells` at size 0,
+randomness 0), a texture gains `adjust` null, every paint layer a zero `finish`, brush strokes
+`OUTWARD`, origin 0.5, 0.5, `CLASSIC`. A paint layer other than `background`, `icon-fill`
+and `icon-lines`, not inverted and not `CANVAS`, whose clip is exactly what `BELOW` resolves to
+where it sits (`ICON` above the icon, or the clip of a paint layer below it without a matte)
+becomes `BELOW`, so it follows a drag from then on; every other target stays as it was and
+renders as before. Grain's `octaves`, which never changed grain, is dropped.
+`ThemeMigrationTest.version8RendersTheSameAsSchema9` writes every golden theme schema 8 could
+hold as schema 8, migrates it and renders every golden byte for byte. Cover's scale is now
+never below 1 per icon (`Mappings.texture`); no golden had one below, so none changed.
 
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture

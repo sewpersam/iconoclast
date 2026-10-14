@@ -65,8 +65,9 @@ internal object BrushStrokes {
 
         val reach = e.length * px
         val band = ceil(reach) + 2f
-        var sd = EffectSource.signedDistance(input, band)
-        var flow = EffectSource.blurred(input, (FLOW_BASE + FLOW_PER_LENGTH * e.length) * px)
+        // All one way reads neither field: no distance blur, no holes, no flow.
+        var sd = if (parallel) FloatArray(0) else EffectSource.signedDistance(input, band)
+        var flow = if (parallel) FloatArray(0) else EffectSource.blurred(input, (FLOW_BASE + FLOW_PER_LENGTH * e.length) * px)
         // Outward from another point: the icon's outline, and so the burst, moved there.
         val mx = (e.originX - 0.5f) * px
         val my = (e.originY - 0.5f) * px
