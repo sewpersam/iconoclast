@@ -25,27 +25,27 @@ class MappingTest {
         assertEquals(TextureOffset(0.638075053691864f, 0.902005672454834f), Mappings.offset(Mapping(), TextureOffset.of("fdroid")))
         assertEquals(Mappings.offset(Mapping(), TextureOffset.of("fdroid")), Mappings.offset(Mapping(), TextureOffset.of("fdroid")))
         assertFalse(Mappings.offset(Mapping(), TextureOffset.of("fdroid")) == Mappings.offset(Mapping(), TextureOffset.of("camera")))
-        assertEquals(TextureOffset.CENTRE, Mappings.offset(Mapping(lockOffset = true), TextureOffset.of("fdroid")))
+        assertEquals(TextureOffset.CENTRE, Mappings.offset(Mapping(randomShift = 0f), TextureOffset.of("fdroid")))
     }
 
     @Test
     fun fillAtScaleOneLockedIsTheTextureItself() {
         val t = texture(8, 8)
-        val out = Mappings.texture(t, Mapping(lockOffset = true), TextureOffset.of("x"), 8)
+        val out = Mappings.texture(t, Mapping(randomShift = 0f), TextureOffset.of("x"), 8)
         for (i in 0 until 64) assertEquals(i / 255f, out[i * 4], "texel $i")
     }
 
     @Test
     fun tilesRepeat() {
         val t = texture(4, 4)
-        val out = Mappings.texture(t, Mapping(mode = MappingMode.TILE, scale = 0.5f, lockOffset = true), TextureOffset.of("x"), 8)
+        val out = Mappings.texture(t, Mapping(mode = MappingMode.TILE, scale = 0.5f, randomShift = 0f), TextureOffset.of("x"), 8)
         for (y in 0 until 8) for (x in 0 until 4) assertEquals(out[(y * 8 + x) * 4], out[(y * 8 + x + 4) * 4])
         for (y in 0 until 4) assertEquals(out[(y * 8) * 4], out[((y + 4) * 8) * 4])
     }
 
     @Test
     fun fitShowsAllOfAWideTextureAndLeavesTheRestClear() {
-        val out = Mappings.texture(texture(16, 8), Mapping(mode = MappingMode.FIT, lockOffset = true), TextureOffset.of("x"), 16)
+        val out = Mappings.texture(texture(16, 8), Mapping(mode = MappingMode.FIT, randomShift = 0f), TextureOffset.of("x"), 16)
         assertEquals(0f, out[3], "top row is outside the texture")
         assertEquals(1f, out[(8 * 16 + 8) * 4 + 3], "centre is inside")
     }
@@ -82,7 +82,7 @@ class MappingTest {
         val a = Mappings.texture(t, m, TextureOffset.of("fdroid"), 8)
         assertContentEquals(a, Mappings.texture(t, m, TextureOffset.of("fdroid"), 8))
         assertFalse(a.contentEquals(Mappings.texture(t, m, TextureOffset.of("camera"), 8)))
-        assertContentEquals(Mappings.texture(t, m.copy(lockOffset = true), TextureOffset.of("fdroid"), 8), Mappings.texture(t, m.copy(lockOffset = true), TextureOffset.of("camera"), 8))
+        assertContentEquals(Mappings.texture(t, m.copy(randomShift = 0f), TextureOffset.of("fdroid"), 8), Mappings.texture(t, m.copy(randomShift = 0f), TextureOffset.of("camera"), 8))
         val n = Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("fdroid"), 16, 432)
         assertContentEquals(n, Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("fdroid"), 16, 432))
         assertFalse(n.contentEquals(Mappings.noise(NoiseKind.FBM, 4, 1, Mapping(), TextureOffset.of("camera"), 16, 432)))

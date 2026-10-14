@@ -1,5 +1,7 @@
 package dev.iconoclast.render
 
+import dev.iconoclast.render.layer.Placement
+
 /**
  * Geometry depends on the drawable, the shape parameters and the size, nothing else.
  * [drawable] is the geometry's own drawable name, never the slot it is drawn for: a slot
@@ -76,10 +78,10 @@ data class EffectKey(
 /**
  * A noise paint's value field over the whole canvas for one icon: what Mappings.noise
  * gives without a need mask. It depends on no geometry, so a drag that changes the shape
- * reuses it. [offset] is the one the mapping uses, so a locked mapping shares one field
- * across icons. Only preview sizes are cached; see IconRenderer.
+ * reuses it. [placement] is the mapping as this icon places it, so a mapping with no
+ * per-icon shift, turn or zoom shares one field across icons. Only preview sizes are cached; see IconRenderer.
  */
-data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val mapping: Mapping, val offset: TextureOffset, val size: Int, val grainCells: Int)
+data class NoiseKey(val kind: NoiseKind, val octaves: Int, val seed: Int, val placement: Placement, val size: Int, val grainCells: Int)
 
 data class BackgroundKey(val shape: BackgroundShape, val fraction: Float, val borderWidth: Float, val size: Int)
 

@@ -23,6 +23,8 @@ internal object EffectPaint {
         is Effect.OuterGlow -> listOf(Glows.outer(e, layer.blend, input))
         is Effect.InnerGlow -> listOf(Glows.inner(e, layer.blend, input))
         is Effect.Grain -> listOf(Grain.paint(e, layer.blend, input))
+        // Blur rewrites the stack itself, StackEvaluator.blur; it paints no output.
+        is Effect.Blur -> emptyList()
     }
 
     /** Straight ARGB as one premultiplied colour. */

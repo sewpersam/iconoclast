@@ -6,6 +6,7 @@ import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
 import dev.iconoclast.render.Border
 import dev.iconoclast.render.ColorStop
+import dev.iconoclast.render.Crop
 import dev.iconoclast.render.DotMode
 import dev.iconoclast.render.BevelStyle
 import dev.iconoclast.render.Breakup
@@ -82,6 +83,10 @@ private sealed interface PaintJson {
     @Serializable @SerialName("radial")
     data class Radial(val cx: JFloat, val cy: JFloat, val radius: JFloat, val stops: List<StopJson>) : PaintJson
 
+    /** Schema 8. */
+    @Serializable @SerialName("angular")
+    data class Angular(val cx: JFloat, val cy: JFloat, val angle: JFloat, val stops: List<StopJson>) : PaintJson
+
     @Serializable @SerialName("texture")
     data class Texture(val sha256: String, val stops: List<StopJson>?) : PaintJson
 
@@ -140,7 +145,14 @@ private data class BackgroundJson(
 )
 
 @Serializable
-private data class MappingJson(val mode: MappingMode, val scale: JFloat, val rotation: JFloat, val lockOffset: Boolean)
+private data class CropJson(val left: JFloat, val top: JFloat, val right: JFloat, val bottom: JFloat)
+
+/** Schema 8: lockOffset became randomShift; the per-icon turn, zoom, seed and crop are new. */
+@Serializable
+private data class MappingJson(
+    val mode: MappingMode, val scale: JFloat, val rotation: JFloat,
+    val randomShift: JFloat, val randomRotation: JFloat, val randomScale: JFloat, val seed: Int, val crop: CropJson?,
+)
 
 @Serializable
 private data class MatteJson(
@@ -217,6 +229,10 @@ private sealed interface EffectJson {
 
     @Serializable @SerialName("grain")
     data class Grain(val amount: JFloat, val size: JFloat, val seed: Int) : EffectJson
+
+    /** Schema 8. */
+    @Serializable @SerialName("blur")
+    data class Blur(val radius: JFloat, val clip: ClipTarget, val clipInverse: Boolean) : EffectJson
 }
 
 private fun Effect.toJson(): EffectJson = when (this) {
@@ -234,6 +250,7 @@ private fun Effect.toJson(): EffectJson = when (this) {
     is Effect.OuterGlow -> EffectJson.OuterGlow(size, spread, color)
     is Effect.InnerGlow -> EffectJson.InnerGlow(size, spread, color)
     is Effect.Grain -> EffectJson.Grain(amount, size, seed)
+    is Effect.Blur -> EffectJson.Blur(radius, clip, clipInverse)
 }
 
 private fun EffectJson.toEffect(): Effect = when (this) {
@@ -251,6 +268,7 @@ private fun EffectJson.toEffect(): Effect = when (this) {
     is EffectJson.OuterGlow -> Effect.OuterGlow(size, spread, color)
     is EffectJson.InnerGlow -> Effect.InnerGlow(size, spread, color)
     is EffectJson.Grain -> Effect.Grain(amount, size, seed)
+    is EffectJson.Blur -> Effect.Blur(radius, clip, clipInverse)
 }
 
 @Serializable
@@ -284,6 +302,7 @@ private fun Paint.toJson(): PaintJson = when (this) {
     is Paint.Solid -> PaintJson.Solid(argb)
     is Paint.LinearGradient -> PaintJson.Linear(x0, y0, x1, y1, stops.map { StopJson(it.offset, it.argb) })
     is Paint.RadialGradient -> PaintJson.Radial(cx, cy, radius, stops.map { StopJson(it.offset, it.argb) })
+    is Paint.AngularGradient -> PaintJson.Angular(cx, cy, angle, stops.map { StopJson(it.offset, it.argb) })
     is Paint.Texture -> PaintJson.Texture(sha256, stops?.map { StopJson(it.offset, it.argb) })
     is Paint.Noise -> PaintJson.Noise(kind, octaves, seed, stops.map { StopJson(it.offset, it.argb) })
 }
@@ -292,6 +311,7 @@ private fun PaintJson.toPaint(): Paint = when (this) {
     is PaintJson.Solid -> Paint.Solid(color)
     is PaintJson.Linear -> Paint.LinearGradient(x0, y0, x1, y1, stops.map { ColorStop(it.offset, it.color) })
     is PaintJson.Radial -> Paint.RadialGradient(cx, cy, radius, stops.map { ColorStop(it.offset, it.color) })
+    is PaintJson.Angular -> Paint.AngularGradient(cx, cy, angle, stops.map { ColorStop(it.offset, it.color) })
     is PaintJson.Texture -> Paint.Texture(sha256, stops?.map { ColorStop(it.offset, it.color) })
     is PaintJson.Noise -> Paint.Noise(kind, octaves, seed, stops.map { ColorStop(it.offset, it.color) })
 }
@@ -301,7 +321,7 @@ private fun Layer.toJson(): LayerJson = when (this) {
     is EffectLayer -> LayerJson.Effect(id, enabled, blend, opacity, effect.toJson())
     is PaintLayer -> LayerJson.Paint(
         id, source, clip, clipInverse, blend, opacity,
-        mapping.run { MappingJson(mode, scale, rotation, lockOffset) },
+        mapping.run { MappingJson(mode, scale, rotation, randomShift, randomRotation, randomScale, seed, crop?.run { CropJson(left, top, right, bottom) }) },
         matte?.run { MatteJson(mode, black, white, threshold, invert, feather) },
         visible,
     )
@@ -312,7 +332,7 @@ private fun LayerJson.toLayer(): Layer = when (this) {
     is LayerJson.Effect -> EffectLayer(id, effect.toEffect(), enabled, blend, opacity)
     is LayerJson.Paint -> PaintLayer(
         id, source, clip, clipInverse, blend, opacity,
-        mapping.run { Mapping(mode, scale, rotation, lockOffset) },
+        mapping.run { Mapping(mode, scale, rotation, randomShift, randomRotation, randomScale, seed, crop?.run { Crop(left, top, right, bottom) }) },
         matte?.run { Matte(mode, black, white, threshold, invert, feather) },
         visible,
     )

@@ -2,9 +2,11 @@ package dev.iconoclast.render.layer
 
 import dev.iconoclast.render.BlendMode
 import dev.iconoclast.render.ClipTarget
+import dev.iconoclast.render.Effect
 import dev.iconoclast.render.EffectLayer
 import dev.iconoclast.render.EffectsLayer
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.Mapping
 import dev.iconoclast.render.EffectKey
 import dev.iconoclast.render.Mask
 import dev.iconoclast.render.MaskCache
@@ -15,6 +17,7 @@ import dev.iconoclast.render.TextureOffset
 import dev.iconoclast.render.background.Paints
 import dev.iconoclast.render.effect.EffectPaint
 import dev.iconoclast.render.fill.GlyphMasks
+import dev.iconoclast.render.mask.Blur
 import dev.iconoclast.render.texture.TextureStore
 
 /** What the stack reads for one icon at one size. Masks come from the cache, read-only. */
@@ -45,7 +48,14 @@ internal class StackInput(
      * drawn once, so the field is evaluated only where the layer can show.
      */
     val cacheNoise: Boolean = false,
-)
+    /** IconSeed of the slot's seed name: a mapping's per-icon draws, layer/Mappings.place. */
+    val iconSeed: Long = 0L,
+    /** Whether [offset] is pinned by a per-icon override rather than drawn from the seed name. */
+    val pinned: Boolean = false,
+) {
+    /** [mapping] placed for this icon. */
+    fun place(mapping: Mapping): Placement = Mappings.place(mapping, offset, iconSeed, pinned)
+}
 
 /**
  * Step 4 of spec 3.3: paints the layers bottom to top into a premultiplied RGBA buffer.
@@ -62,7 +72,9 @@ internal object StackEvaluator {
             is EffectsLayer -> input.border?.let { over(buf, it, input.borderColor!!) }
             is PaintLayer -> paint(buf, layer, input, pass)
             is EffectLayer -> if (layer.enabled && layer.opacity > 0f) {
-                for (out in EffectPaint.outputs(layer, layers, input)) paintEffect(buf, out, layer.opacity, pass)
+                val e = layer.effect
+                if (e is Effect.Blur) blur(buf, e, layer.opacity, input, pass)
+                else for (out in EffectPaint.outputs(layer, layers, input)) paintEffect(buf, out, layer.opacity, pass)
             }
         }
     }
@@ -183,13 +195,13 @@ internal object StackEvaluator {
                 val c = FloatArray(4).also { Paints.premultiply(paint.argb, it) }
                 Source(c, null, if (needLuminance) FloatArray(n) { BlendModes.lum(c[0], c[1], c[2]) } else null)
             }
-            is Paint.LinearGradient, is Paint.RadialGradient -> {
+            is Paint.LinearGradient, is Paint.RadialGradient, is Paint.AngularGradient -> {
                 val px = Paints.fill(paint, input.size)
                 Source(null, px, if (needLuminance) lumOf(px, n) else null)
             }
             is Paint.Texture -> {
                 val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
-                val px = Mappings.texture(tex, layer.mapping, input.offset, input.size, need)
+                val px = Mappings.texture(tex, input.place(layer.mapping), input.size, need)
                 val lum = if (needLuminance) lumOf(px, n) else null
                 paint.stops?.let { stops ->
                     val c = FloatArray(4)
@@ -205,12 +217,13 @@ internal object StackEvaluator {
             is Paint.Noise -> {
                 // The cached field is the whole canvas; outside [need] nothing reads it, so the
                 // pixels are the same either way. Read-only: the gradient map writes to px.
+                val placed = input.place(layer.mapping)
                 val v = if (input.cacheNoise) {
-                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, layer.mapping, Mappings.offset(layer.mapping, input.offset), input.size, input.grainCells)) {
-                        Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size, input.grainCells)
+                    input.cache.noise(NoiseKey(paint.kind, paint.octaves, paint.seed, placed, input.size, input.grainCells)) {
+                        Mappings.noise(paint.kind, paint.octaves, paint.seed, placed, input.size, input.grainCells)
                     }
                 } else {
-                    Mappings.noise(paint.kind, paint.octaves, paint.seed, layer.mapping, input.offset, input.size, input.grainCells, need)
+                    Mappings.noise(paint.kind, paint.octaves, paint.seed, placed, input.size, input.grainCells, need)
                 }
                 val px = FloatArray(v.size * 4)
                 val c = FloatArray(4)
@@ -258,10 +271,47 @@ internal object StackEvaluator {
         }
     }
 
-    private fun clip(layer: PaintLayer, input: StackInput, pass: Pass): Clip {
-        val inv = layer.clipInverse
+    /**
+     * [Effect.Blur]: the stack so far, blurred with sigma half the radius, mixed back in by
+     * the clip times [opacity]. Each premultiplied channel is blurred with the edges read as
+     * zero and divided by the blur of an all-ones plane, which is the kernel weight that
+     * fell inside the tile: so the rim keeps its strength, as if the tile continued.
+     */
+    private fun blur(buf: FloatArray, e: Effect.Blur, opacity: Float, input: StackInput, pass: Pass) {
+        val size = input.size
+        val sigma = e.radius * size / 2f
+        if (sigma < MIN_SIGMA) return
+        val clip = clip(e.clip, e.clipInverse, input, pass)
+        if (clip.empty) return
+        val n = size * size
+        val plane = FloatArray(n)
+        val weight = Blur.gaussian(FloatArray(n) { 1f }, size, size, sigma)
+        val blurred = FloatArray(4 * n)
+        for (c in 0..3) {
+            for (i in 0 until n) plane[i] = buf[4 * i + c]
+            val b = Blur.gaussian(plane, size, size, sigma)
+            for (i in 0 until n) blurred[4 * i + c] = b[i] / weight[i]
+        }
+        for (i in 0 until n) {
+            var cov = clip.at(i)
+            if (opacity != 1f) cov *= opacity
+            if (cov == 0f) continue
+            val o = 4 * i
+            // Premultiplied channels stay within their alpha: clamp the rounding of the sums.
+            val a = (buf[o + 3] + (blurred[o + 3].coerceIn(0f, 1f) - buf[o + 3]) * cov).coerceIn(0f, 1f)
+            for (k in 0..2) buf[o + k] = (buf[o + k] + (blurred[o + k].coerceIn(0f, 1f) - buf[o + k]) * cov).coerceIn(0f, a)
+            buf[o + 3] = a
+        }
+    }
+
+    /** Below this sigma in pixels the blur moves nothing visibly. */
+    private const val MIN_SIGMA = 0.2f
+
+    private fun clip(layer: PaintLayer, input: StackInput, pass: Pass): Clip = clip(layer.clip, layer.clipInverse, input, pass)
+
+    private fun clip(target: ClipTarget, inv: Boolean, input: StackInput, pass: Pass): Clip {
         fun of(m: Mask?) = Clip(m?.values, false, false, inv)
-        return when (layer.clip) {
+        return when (target) {
             ClipTarget.CANVAS -> Clip(null, true, false, inv)
             // The shape's anti-aliased edge is applied once, by step 5.
             ClipTarget.BACKGROUND -> Clip(input.shape?.values, false, true, inv)

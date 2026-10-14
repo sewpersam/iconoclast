@@ -46,6 +46,7 @@ class GoldenTest {
     fun goldens() {
         val renderer = IconRenderer()
         assertEquals(GoldenSet.TEXTURE, renderer.textures.put(resource(GoldenSet.TEXTURE_FILE)))
+        assertEquals(Marble.HASH, renderer.textures.put(Marble.PNG))
         val mismatches = mutableListOf<String>()
         for ((dir, theme, name) in GoldenSet.CASES) {
             val i = SAMPLES.indexOf(name)

@@ -6,6 +6,7 @@ import dev.iconoclast.pack.RestoreResult
 import dev.iconoclast.pack.backup
 import dev.iconoclast.render.FillMode
 import dev.iconoclast.render.GoldenSet
+import dev.iconoclast.render.Marble
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OUTPUT_SIZE
 import dev.iconoclast.render.OutputResolution
@@ -35,7 +36,10 @@ class ExportRoundTripGateTest {
     private val bundle = IconBundle(ByteBuffer.wrap(File(golden, "samples.bin").readBytes()))
     private fun tmp(name: String): File = Files.createTempDirectory(name).toFile().apply { deleteOnExit() }
 
-    private val from = TextureStore().also { assertEquals(GoldenSet.TEXTURE, it.put(File(golden, GoldenSet.TEXTURE_FILE).readBytes())) }
+    private val from = TextureStore().also {
+        assertEquals(GoldenSet.TEXTURE, it.put(File(golden, GoldenSet.TEXTURE_FILE).readBytes()))
+        assertEquals(Marble.HASH, it.put(Marble.PNG))
+    }
     private val key = PackKeyStore(tmp("key-old"), "Old Pack").apply { loadOrCreate() }.backup()!!
 
     /** A fresh install: textures, themes and key store all empty. */
