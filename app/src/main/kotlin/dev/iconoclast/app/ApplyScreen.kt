@@ -9,36 +9,52 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import dev.iconoclast.app.theme.ThemeDocument
 
-/** Apply the active theme: progress, status and the post-install guidance. */
+/**
+ * Apply the active theme: progress, status and the post-install guidance. The button says
+ * the theme is applied while the installed pack is this theme as it is, and offers Apply
+ * again after an edit or when newly installed apps have icons.
+ */
 @Composable
 fun ApplyScreen(
     active: ThemeDocument?,
     state: ApplyState,
+    status: AppliedStatus,
     onApply: () -> Unit,
-    onFix: (Fix) -> Unit,
+    onResume: () -> Unit,
     onRestoreKey: () -> Unit,
     onNewKey: () -> Unit,
     onAppInfo: (String) -> Unit,
-    onCoverage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { onResume() }
     val working = state is ApplyState.Working
+    val applied = status.applied && status.newApps == 0
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Button(onClick = onApply, enabled = !working && active != null, modifier = Modifier.fillMaxWidth()) {
-            Text(if (active != null) "Apply ${active.name}" else "No theme to apply")
+        Button(onClick = onApply, enabled = !working && !applied && active != null, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                when {
+                    active == null -> "No theme to apply"
+                    applied -> "${active.name} is applied"
+                    status.applied -> "Apply ${active.name} to ${status.newApps} new ${if (status.newApps == 1) "app" else "apps"}"
+                    else -> "Apply ${active.name}"
+                },
+            )
         }
         when (state) {
-            ApplyState.Idle -> Text("Apply builds an icon pack from the theme in use and installs it.")
+            ApplyState.Idle -> if (!applied) Text("Apply builds an icon pack from the theme in use and installs it.")
             is ApplyState.Working -> {
                 if (state.total > 0) {
                     LinearProgressIndicator(progress = { state.done.toFloat() / state.total }, modifier = Modifier.fillMaxWidth())
@@ -50,8 +66,7 @@ fun ApplyScreen(
             }
             is ApplyState.Installed -> {
                 val g = state.guide
-                Text("Pack installed. ${state.themed} apps themed, ${state.unthemed} not covered by Arcticons keep their own icon.")
-                OutlinedButton(onClick = onCoverage) { Text("See which apps changed") }
+                Text("Pack installed. ${state.themed} ${if (state.themed == 1) "app" else "apps"} themed.")
                 if (state.firstInstall) {
                     Text("Select the pack in ${g.name}. ${g.selectPack}")
                 } else {
@@ -63,16 +78,18 @@ fun ApplyScreen(
             }
             is ApplyState.Problem -> {
                 Text(state.message)
-                when (state.fix) {
-                    Fix.GRANT_INSTALL_PERMISSION -> OutlinedButton(onClick = { onFix(Fix.GRANT_INSTALL_PERMISSION) }) { Text("Allow installing") }
-                    Fix.UNINSTALL_OLD_PACK -> OutlinedButton(onClick = { onFix(Fix.UNINSTALL_OLD_PACK) }) { Text("Uninstall old pack") }
-                    Fix.DAMAGED_KEY -> {
-                        Button(onClick = onRestoreKey) { Text("Restore from a backup") }
-                        OutlinedButton(onClick = onNewKey) { Text("Start over with a new key") }
-                    }
-                    null -> Unit
+                if (state.fix == Fix.DAMAGED_KEY) {
+                    Button(onClick = onRestoreKey) { Text("Restore from a backup") }
+                    OutlinedButton(onClick = onNewKey) { Text("Start over with a new key") }
                 }
             }
+        }
+        if (status.noIcon > 0 && !working) {
+            Text(
+                if (status.noIcon == 1) "1 app has no Arcticons icon yet and keeps its own." else "${status.noIcon} apps have no Arcticons icon yet and keep their own.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

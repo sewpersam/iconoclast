@@ -35,6 +35,18 @@ class BuiltPack(private val dir: File) {
          * signing certificate, and [build], this install of the designer, whose renderer drew
          * it: an update may draw differently. The theme's id, name and dates are left out.
          */
+        /**
+         * What the user sees of an Apply: the theme and its overrides at [resolution],
+         * without its id, name and dates. Equal looks mean an Apply would draw the same.
+         */
+        fun look(doc: ThemeDocument, resolution: OutputResolution): String {
+            val sha = MessageDigest.getInstance("SHA-256")
+            sha.update(doc.copy(id = "-", name = "", created = 0, modified = 0).toJson().toByteArray())
+            sha.update(0.toByte())
+            sha.update(resolution.name.toByteArray())
+            return sha.digest().joinToString("") { "%02x".format(it) }
+        }
+
         fun key(doc: ThemeDocument, plan: CoveragePlan, resolution: OutputResolution, template: ByteArray, certificate: ByteArray, build: String): String {
             val sha = MessageDigest.getInstance("SHA-256")
             fun part(bytes: ByteArray) {

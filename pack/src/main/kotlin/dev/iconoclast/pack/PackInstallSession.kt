@@ -89,6 +89,41 @@ class PackInstallSession(private val context: Context) {
         }
     }
 
+    /**
+     * Uninstalls [packageName] through the system's own confirmation, which Android always
+     * shows for an app another key signed. Calls [confirm] with the confirmation intent and
+     * waits for the answer: true when the package is gone, false when the user cancelled or
+     * the uninstall failed. The app's manifest declares REQUEST_DELETE_PACKAGES; this library's has none.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun uninstall(packageName: String, confirm: (Intent) -> Unit): Boolean {
+        val installer = context.packageManager.packageInstaller
+        val action = "${context.packageName}.PACK_UNINSTALL_STATUS"
+        val events = Channel<Intent>(Channel.UNLIMITED)
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, intent: Intent) { events.trySend(intent) }
+        }
+        context.registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
+        try {
+            val callback = Intent(action).setPackage(context.packageName)
+            val pending = PendingIntent.getBroadcast(context, UNINSTALL_REQUEST, callback, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+            installer.uninstall(packageName, pending.intentSender)
+            while (true) {
+                val intent = events.receive()
+                when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+                    PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                        val confirmation = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) ?: return false
+                        confirm(confirmation)
+                    }
+                    PackageInstaller.STATUS_SUCCESS -> return true
+                    else -> return false
+                }
+            }
+        } finally {
+            context.unregisterReceiver(receiver)
+        }
+    }
+
     /** The app's manifest declares ENFORCE_UPDATE_OWNERSHIP; this library's has none. */
     @SuppressLint("MissingPermission")
     @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -112,4 +147,9 @@ class PackInstallSession(private val context: Context) {
     }
 
     private fun detail(message: String?) = if (message.isNullOrBlank()) "" else " ($message)"
+
+    private companion object {
+        /** The uninstall callback's request code. Install callbacks use their session id, which is never negative. */
+        const val UNINSTALL_REQUEST = -1
+    }
 }
