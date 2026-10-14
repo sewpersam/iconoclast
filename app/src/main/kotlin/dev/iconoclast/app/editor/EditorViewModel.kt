@@ -45,8 +45,6 @@ sealed interface TextureTarget {
     data object NewLayer : TextureTarget
     /** The source of an existing layer. */
     data class Source(val layerId: String) : TextureTarget
-    /** The background tab's texture layer, made if missing. */
-    data object Background : TextureTarget
     /** The breakup of the streaks effect [layerId]. */
     data class Breakup(val layerId: String) : TextureTarget
 }
@@ -67,10 +65,13 @@ data class EditorUi(
     val message: String? = null,
     /** The snackbar offers Undo for [message]. */
     val undoable: Boolean = false,
-    /** The layer whose controls are open in the Layers tab. */
-    val selectedLayer: String? = null,
-    val addingLayer: Boolean = false,
-    val addingEffect: Boolean = false,
+    /**
+     * The row whose properties page is open: a layer id, [LayerStack.ICON_ROW] for the
+     * Icon, or null for the layer list.
+     */
+    val page: String? = null,
+    /** The Add sheet is open. */
+    val adding: Boolean = false,
     /** The texture chooser is open; [recentTextures] are the imported ones, newest first. */
     val choosingTexture: Boolean = false,
     val recentTextures: List<String> = emptyList(),
@@ -271,34 +272,45 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         _ui.value = _ui.value.copy(message = message, undoable = undoable)
     }
 
-    fun selectLayer(id: String?) {
-        _ui.value = _ui.value.copy(selectedLayer = id)
+    /** Opens the properties page of row [id], or back to the list with null. */
+    fun openPage(id: String?) {
+        _ui.value = _ui.value.copy(page = id)
     }
 
-    fun showAddLayer(show: Boolean) {
-        _ui.value = _ui.value.copy(addingLayer = show)
+    fun showAdd(show: Boolean) {
+        _ui.value = _ui.value.copy(adding = show)
     }
 
-    /** Adds a layer above the selected one, or on top, and selects it. */
+    /** Adds a layer on top of the stack, over the icon, and opens its page. */
     fun addLayer(source: Paint) {
         val h = history ?: return
         val layer = LayerStack.newLayer(source)
-        _ui.value = _ui.value.copy(addingLayer = false)
-        commit(LayerStack.insertAbove(h.theme, layer, _ui.value.selectedLayer))
-        selectLayer(layer.id)
+        _ui.value = _ui.value.copy(adding = false)
+        commit(LayerStack.insertAbove(h.theme, layer, null))
+        openPage(layer.id)
     }
 
-    fun showAddEffect(show: Boolean) {
-        _ui.value = _ui.value.copy(addingEffect = show)
-    }
-
-    /** Adds an effect where it shows, Task 9's placement, and selects it. */
+    /** Adds an effect where it shows, Task 9's placement, and opens its page. */
     fun addEffect(effect: Effect) {
         val h = history ?: return
         val layer = LayerStack.newEffect(h.theme, effect)
-        _ui.value = _ui.value.copy(addingEffect = false)
+        _ui.value = _ui.value.copy(adding = false)
         commit(LayerStack.insertEffect(h.theme, layer))
-        selectLayer(layer.id)
+        openPage(layer.id)
+    }
+
+    /** Renames this theme. A blank name is ignored. */
+    fun rename(name: String) {
+        val n = name.trim().ifEmpty { return }
+        _ui.value = _ui.value.copy(name = n)
+        container.scope.launch {
+            try {
+                repo.rename(id, n)
+            } catch (e: IOException) {
+                Log.w(TAG, "Not renamed", e)
+                say("Not renamed. Storage error: ${e.message ?: e.javaClass.simpleName}")
+            }
+        }
     }
 
     /** Layer [id] into the place of [targetId], one undo step. */
@@ -319,20 +331,14 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         commit(LayerStack.withVisible(h.theme, id, visible))
     }
 
-    /** Effect [id] behind the icon or on top of it. */
-    fun placeEffect(id: String, onTop: Boolean) {
-        val h = history ?: return
-        commit(LayerStack.placeEffect(h.theme, id, onTop))
-    }
-
     /** One undo step; the snackbar offers it right away. */
     fun removeLayer(id: String) {
         val h = history ?: return
         val label = LayerStack.layer(h.theme, id)?.let { LayerStack.label(h.theme, it) } ?: return
         commit(LayerStack.remove(h.theme, id))
         removal = h.mark()
-        if (_ui.value.selectedLayer == id) selectLayer(null)
-        say("Removed $label", undoable = true)
+        if (_ui.value.page == id) openPage(null)
+        say("Deleted $label", undoable = true)
     }
 
     /**
@@ -344,13 +350,13 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         removal = null
         var undone = false
         edit { h -> h.undoIfAt(mark).also { undone = it } }
-        if (!undone) say("Not undone: the theme changed after the layer was removed.")
+        if (!undone) say("Not undone: the theme changed after the layer was deleted.")
     }
 
     /** Opens the texture chooser for [target]. */
     fun chooseTexture(target: TextureTarget) {
         textureTarget = target
-        _ui.value = _ui.value.copy(addingLayer = false, addingEffect = false, choosingTexture = true)
+        _ui.value = _ui.value.copy(adding = false, choosingTexture = true)
         viewModelScope.launch {
             val recent = withContext(Dispatchers.IO) { container.textures.recent() }
             _ui.value = _ui.value.copy(recentTextures = recent)
@@ -373,12 +379,12 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
                 useTexture(hash)
             } catch (e: TextureImportException) {
                 Log.w(TAG, "Texture not imported", e)
-                say("Texture not imported. ${e.message}")
+                say("Image not added. ${e.message}")
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "Texture not imported", e)
-                say("Texture not imported. This image could not be read.")
+                say("Image not added. This image could not be read.")
             } catch (e: IOException) {
-                say("Texture not imported. Storage error: ${e.message ?: e.javaClass.simpleName}")
+                say("Image not added. Storage error: ${e.message ?: e.javaClass.simpleName}")
             } finally {
                 _ui.value = _ui.value.copy(importingTexture = false)
             }
@@ -392,13 +398,12 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
         viewModelScope.launch {
             // An imported texture from an earlier session may not be in memory yet.
             val missing = withContext(Dispatchers.IO) { container.textures.load(setOf(hash)) }
-            if (missing.isNotEmpty()) return@launch say("This texture could not be read.")
+            if (missing.isNotEmpty()) return@launch say("This image could not be read.")
             val h = history ?: return@launch
             val recent = withContext(Dispatchers.IO) { container.textures.recent() }
             _ui.value = _ui.value.copy(recentTextures = recent)
             when (val t = textureTarget) {
                 TextureTarget.NewLayer -> addLayer(Paint.Texture(hash))
-                TextureTarget.Background -> commit(LayerStack.withBackgroundTexture(h.theme, hash))
                 is TextureTarget.Source -> (LayerStack.layer(h.theme, t.layerId) as? PaintLayer)?.let { l ->
                     commit(LayerStack.replace(h.theme, LayerStack.withTexture(l, hash)))
                 }
@@ -495,7 +500,7 @@ class EditorViewModel(app: Application, private val id: String) : AndroidViewMod
                 if (o.isEmpty) repo.clearOverride(id, name) else repo.setOverride(id, name, o)
             } catch (e: IOException) {
                 Log.w(TAG, "Override not saved", e)
-                say("Override not saved. Storage error: ${e.message ?: e.javaClass.simpleName}")
+                say("Change not saved. Storage error: ${e.message ?: e.javaClass.simpleName}")
             }
         }
     }

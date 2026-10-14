@@ -45,20 +45,20 @@ class BreakupActions(val recent: List<String>, val file: (String) -> File, val i
 fun BreakupPicker(selected: String?, actions: BreakupActions, layerId: String, onSelect: (String?) -> Unit) {
     val imported = (actions.recent + listOfNotNull(selected?.takeUnless(BuiltInBrushes::isBuiltIn))).distinct()
     Column(Modifier.fillMaxWidth()) {
-        Text("Breakup source", style = MaterialTheme.typography.bodyMedium)
+        LabelRow(Tips.MARK_PATTERN)
         Row(
             Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            Choice("Noise", selected == null, { onSelect(null) }) { Swatch("fBm") }
+            Choice("Random", selected == null, { onSelect(null) }) { Swatch("~") }
             for (b in BuiltInBrushes.ALL) {
                 Choice(b.name, selected == b.sha256, { onSelect(b.sha256) }) { TextureThumbnail(b.sha256, actions.file, null, THUMB) }
             }
             for (hash in imported) {
-                Choice("Imported", selected == hash, { onSelect(hash) }) { TextureThumbnail(hash, actions.file, "Imported texture ${hash.take(8)}", THUMB) }
+                Choice("Your image", selected == hash, { onSelect(hash) }) { TextureThumbnail(hash, actions.file, "Your image", THUMB) }
             }
-            OutlinedButton(onClick = { actions.import(layerId) }) { Text("Import", maxLines = 1) }
+            OutlinedButton(onClick = { actions.import(layerId) }) { Text("Add image", maxLines = 1) }
         }
     }
 }
@@ -69,7 +69,7 @@ private fun Choice(name: String, isSelected: Boolean, onClick: () -> Unit, thumb
     Column(
         Modifier
             .clip(shape)
-            .border(if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape)
+            .border(if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape)
             .clickable(role = Role.RadioButton, onClickLabel = "Use $name", onClick = onClick)
             .semantics { selected = isSelected; contentDescription = name },
         horizontalAlignment = Alignment.CenterHorizontally,

@@ -42,7 +42,7 @@ fun TextureThumbnail(hash: String, file: (String) -> File, description: String?,
 }
 
 /** The brush's name for a built-in [hash], else "Imported". */
-fun textureName(hash: String): String = BuiltInBrushes.ALL.firstOrNull { it.sha256 == hash }?.name ?: "Imported"
+fun textureName(hash: String): String = BuiltInBrushes.ALL.firstOrNull { it.sha256 == hash }?.name ?: "Your image"
 
 private fun decodeThumbnail(hash: String, file: (String) -> File): ImageBitmap? {
     val png = BuiltInBrushes.png(hash)

@@ -40,27 +40,27 @@ fun SwapSearch(current: String?, search: suspend (String) -> List<String>, onPic
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (current == null) "Drawable: the app's own" else "Drawable: ${current.replace('_', ' ')}",
+                if (current == null) "Drawing: this app's own" else "Drawing: ${current.replace('_', ' ')}",
                 Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            if (current != null) TextButton(onClick = onClear) { Text("Use own") }
+            if (current != null) HelpAnchor(Tips.USE_OWN_DRAWING) { TextButton(onClick = onClear) { Text(Tips.USE_OWN_DRAWING.label) } }
         }
         OutlinedTextField(
             query, { query = it },
             Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("Search Arcticons drawables") },
+            label = { Text(Tips.DIFFERENT_DRAWING.label) },
         )
         if (query.isNotBlank() && results.isEmpty()) {
-            Text("No drawable matches.", Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+            Text("No drawing with that name.", Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
         }
         for (name in results) {
             val label = name.replace('_', ' ')
             Text(
                 if (name == current) "$label  (in use)" else label,
                 Modifier.fillMaxWidth()
-                    .clickable(role = Role.Button, onClickLabel = "Swap to $label") { onPick(name) }
+                    .clickable(role = Role.Button, onClickLabel = "Use $label") { onPick(name) }
                     .semantics { contentDescription = label }
                     .padding(vertical = 10.dp, horizontal = 4.dp),
                 style = MaterialTheme.typography.bodyLarge,
