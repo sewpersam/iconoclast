@@ -20,8 +20,8 @@ class BuiltPackTest {
 
     private fun key(
         d: ThemeDocument = doc, p: CoveragePlan = plan, r: OutputResolution = OutputResolution.FULL,
-        t: ByteArray = template, c: ByteArray = cert, b: String = "1@100",
-    ) = BuiltPack.key(d, p, r, t, c, b)
+        t: ByteArray = template, c: ByteArray = cert, b: String = "1@100", n: String = "x.pack.g000001",
+    ) = BuiltPack.key(d, p, r, t, c, b, n)
 
     @Test
     fun nameIdAndDatesDoNotChangeTheRecipe() {
@@ -39,6 +39,7 @@ class BuiltPackTest {
         assertNotEquals(base, key(t = byteArrayOf(1, 2, 4)))
         assertNotEquals(base, key(c = byteArrayOf(8)))
         assertNotEquals(base, key(b = "1@200"), "an update of the designer draws anew")
+        assertNotEquals(base, key(n = "x.pack.g000002"), "each pack name is its own build")
     }
 
     @Test

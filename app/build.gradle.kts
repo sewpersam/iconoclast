@@ -16,7 +16,6 @@ android {
         versionName = "0.1"
         val packPackage = providers.gradleProperty("iconoclast.packApplicationId").get()
         buildConfigField("String", "PACK_PACKAGE", "\"$packPackage\"")
-        manifestPlaceholders["packPackage"] = packPackage
         buildConfigField("String", "SOURCE_URL", "\"${providers.gradleProperty("iconoclast.sourceUrl").getOrElse("")}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

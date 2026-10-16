@@ -8,6 +8,7 @@ import java.io.FilterOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.CRC32
+import java.util.zip.Inflater
 
 /**
  * The on-phone step of spec 1.2 and 3.5: a plain zip rewrite of the template.
@@ -24,6 +25,7 @@ object ZipRewriter {
     private const val CENTRAL_SIG = 0x02014b50
     private const val END_SIG = 0x06054b50
     private const val STORED = 0
+    private const val DEFLATED = 8
     private const val UTF8_FLAG = 0x0800
 
     private class Entry(
@@ -145,6 +147,39 @@ object ZipRewriter {
     /** Entry names of [zip] in central directory order. */
     fun entryNames(zip: ByteArray): List<String> =
         readCentralDirectory(ByteBuffer.wrap(zip).order(ByteOrder.LITTLE_ENDIAN)).map { it.nameString }
+
+    /**
+     * The uncompressed bytes of [name] in [zip]. A deflated entry is inflated: inflating
+     * gives the same bytes on every zlib, unlike deflating, which this code never does.
+     */
+    fun entryBytes(zip: ByteArray, name: String): ByteArray {
+        val src = ByteBuffer.wrap(zip).order(ByteOrder.LITTLE_ENDIAN)
+        val e = readCentralDirectory(src).firstOrNull { it.nameString == name } ?: throw IllegalArgumentException("not in the zip: $name")
+        val data = ByteArray(e.compressedSize).also { localData(src, e).get(it) }
+        val bytes = when (e.method) {
+            STORED -> data
+            DEFLATED -> {
+                val inflater = Inflater(true)
+                try {
+                    inflater.setInput(data)
+                    val out = ByteArray(e.size)
+                    var n = 0
+                    while (n < out.size) {
+                        val r = inflater.inflate(out, n, out.size - n)
+                        if (r == 0 && (inflater.finished() || inflater.needsInput() || inflater.needsDictionary())) break
+                        n += r
+                    }
+                    check(n == out.size) { "$name inflated to $n of ${out.size} bytes" }
+                    out
+                } finally {
+                    inflater.end()
+                }
+            }
+            else -> throw IllegalArgumentException("$name: method ${e.method}")
+        }
+        check(CRC32().apply { update(bytes) }.value.toInt() == e.crc) { "$name: bad CRC" }
+        return bytes
+    }
 
     private fun readCentralDirectory(src: ByteBuffer): List<Entry> {
         val end = findEndRecord(src)

@@ -14,6 +14,7 @@ import dev.iconoclast.app.ui.theme.OutlinedAction
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -33,10 +34,11 @@ fun ApplyScreen(
     onResume: () -> Unit,
     onRestoreKey: () -> Unit,
     onNewKey: () -> Unit,
-    onAppInfo: (String) -> Unit,
+    onRemoveLeftovers: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { onResume() }
+    val packLabel = "${stringResource(R.string.app_name)} Pack"
     val working = state is ApplyState.Working
     val applied = status.applied && status.newApps == 0
     Column(
@@ -67,13 +69,10 @@ fun ApplyScreen(
             is ApplyState.Installed -> {
                 val g = state.guide
                 Text("Pack installed. ${state.themed} ${if (state.themed == 1) "app" else "apps"} themed.")
-                if (state.firstInstall) {
-                    Text("Select the pack in ${g.name}. ${g.selectPack}")
-                } else {
-                    Text("${g.name} keeps showing the old icons until you do this. ${g.refresh}")
-                    if (g.forceStopFromAppInfo && g.packageName.isNotEmpty()) {
-                        OutlinedAction(onClick = { onAppInfo(g.packageName) }) { Text("Open ${g.name} settings") }
-                    }
+                Text("Pick $packLabel in ${g.name}. ${g.pick}")
+                if (state.leftover > 0) {
+                    Text("An older copy of the pack is still installed and also shows as $packLabel. Remove it first, so you pick the right one.")
+                    OutlinedAction(onClick = onRemoveLeftovers) { Text("Remove the old copy") }
                 }
             }
             is ApplyState.Problem -> {

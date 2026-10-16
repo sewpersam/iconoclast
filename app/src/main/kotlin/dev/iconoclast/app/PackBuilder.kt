@@ -4,6 +4,7 @@ import dev.iconoclast.iconsource.IconSource
 import dev.iconoclast.pack.AppfilterWriter
 import dev.iconoclast.pack.CoveragePlan
 import dev.iconoclast.pack.DrawableXmlWriter
+import dev.iconoclast.pack.PackName
 import dev.iconoclast.pack.ZipRewriter
 import dev.iconoclast.render.IconRenderer
 import dev.iconoclast.render.OutputResolution
@@ -40,10 +41,12 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
      * pack to [out]. [look] gives each drawable's look by its name. A swap target missing
      * from the icon set draws the slot's own geometry instead. [work] is emptied first and
      * holds the icon files until the rewrite is done. Icons are [resolution] pixels square.
+     * The pack is installed as [packageName], one generation of [PackName].
      */
     suspend fun build(
         template: ByteArray, plan: CoveragePlan, look: (drawable: String) -> SlotLook,
         work: File, out: File, resolution: OutputResolution = OutputResolution.FULL,
+        packageName: String = TEMPLATE_PACKAGE,
         progress: (done: Int, total: Int) -> Unit,
     ) {
         val pool = Dispatchers.Default.limitedParallelism(RENDER_THREADS)
@@ -69,6 +72,12 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
                 }
                 replacements[DRAWABLE_XML] = File(work, "drawable.xml").apply {
                     writeBytes(DrawableXmlWriter.write(plan.drawables.indices.map(::slotName)).toByteArray())
+                }
+                if (packageName != TEMPLATE_PACKAGE) {
+                    for (entry in listOf(MANIFEST, ARSC)) {
+                        val renamed = PackName.patch(ZipRewriter.entryBytes(template, entry), TEMPLATE_PACKAGE, packageName)
+                        replacements[entry] = File(work, entry).apply { writeBytes(renamed) }
+                    }
                 }
                 ZipRewriter.rewrite(template, replacements, out)
             }
@@ -109,6 +118,14 @@ class PackBuilder(private val source: IconSource, private val renderer: IconRend
         private const val PACK_ICON = "res/drawable-nodpi-v4/pack_icon.png"
         private const val APPFILTER = "assets/appfilter.xml"
         private const val DRAWABLE_XML = "assets/drawable.xml"
+        private const val MANIFEST = "AndroidManifest.xml"
+        private const val ARSC = "resources.arsc"
+
+        /** The pack family's base name; each Apply installs one generation of it. */
+        const val PACK_BASE: String = BuildConfig.PACK_PACKAGE
+
+        /** The package the template was built as, generation 0. */
+        val TEMPLATE_PACKAGE: String = PackName.placeholder(PACK_BASE)
 
         fun slotName(slot: Int) = "slot_%04d".format(java.util.Locale.ROOT, slot)
         fun slotPath(slot: Int) = "res/drawable-nodpi-v4/${slotName(slot)}.png"

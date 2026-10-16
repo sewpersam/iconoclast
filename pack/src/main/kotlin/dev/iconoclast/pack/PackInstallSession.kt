@@ -1,14 +1,12 @@
 package dev.iconoclast.pack
 
 import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
-import android.os.Build
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +19,7 @@ sealed interface InstallResult {
     /** "Install unknown apps" is off for the designer. */
     data object NeedsPermission : InstallResult
 
-    /** A pack signed with another key is installed. It must be uninstalled first, spec 6.5. */
+    /** A package of the same name signed with another key is installed. */
     data class SignatureMismatch(val detail: String?) : InstallResult
 
     data class Failed(val status: Int, val message: String) : InstallResult
@@ -48,11 +46,8 @@ class PackInstallSession(private val context: Context) {
                 val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                     setAppPackageName(packageName)
                     setSize(apk.length())
-                    // UPDATE_PACKAGES_WITHOUT_USER_ACTION alone did not skip the update prompt on the
-                    // API 36 emulator. From API 34 update ownership is enforced, so the designer
-                    // must also own the pack's updates; see docs/verification/m3.md.
-                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) requestUpdateOwnership()
+                    // Every pack is a fresh install under a new name (PackName), which Android
+                    // always confirms, so no update ownership or silent-update flag applies.
                 }
                 val id = installer.createSession(params)
                 try {
@@ -90,8 +85,7 @@ class PackInstallSession(private val context: Context) {
     }
 
     /**
-     * Uninstalls [packageName] through the system's own confirmation, which Android always
-     * shows for an app another key signed. Calls [confirm] with the confirmation intent and
+     * Uninstalls [packageName] through the system's own confirmation. Calls [confirm] with the confirmation intent and
      * waits for the answer: true when the package is gone, false when the user cancelled or
      * the uninstall failed. The app's manifest declares REQUEST_DELETE_PACKAGES; this library's has none.
      */
@@ -123,11 +117,6 @@ class PackInstallSession(private val context: Context) {
             context.unregisterReceiver(receiver)
         }
     }
-
-    /** The app's manifest declares ENFORCE_UPDATE_OWNERSHIP; this library's has none. */
-    @SuppressLint("MissingPermission")
-    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    private fun PackageInstaller.SessionParams.requestUpdateOwnership() = setRequestUpdateOwnership(true)
 
     private fun result(status: Int, message: String?): InstallResult = when (status) {
         PackageInstaller.STATUS_SUCCESS -> InstallResult.Success

@@ -81,7 +81,7 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
                     active, state, status, apply::apply, apply::resumed,
                     onRestoreKey = { restore.launch(ThemeTransfer.IMPORT_TYPES) },
                     onNewKey = apply::newKey,
-                    onAppInfo = apply::openAppInfo,
+                    onRemoveLeftovers = apply::removeLeftovers,
                     modifier = Modifier.padding(padding),
                 )
             }
