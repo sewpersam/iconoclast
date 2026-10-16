@@ -1,26 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Installs and, on a key mismatch, uninstalls the generated pack. -->
+    <!-- Installs each Apply's pack under a new name, then uninstalls the one before it. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
-    <!-- Lets same-key pack updates skip the confirmation prompt, API 31+. -->
-    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
-    <!-- Makes the designer the pack's update owner, API 34+, so updates can skip the prompt. -->
-    <uses-permission android:name="android.permission.ENFORCE_UPDATE_OWNERSHIP" />
 
     <!-- Only for "Paste image link": downloads the one image the user names. Nothing else uses the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
-        <!-- The generated pack: is it installed already? -->
-        <package android:name="${packPackage}" />
+        <!-- The generated packs: each Apply installs one under a new name, so they are
+             found by the icon pack action they all declare, not by a fixed package. -->
+        <intent>
+            <action android:name="org.adw.launcher.THEMES" />
+        </intent>
         <!-- Coverage: every launchable app. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <!-- The current home app, for the restart guidance. -->
+        <!-- The current home app, for the guidance after Apply. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />

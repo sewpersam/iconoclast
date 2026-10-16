@@ -32,8 +32,8 @@ class BuiltPack(private val dir: File) {
         /**
          * Everything the pack's bytes depend on: the theme and its overrides (textures are
          * named by hash inside), which apps get which drawables, the size, the template, the
-         * signing certificate, and [build], this install of the designer, whose renderer drew
-         * it: an update may draw differently. The theme's id, name and dates are left out.
+         * signing certificate, [build], this install of the designer, whose renderer drew
+         * it: an update may draw differently, and the [packageName] it installs as. The theme's id, name and dates are left out.
          */
         /**
          * What the user sees of an Apply: the theme and its overrides at [resolution],
@@ -47,7 +47,7 @@ class BuiltPack(private val dir: File) {
             return sha.digest().joinToString("") { "%02x".format(it) }
         }
 
-        fun key(doc: ThemeDocument, plan: CoveragePlan, resolution: OutputResolution, template: ByteArray, certificate: ByteArray, build: String): String {
+        fun key(doc: ThemeDocument, plan: CoveragePlan, resolution: OutputResolution, template: ByteArray, certificate: ByteArray, build: String, packageName: String): String {
             val sha = MessageDigest.getInstance("SHA-256")
             fun part(bytes: ByteArray) {
                 sha.update(bytes.size.toString().toByteArray())
@@ -61,6 +61,7 @@ class BuiltPack(private val dir: File) {
             part(template)
             part(certificate)
             part(build.toByteArray())
+            part(packageName.toByteArray())
             return sha.digest().joinToString("") { "%02x".format(it) }
         }
     }
