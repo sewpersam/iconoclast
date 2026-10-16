@@ -264,8 +264,8 @@ preview noise fields cached, Jade drag 9.3 to 13 Hz. Details:
 - Ruling: the share target takes images only, not text links, so Iconoclast stays out of every text share sheet — cost if wrong: one intent filter.
 
 ### Deferred
-- Neo keeps an app's cached icon until that app updates if the pack is switched before a restart. The guidance gives the order; the pack cannot clear Neo's cache.
-- Ruling (2026-10-14, pack-coverage): "apps from Obtainium, Aurora, GrapheneOS Store and system apps stay unthemed" is this Neo cache, not pack content. On icondesign36 the pack themed GOS Camera 93, VLC 3.7.1, Metro 6.1.0 and Mullvad 2026.12 once Neo was restarted and the pack switched. Each Apply updates the pack in place under the same name. Neo keeps the first-parsed appfilter in memory for the life of its process (`IconPackProvider` never evicts), and its icon cache key holds the pack's name, not its version. A switch made before a real restart re-caches the old icons, and only an app update clears them. Play auto-updates heal Play apps; the rest stay stale. Reproduced: stale after restart alone, healed by `install -r` of that app alone, and the restart-then-switch order themed all 20. No pack change was made. The durable fix is a new pack package name per Apply, which costs an install and an uninstall prompt and a pack re-pick in every launcher; that trade is open — cost if wrong: his phone needs the restart-then-switch order once per Apply.
+- Superseded by "Fresh pack per Apply" below. Neo keeps an app's cached icon until that app updates if the pack is switched before a restart. The guidance gives the order; the pack cannot clear Neo's cache.
+- Superseded by "Fresh pack per Apply" below. Ruling (2026-10-14, pack-coverage): "apps from Obtainium, Aurora, GrapheneOS Store and system apps stay unthemed" is this Neo cache, not pack content. On icondesign36 the pack themed GOS Camera 93, VLC 3.7.1, Metro 6.1.0 and Mullvad 2026.12 once Neo was restarted and the pack switched. Each Apply updates the pack in place under the same name. Neo keeps the first-parsed appfilter in memory for the life of its process (`IconPackProvider` never evicts), and its icon cache key holds the pack's name, not its version. A switch made before a real restart re-caches the old icons, and only an app update clears them. Play auto-updates heal Play apps; the rest stay stale. Reproduced: stale after restart alone, healed by `install -r` of that app alone, and the restart-then-switch order themed all 20. No pack change was made. The durable fix is a new pack package name per Apply, which costs an install and an uninstall prompt and a pack re-pick in every launcher; that trade is open — cost if wrong: his phone needs the restart-then-switch order once per Apply.
 - The "Request icon" link left with the coverage screen.
 - Apply's status line counts apps by package; a work-profile copy of an app counts once.
 
@@ -308,3 +308,15 @@ His words: "it just looks like random streaks. It should actually look like a pa
 ### Deferred
 - `ArtByteIdentityTest` not run in this pass: the emulator was in use by another task. New code is plain float arithmetic plus `StrictMath.sqrt`, as the rest of the renderer. Run it before the next phone release; 18 goldens changed.
 - `./gradlew :render:test -PupdateGoldens` fails in a fresh worktree: `GoldenTest.writeSamples` cannot find a sample icon in the converted bundle there. The 18 goldens were rewritten from the committed `samples.bin` instead.
+
+## Fresh pack per Apply (2026-10-16)
+
+His pick, option B: "That's fine. B." Evidence: `docs/verification/pack-rename.md`.
+
+### Rulings
+- Ruling: every Apply installs the pack as `dev.iconoclast.app.pack.g<NNNNNN>`, patched into a fixed-length placeholder in the template's manifest and arsc, then uninstalls every other pack through the system prompt. The legacy `dev.iconoclast.app.pack` is removed by the first Apply. Supersedes the Neo-cache deferred entries above — cost if wrong: an install and an uninstall prompt per Apply.
+- Ruling: Neo 0.9.3 still needs one Restart per Apply. Its Icon Packs list is built once per process, so a pack installed after Neo started is not listed until it restarts. Restart then pick is order-proof: picking first changes nothing. The old System-icons switch and its stale-app trap are gone. Lawnchair and Kvaesitso need only the pick; their force stop steps were dropped — cost if wrong: one tap more or less in a launcher's guidance.
+- Ruling: the counter never goes back: next generation is above the stored one and every installed pack. If app data is cleared and every pack uninstalled, a name can repeat; Neo would then see a name it may have cached — cost if wrong: one more Apply.
+
+### Deferred
+- Phone in Neo keeps its stock icon after the first Restart and pick, as before this change; a second Restart themes it. The guidance says so.
