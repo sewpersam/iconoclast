@@ -68,6 +68,7 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
             val state by apply.state.collectAsState()
             val active by apply.active.collectAsState()
             val status by apply.status.collectAsState()
+            val copied by apply.copied.collectAsState()
             LaunchedEffect(active) { apply.refreshStatus() }
             // Restoring a damaged key is a theme import: home runs it and asks about the key.
             val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -82,6 +83,8 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
                     onRestoreKey = { restore.launch(ThemeTransfer.IMPORT_TYPES) },
                     onNewKey = apply::newKey,
                     onRemoveLeftovers = apply::removeLeftovers,
+                    copied = copied,
+                    onCopyDiagnostics = apply::copyDiagnostics,
                     modifier = Modifier.padding(padding),
                 )
             }

@@ -7,8 +7,13 @@ package dev.iconoclast.pack
  * step in Lawnchair and Kvaesitso: no force stop, no switching away and back. Neo 0.9.3
  * builds its Icon Packs list once per process (OmegaPreferences.themeIconPackGlobal), so
  * a pack installed after Neo started is listed only after its Restart; the restart then
- * the pick is order-proof, since picking first changes nothing. Walked on the emulator;
- * see docs/verification/pack-rename.md.
+ * the pick is order-proof, since picking first changes nothing. The pick needs one more
+ * Restart after it: Neo reads a newly picked pack's appfilter on a background thread
+ * while it already redraws the home screen (CustomIconProvider.resolveIconEntry never
+ * waits for IconPack.loadBlocking), so the icons it draws first keep their own icon, and
+ * it caches them until each app updates. A Restart reads the pack before the home screen
+ * loads and redraws every icon. See docs/verification/pack-rename.md and
+ * docs/verification/neo-pick-race.md.
  *
  * @property pick how to choose the pack as the launcher's icon pack.
  */
@@ -25,7 +30,8 @@ object LauncherTable {
             name = "Neo Launcher",
             pick = "Long-press the home screen, then Home settings. Open the menu at the top right and tap Restart: " +
                 "Neo lists a new pack only after it restarts. Then open Home settings again, Profile, Icon Packs, " +
-                "pick the pack and tap OK. If an app such as Phone still shows its old icon, tap Restart once more.",
+                "pick the pack and tap OK. Then tap Restart once more: Neo draws your home screen apps before it has read " +
+                "a newly picked pack, and they keep their own icons until it restarts.",
         ),
         LauncherGuide(
             packageName = "app.lawnchair",

@@ -319,4 +319,15 @@ His pick, option B: "That's fine. B." Evidence: `docs/verification/pack-rename.m
 - Ruling: the counter never goes back: next generation is above the stored one and every installed pack. If app data is cleared and every pack uninstalled, a name can repeat; Neo would then see a name it may have cached — cost if wrong: one more Apply.
 
 ### Deferred
-- Phone in Neo keeps its stock icon after the first Restart and pick, as before this change; a second Restart themes it. The guidance says so.
+- Superseded by "Neo pick race" below. Phone in Neo keeps its stock icon after the first Restart and pick, as before this change; a second Restart themes it. The guidance says so.
+
+## Neo pick race (2026-10-16)
+
+Evidence: `docs/verification/neo-pick-race.md`. His phone kept stock icons for store and system apps after Install, Restart, pick.
+
+### Rulings
+- Ruling: the cause is in Neo 0.9.3, not the pack. A pick clears Neo's icon DB and redraws while the new pack's appfilter is still parsing on a background thread; `resolveIconEntry` never waits for it, so the first icons drawn (home screen, dock) keep their own and stay cached until each app updates. A slow phone loses many. A Restart builds the pack before the loader and redraws everything. The Neo guidance now ends with Restart once more, as a step. The earlier "Neo caches icons keyed by pack name" reading was wrong: the DB has no pack key, and pack-rename only hid this for most apps on a fast emulator — cost if wrong: one extra Restart per Apply.
+- Ruling: Copy diagnostics sits at the foot of the Apply screen as a text button, puts the report on the clipboard and in logcat (`Iconoclast` tag, `diag:` lines). It names no app data beyond package names, installers and update times — cost if wrong: one button.
+
+### Deferred
+- His phone has not run the new step yet. If store apps still stay stock after Restart, pick, Restart, the pasted diagnostics decide between a missing component (`pack=MISSING`) and Neo.

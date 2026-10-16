@@ -1,6 +1,8 @@
 package dev.iconoclast.app
 
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -299,6 +301,31 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { container.packKey.setAsideDamaged() }
             apply()
+        }
+    }
+
+    private val _copied = MutableStateFlow<String?>(null)
+
+    /** The line shown after Copy diagnostics, or null before. */
+    val copied: StateFlow<String?> = _copied
+
+    /** Puts [Diagnostics] on the clipboard, for a bug report pasted into a chat. */
+    fun copyDiagnostics() {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            _copied.value = try {
+                val report = withContext(Dispatchers.IO) {
+                    Diagnostics.collect(app, container.iconSource(), packs, container.coverage.read()?.appliedAt)
+                }
+                report.lines().forEach { Log.i(TAG, "diag: $it") }
+                app.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Iconoclast diagnostics", report))
+                "Copied ${report.lines().count { it.isNotEmpty() }} lines. Paste them into the chat."
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Diagnostics failed", e)
+                "Diagnostics failed: ${e.message ?: e.javaClass.simpleName}"
+            }
         }
     }
 

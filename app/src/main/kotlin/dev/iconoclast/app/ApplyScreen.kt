@@ -12,6 +12,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import dev.iconoclast.app.ui.theme.OutlinedAction
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,6 +36,8 @@ fun ApplyScreen(
     onRestoreKey: () -> Unit,
     onNewKey: () -> Unit,
     onRemoveLeftovers: () -> Unit,
+    copied: String?,
+    onCopyDiagnostics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { onResume() }
@@ -90,5 +93,8 @@ fun ApplyScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        // For bug reports: icons that do not change in a launcher.
+        TextButton(onClick = onCopyDiagnostics, enabled = !working) { Text("Copy diagnostics") }
+        if (copied != null) Text(copied, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
