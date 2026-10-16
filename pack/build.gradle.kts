@@ -23,8 +23,12 @@ val templateApk = project(":template-pack").tasks.named("buildTemplatePack")
     .flatMap { (it.property("outputApk") as RegularFileProperty) }
 val zipalign = androidComponents.sdkComponents.sdkDirectory
     .map { it.file("build-tools/${libs.versions.buildTools.get()}/zipalign").asFile.path }
+val aapt2 = androidComponents.sdkComponents.sdkDirectory
+    .map { it.file("build-tools/${libs.versions.buildTools.get()}/aapt2").asFile.path }
 tasks.withType<Test>().configureEach {
     inputs.file(templateApk)
     systemProperty("template.apk", templateApk.get().asFile.path)
     systemProperty("zipalign", zipalign.get())
+    systemProperty("aapt2", aapt2.get())
+    systemProperty("pack.base", providers.gradleProperty("iconoclast.packApplicationId").get())
 }

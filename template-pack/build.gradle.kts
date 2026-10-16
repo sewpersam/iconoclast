@@ -46,7 +46,9 @@ fun BuildTemplatePackTask.configure(name: String) {
     androidJar = platformJar
     activityClasses.from(sourceSets.main.map { it.output.classesDirs })
     ccLicense = rootProject.layout.projectDirectory.file("licenses/CC-BY-SA-4.0.txt")
-    packageName = providers.gradleProperty("iconoclast.packApplicationId")
+    // Generation 0 of PackName in :pack. The designer patches it to a fresh, equally long
+    // name on every Apply, so launchers that cache by pack name see a new pack.
+    packageName = providers.gradleProperty("iconoclast.packApplicationId").map { "$it.g000000" }
     designerPackage = providers.gradleProperty("iconoclast.applicationId")
     appName = designerAppName
     minSdk = libs.versions.minSdk.get().toInt()
