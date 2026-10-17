@@ -331,3 +331,15 @@ Evidence: `docs/verification/neo-pick-race.md`. His phone kept stock icons for s
 
 ### Deferred
 - His phone has not run the new step yet. If store apps still stay stock after Restart, pick, Restart, the pasted diagnostics decide between a missing component (`pack=MISSING`) and Neo.
+
+## Neo custom icons (2026-10-16)
+
+Evidence: `docs/verification/neo-custom-icons.md`. Restarts did not theme system, Obtainium, VLC, Mullvad or Brave on his phone.
+
+### Rulings
+- Ruling: appfilter reordering dropped. Main already writes installed components first, his diagnostics show every component in the pack, and restarts do not help, so it is not the pick race — cost if wrong: one more round.
+- Ruling: the lead cause is Neo per-app custom icons pointing at a removed pack. Neo checks them before the pack and 0.9.3 cannot delete them. The Apply screen reads a Neo backup to list them and writes a clean copy to restore; the original file is never written — cost if wrong: two text buttons.
+- Ruling: after restoring the clean copy, the guidance is Icon Packs: System icons, then Iconoclast Pack. A Restart alone leaves the cached stock icon — measured.
+
+### Deferred
+- His phone has not run Check Neo backup. If it lists no custom icons, the drawable-load lines in Copy diagnostics decide the pack side.

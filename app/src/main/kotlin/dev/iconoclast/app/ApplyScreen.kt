@@ -38,6 +38,9 @@ fun ApplyScreen(
     onRemoveLeftovers: () -> Unit,
     copied: String?,
     onCopyDiagnostics: () -> Unit,
+    neoBackup: NeoBackupState? = null,
+    onCheckNeoBackup: () -> Unit = {},
+    onSaveNeoBackup: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { onResume() }
@@ -73,6 +76,12 @@ fun ApplyScreen(
                 val g = state.guide
                 Text("Pack installed. ${state.themed} ${if (state.themed == 1) "app" else "apps"} themed.")
                 Text("Pick $packLabel in ${g.name}. ${g.pick}")
+                if (g.packageName == NEO) {
+                    Text(
+                        "Do not give an app a $packLabel icon by hand in Neo (long-press, Edit): the next Apply removes " +
+                            "that copy of the pack, and the app falls back to its own icon until the custom icon is gone.",
+                    )
+                }
                 if (state.leftover > 0) {
                     Text("An older copy of the pack is still installed and also shows as $packLabel. Remove it first, so you pick the right one.")
                     OutlinedAction(onClick = onRemoveLeftovers) { Text("Remove the old copy") }
@@ -96,5 +105,24 @@ fun ApplyScreen(
         // For bug reports: icons that do not change in a launcher.
         TextButton(onClick = onCopyDiagnostics, enabled = !working) { Text("Copy diagnostics") }
         if (copied != null) Text(copied, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Neo shows an app's custom icon before the pack's and 0.9.3 cannot remove one; its
+        // backup holds them. Reading one finds them; a clean copy restored removes them.
+        TextButton(onClick = onCheckNeoBackup, enabled = !working) { Text("Check Neo backup for custom icons") }
+        if (neoBackup == null) {
+            Text(
+                "Make the backup in Neo first: Home settings, Backups, Create, Location Custom, OK, Save in Downloads.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (neoBackup != null) {
+            for (line in neoBackup.lines) Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (neoBackup.custom > 0) {
+                OutlinedAction(onClick = onSaveNeoBackup) { Text("Save a copy without custom icons") }
+            }
+            neoBackup.saved?.let { Text(it) }
+        }
     }
 }
+
+private const val NEO = "com.saggitt.omega"

@@ -19,8 +19,15 @@ import java.util.Locale
  * component, and the Arcticons drawable it resolves to now.
  */
 object Diagnostics {
-    /** One launcher activity: [cls] as the system reports it, [inPack] the pack's drawable for it, [arcticons] the drawable Iconoclast resolves now. */
-    data class Component(val cls: String, val inPack: String?, val arcticons: String?)
+    /**
+     * One launcher activity: [cls] as the system reports it, [inPack] the pack's drawable for
+     * it, [arcticons] the drawable Iconoclast resolves now. [packLoad] and [arcLoad] are those
+     * drawables loaded the way Neo loads them, from the installed pack and from Arcticons.
+     */
+    data class Component(
+        val cls: String, val inPack: String?, val arcticons: String?,
+        val packLoad: String? = null, val arcLoad: String? = null,
+    )
 
     /**
      * One app in one profile. [installer] is null when no store installed it, such as a
@@ -40,7 +47,9 @@ object Diagnostics {
             for ((i, c) in a.components.sortedBy { it.cls }.withIndex()) {
                 if (i > 0) append(" ;")
                 append(' ').append(short(a.pkg, c.cls)).append(" pack=").append(c.inPack ?: "MISSING")
+                c.packLoad?.let { append(' ').append(it) }
                 append(" arc=").append(c.arcticons ?: "none")
+                c.arcLoad?.let { append(' ').append(it) }
             }
             append('\n')
         }
@@ -57,6 +66,35 @@ object Diagnostics {
 
     private fun unescape(s: String) = s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
         .replace("&apos;", "'").replace("&amp;", "&")
+
+    /**
+     * Loads [name] from [pkg] the way Neo 0.9.3 does: `getIdentifier(name, "drawable", pkg)`
+     * on the package's own resources, then `getDrawableForDensity` at the screen density.
+     * Gives `id=7f.. WxH px=N h=hash`, N the pixels with any alpha, h a hash of the pixels, or why it failed.
+     */
+    fun load(res: android.content.res.Resources?, pkg: String, name: String, dpi: Int): String {
+        if (res == null) return "noapp"
+        @Suppress("DiscouragedApi")
+        val id = res.getIdentifier(name, "drawable", pkg)
+        if (id == 0) return "id=0"
+        val d = try {
+            res.getDrawableForDensity(id, dpi, null)
+        } catch (e: Exception) {
+            return "id=%x fail=%s".format(Locale.ROOT, id, e.javaClass.simpleName)
+        } ?: return "id=%x null".format(Locale.ROOT, id)
+        val w = d.intrinsicWidth.takeIf { it > 0 } ?: 192
+        val h = d.intrinsicHeight.takeIf { it > 0 } ?: 192
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        d.setBounds(0, 0, w, h)
+        d.draw(android.graphics.Canvas(bmp))
+        val all = IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
+        bmp.recycle()
+        return "id=%x %dx%d px=%d h=%08x".format(Locale.ROOT, id, w, h, all.count { it ushr 24 != 0 }, all.contentHashCode())
+    }
+
+    private fun resourcesOf(pm: PackageManager, pkg: String?) = pkg?.let {
+        try { pm.getResourcesForApplication(it) } catch (e: PackageManager.NameNotFoundException) { null }
+    }
 
     /** Collects the report on this phone. Call off the main thread: it reads the pack and every app's install source. */
     fun collect(context: Context, source: IconSource, packs: PackFamily, lastApply: Long?): String {
@@ -78,6 +116,13 @@ object Diagnostics {
             PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()),
         )?.activityInfo?.packageName
         val homeVersion = home?.let { versionOf(pm, it) }
+        val arcVersion = versionOf(pm, ARCTICONS)
+        val packRes = resourcesOf(pm, pack)
+        val arcRes = resourcesOf(pm, ARCTICONS)
+        val dpi = context.resources.displayMetrics.densityDpi
+        val loads = HashMap<String, String>()
+        fun packLoad(d: String) = loads.getOrPut("p:$d") { load(packRes, pack!!, d, dpi) }
+        fun arcLoad(d: String) = loads.getOrPut("a:$d") { load(arcRes, ARCTICONS, d, dpi) }
         val header = listOf(
             "Iconoclast ${me.versionName} (${me.longVersionCode}) installed ${stamp.format(Date(me.lastUpdateTime))}",
             "Android ${Build.VERSION.RELEASE} sdk ${Build.VERSION.SDK_INT} ${Build.DISPLAY}",
@@ -86,6 +131,7 @@ object Diagnostics {
                 "read ${pack ?: "none"}${pack?.let { installedAt(pm, it) }?.let { " installed " + stamp.format(Date(it)) } ?: ""}: " +
                 "${filter?.size?.let { "$it entries" } ?: "unreadable"}",
             "last apply ${lastApply?.let { stamp.format(Date(it)) } ?: "never"}",
+            "arcticons ${arcVersion ?: "not installed"}, density $dpi, loads as Neo: getIdentifier(drawable) then getDrawableForDensity",
         )
 
         // Every launcher activity per profile, as launchers see them, plus this user's
@@ -107,11 +153,19 @@ object Diagnostics {
             App(pkg, user, installerOf(pm, pkg), installedAt(pm, pkg)?.let { day.format(Date(it)) }, classes.map { cls ->
                 val c = "$pkg/$cls"
                 val d = source.resolveApp(c)
-                Component(cls, filter?.get(c), if (d >= 0) source.names.name(d) else null)
+                val inPack = filter?.get(c)
+                val arc = if (d >= 0) source.names.name(d) else null
+                Component(
+                    cls, inPack, arc,
+                    packLoad = inPack?.let { packLoad(it) },
+                    arcLoad = if (arcRes != null) arc?.let { arcLoad(it) } else null,
+                )
             })
         }
         return format(header, apps)
     }
+
+    private const val ARCTICONS = "com.donnnno.arcticons"
 
     private fun versionOf(pm: PackageManager, pkg: String): String? = try {
         pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0)).versionName

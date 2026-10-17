@@ -329,6 +329,76 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val _neoBackup = MutableStateFlow<NeoBackupState?>(null)
+
+    /** What Check Neo backup found, or null before. */
+    val neoBackup: StateFlow<NeoBackupState?> = _neoBackup
+
+    private fun installed(pkg: String) = try {
+        getApplication<Application>().packageManager.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0)); true
+    } catch (e: PackageManager.NameNotFoundException) {
+        false
+    }
+
+    /**
+     * Reads a Neo backup the user picked and lists its custom icons, on screen, on the
+     * clipboard and in logcat. The file is only read.
+     */
+    fun checkNeoBackup(uri: Uri) {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            _neoBackup.value = try {
+                val lines = withContext(Dispatchers.IO) {
+                    val zip = app.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                    val found = NeoBackup.overrides(zip, File(app.cacheDir, "neo-backup"))
+                    File(app.cacheDir, "neo-backup").deleteRecursively()
+                    found?.let { NeoBackup.format(it, ::installed) }
+                }
+                if (lines == null) {
+                    NeoBackupState(uri, listOf("This file is not a Neo backup with the home screen in it."), 0)
+                } else {
+                    lines.forEach { Log.i(TAG, "diag: $it") }
+                    app.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Iconoclast diagnostics", lines.joinToString("\n")))
+                    NeoBackupState(uri, lines, lines.size - 1)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Neo backup check failed", e)
+                NeoBackupState(null, listOf("Could not read it: ${e.message ?: e.javaClass.simpleName}"), 0)
+            }
+        }
+    }
+
+    /** Writes a copy of the checked Neo backup to [dest] without custom icons. The checked file is untouched. */
+    fun saveNeoBackupWithoutCustomIcons(dest: Uri) {
+        val app = getApplication<Application>()
+        val checked = _neoBackup.value ?: return
+        val src = checked.source ?: return
+        viewModelScope.launch {
+            val note = try {
+                withContext(Dispatchers.IO) {
+                    val zip = app.contentResolver.openInputStream(src)!!.use { it.readBytes() }
+                    val work = File(app.cacheDir, "neo-backup")
+                    val cleaned = NeoBackup.withoutOverrides(zip, work) ?: error("no home screen database")
+                    // Read the copy back before saying it is good.
+                    val left = NeoBackup.overrides(cleaned, work)
+                    work.deleteRecursively()
+                    check(left != null && left.isEmpty()) { "the copy still has custom icons" }
+                    app.contentResolver.openOutputStream(dest, "wt")!!.use { it.write(cleaned) }
+                }
+                "Saved. In Neo: Home settings, Backups, Restore, pick this copy, OK. Then Profile, Icon Packs: " +
+                    "pick System icons, OK; then pick $appName Pack, OK."
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Neo backup clean failed", e)
+                "Could not save it: ${e.message ?: e.javaClass.simpleName}"
+            }
+            _neoBackup.value = checked.copy(saved = note)
+        }
+    }
+
     private fun currentLauncher(): LauncherGuide {
         val pm = getApplication<Application>().packageManager
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
@@ -345,3 +415,6 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         private const val READ_MS = 1500L
     }
 }
+
+/** A checked Neo backup: [source] the picked file, [lines] the report, [custom] its custom icons, [saved] the result of saving a clean copy. */
+data class NeoBackupState(val source: Uri?, val lines: List<String>, val custom: Int, val saved: String? = null)
