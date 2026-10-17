@@ -36,4 +36,17 @@ class DiagnosticsTest {
             text.trimEnd().lines(),
         )
     }
+
+    @Test
+    fun `drawable loads follow each drawable name`() {
+        val apps = listOf(
+            Diagnostics.App("org.videolan.vlc", "main", "org.fdroid.fdroid", null, listOf(
+                Diagnostics.Component("org.videolan.vlc.StartActivity", "slot_0054", "vlc", "id=7f010036 192x192 px=9000", "id=7f0a1b2c 256x256 px=4100"),
+            )),
+        )
+        assertEquals(
+            "org.videolan.vlc main via=org.fdroid.fdroid upd=- | .StartActivity pack=slot_0054 id=7f010036 192x192 px=9000 arc=vlc id=7f0a1b2c 256x256 px=4100",
+            Diagnostics.format(emptyList(), apps).trimEnd().lines().last(),
+        )
+    }
 }
