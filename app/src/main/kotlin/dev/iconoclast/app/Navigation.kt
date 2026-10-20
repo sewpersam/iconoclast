@@ -77,13 +77,7 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
                     nav.popBackStack(Routes.HOME, inclusive = false)
                 }
             }
-            val neoBackup by apply.neoBackup.collectAsState()
-            val pickNeoBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                uri?.let(apply::checkNeoBackup)
-            }
-            val saveNeoBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-                uri?.let(apply::saveNeoBackupWithoutCustomIcons)
-            }
+            val neo by apply.neoIcons.collectAsState()
             Scaffold(topBar = { BackBar("Apply", onBack = { nav.popBackStack() }) }) { padding ->
                 ApplyScreen(
                     active, state, status, apply::apply, apply::resumed,
@@ -92,9 +86,10 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
                     onRemoveLeftovers = apply::removeLeftovers,
                     copied = copied,
                     onCopyDiagnostics = apply::copyDiagnostics,
-                    neoBackup = neoBackup,
-                    onCheckNeoBackup = { pickNeoBackup.launch(arrayOf("*/*")) },
-                    onSaveNeoBackup = { saveNeoBackup.launch("neo-no-custom-icons.zbk") },
+                    neo = neo.takeIf { apply.neoInstalled },
+                    onChooseNeo = apply::chooseNeoIcons,
+                    onSaveNeo = apply::saveNeoIcons,
+                    onCancelNeo = apply::cancelNeoIcons,
                     modifier = Modifier.padding(padding),
                 )
             }

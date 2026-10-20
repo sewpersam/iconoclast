@@ -338,8 +338,24 @@ Evidence: `docs/verification/neo-custom-icons.md`. Restarts did not theme system
 
 ### Rulings
 - Ruling: appfilter reordering dropped. Main already writes installed components first, his diagnostics show every component in the pack, and restarts do not help, so it is not the pick race — cost if wrong: one more round.
-- Ruling: the lead cause is Neo per-app custom icons pointing at a removed pack. Neo checks them before the pack and 0.9.3 cannot delete them. The Apply screen reads a Neo backup to list them and writes a clean copy to restore; the original file is never written — cost if wrong: two text buttons.
-- Ruling: after restoring the clean copy, the guidance is Icon Packs: System icons, then Iconoclast Pack. A Restart alone leaves the cached stock icon — measured.
+- Superseded by "Neo custom icons fix" below. Ruling: the lead cause is Neo per-app custom icons pointing at a removed pack. Neo checks them before the pack and 0.9.3 cannot delete them. The Apply screen reads a Neo backup to list them and writes a clean copy to restore; the original file is never written — cost if wrong: two text buttons.
+- Superseded by "Neo custom icons fix" below. Ruling: after restoring the clean copy, the guidance is Icon Packs: System icons, then Iconoclast Pack. A Restart alone leaves the cached stock icon — measured.
 
 ### Deferred
-- His phone has not run Check Neo backup. If it lists no custom icons, the drawable-load lines in Copy diagnostics decide the pack side.
+- Superseded: his backup came in, 25 custom icons, all Arcticons. If it lists no custom icons, the drawable-load lines in Copy diagnostics decide the pack side.
+
+## Neo custom icons fix (2026-10-19)
+
+Evidence: `docs/verification/neo-override-fix.md`. His backup: 25 custom icons, all into Arcticons, Day & Night and Black.
+
+### Rulings
+- Ruling: Neo 0.9.3 draws a custom icon over any picked pack and has no way to remove one. Arcticons looked right only because his custom icons point at Arcticons; under System icons they still show Arcticons, measured. No pack-side change can reach them — cost if wrong: none, read in source and measured.
+- Ruling: Iconoclast re-points them through Neo's own exported icon screen (deep link per app) and an accessibility service that taps the pack's icon. He ticks the apps once; every Apply re-points them, since each Apply renames the pack and renumbers drawables. Backup and restore removed — cost if wrong: one Settings switch and one list.
+- Ruling: the service acts only on Neo windows, only while a run waits on one app, with no overlay, notification or gesture. It checks the row count against the computed position and presses Back on a mismatch — cost if wrong: an app left on its old icon, reported in the result line.
+- Ruling: rejected avenues. Installing a pack under Arcticons' package names impersonates another project. A stable second pack would need a second install per Apply and drawable names that never move. Re-pointing every app pins Neo to Iconoclast under any pack. Detecting custom icons by screenshot is fragile — cost if wrong: he ticks apps by hand once.
+- Ruling: a re-pointed app keeps the Iconoclast icon under any Neo pack, as his Arcticons ones did. Unticking stops future re-points; Neo 0.9.3 cannot undo one — cost if wrong: re-tick and point at another pack in Neo by hand.
+
+### Deferred
+- Android may grey out the switch for an app installed outside a store ("restricted setting"). The on-screen line gives the App info, Allow restricted settings path. Not reproduced: the emulator installs through adb sessions.
+- Neo loads custom icons asynchronously at start, so dock icons can miss them after a Restart (Phone under System icons). Not acted on.
+- Work profile apps are not offered; Neo's deep link carries user 0.
