@@ -369,7 +369,7 @@ His request: a Size control for the background shape, like the icon's Size. Evid
 - Ruling: range 50% to 100%, was 70% to 100%. 50% is about the default icon's own box (80% icon size is 49% of the tile). Below that the shape is a dot behind a trimmed icon — cost if wrong: one constant, `MIN_BACKGROUND_SIZE`.
 - Ruling: no growing past 100%. The PNG is the tile, so past full the canvas cuts every shape flat on all four sides: a square with rounded corners, which Rounded square and Squareness already draw, and the border would be cut off at the edges — cost if wrong: a range change and a border rule.
 - Ruling: the background's own gradient or image is laid out on the shape's square (schema 10), so it shrinks with the shape; crop, Cover and random shift, turn and zoom are measured against that square. Patterns, other layers shown on the background, effects, finish grain and rim, and the border keep the canvas's scale, so grain, marks and edge widths match the icon's at every size — cost if wrong: one frame argument in `StackEvaluator.source`.
-- Ruling: the shape still clips the icon, as it did at 70%. Help says to shrink the icon to match. Not auto-linked: the icon's Size is its own property — cost if wrong: an icon trimmed until he moves its slider.
+- Ruling: the shape still clips the icon, as it did at 70%. Help says to shrink the icon to match. Not auto-linked: the icon's Size is its own property — cost if wrong: an icon trimmed until he moves its slider. Superseded by Icon follows the background, below.
 - Ruling: schema 9 themes below 100% migrate so they look as before: gradient points and image scale move into the shape's frame. A randomly placed image redraws its patch in the new room. At 100% only the version changes — cost if wrong: an old shrunk image background shifts its patch.
 
 ## Neo shotgun (2026-10-19)
@@ -390,3 +390,13 @@ His call: "just do the shotgun". Evidence: `docs/verification/neo-shotgun.md`.
 ### Deferred
 - Time grows with app count: about 0.35 s per app, about 70 s for 200. Not cut further: each app is one Neo screen and one database write in Neo.
 - Force-stopping Iconoclast turns its accessibility service off. Android does this; the Apply screen then shows the Turn it on line again.
+
+## Icon follows the background (2026-10-19)
+
+PM ruling under his "use your judgment". Evidence: `docs/verification/icon-follows-bg.md`.
+
+### Rulings
+- Ruling: Icon size, Move left or right and Move up or down are measured against the background shape's square. The icon shrinks with the shape and the default icon is never trimmed. Background off, the square is the tile — cost if wrong: one frame argument in `IconRenderer.iconFrame`.
+- Ruling: line thickness, fill gaps and dots scale with the icon, as Icon size already scaled them. At 50% the lines are half as thick on the tile; Line thickness raises them. Effects, grain, patterns and border keep the tile's scale — cost if wrong: strokes would need their own frame.
+- Ruling: schema 11. Saved themes below 100% are rewritten to `iconScale / size` and `offset / size`, so they look as before. At 100%, or background off, only the version changes. Capped at the ranges, reached only by an icon already wider than its shape or an offset past 10% of the new square — cost if wrong: such a theme's icon is a little smaller or less moved than before.
+- Ruling: the 60 goldens below 100% are re-rendered in the new layout, not frozen in the old one. Every 100% golden is byte-identical — cost if wrong: none, the migration test holds the old look.

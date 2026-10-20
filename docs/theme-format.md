@@ -5,11 +5,11 @@ One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
 shares a `.zip` holding that JSON as `theme.json`, the textures it uses and,
 only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
-## Schema version 10
+## Schema version 11
 
 ```json
 {
-    "schemaVersion": 10,
+    "schemaVersion": 11,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -92,6 +92,7 @@ Rules:
   square: its coordinates and its mapping are fractions of that square, so it
   shrinks with the shape. `pattern` paints, every other layer, effects and the
   border keep the canvas's scale. The shape clips everything, the icon included.
+  Schema 11: the icon is laid out on the same square, see `shape.iconScale`.
 - `background.border`: `null` or `{ "width", "color", "opacity" }`. The border
   is drawn at the effects layer, on top of the layers below it.
 - `shape.iconScale` is the 48-unit drawing box as a fraction of the adaptive-icon
@@ -99,6 +100,10 @@ Rules:
   canvas. The editor shows it as the fraction of the canvas, `iconScale x 66/108`,
   so 100% touches the edges. Older files used 0.5 to 1 in the same unit and read
   unchanged.
+- Schema 11: `shape.iconScale`, `offsetX` and `offsetY` are measured against the
+  background shape's square, `background.size` of the canvas, instead of the canvas.
+  The icon shrinks with the shape, and 100% touches the square's edges. With the
+  background off the square is the canvas.
 - Out-of-range values fail the whole file. Import shows the reason.
 
 ### Layers
@@ -463,6 +468,14 @@ images draw the same colours up to float rounding; a randomly placed image draws
 again within the room the smaller frame leaves. At size 1, the default, nothing but the
 version changes: `MigrationV9ToV10Test.everySchema9GoldenMigratesUnchanged` and
 `belowFullSizeKeepsItsLook`.
+
+Version 10 laid the icon on the canvas at every background size, so a smaller shape
+trimmed it. `v10ToV11` (`MigrationV10ToV11.kt`) sets `schemaVersion` to 11 and, only when
+the background is on and `background.size` is below 1, rewrites the shape so the icon keeps
+its size and place on the tile: `iconScale / size` and `offsetX`, `offsetY` `/ size`, capped
+at 108/66 and 0.1. The cap is reached only by an icon already wider than the shape, or an
+offset past 10% of the new square; both were trimmed by the shape before. At size 1, or
+with the background off, nothing but the version changes: `MigrationV10ToV11Test`.
 
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture

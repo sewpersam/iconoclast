@@ -3,24 +3,29 @@ package dev.iconoclast.render
 import dev.iconoclast.render.layer.Placement
 
 /**
- * Geometry depends on the drawable, the shape parameters and the size, nothing else.
- * [drawable] is the geometry's own drawable name, never the slot it is drawn for: a slot
- * swapped to another drawable reads that drawable's entries and cannot write its own.
+ * Geometry depends on the drawable, the shape parameters, the size and the icon's frame,
+ * nothing else. [drawable] is the geometry's own drawable name, never the slot it is drawn
+ * for: a slot swapped to another drawable reads that drawable's entries and cannot write
+ * its own. [frame] is [IconRenderer.iconFrame]: the side of the square the icon is laid
+ * out in, as a fraction of the canvas.
  */
-data class GeometryKey(val drawable: String, val shape: ShapeParams, val size: Int)
+data class GeometryKey(val drawable: String, val shape: ShapeParams, val size: Int, val frame: Float = 1f)
 
 /**
  * The fill stage adds the fill parameters that change its masks: the mode, and the gap
  * and closing where the mode reads them. The fallback threshold and the lone-lines switch
  * only choose between cached masks, so they are not part of the key.
  */
-data class FillKey(val drawable: String, val shape: ShapeParams, val mode: FillMode, val gapWidth: Float, val gapClosing: Float, val size: Int) {
+data class FillKey(
+    val drawable: String, val shape: ShapeParams, val mode: FillMode, val gapWidth: Float, val gapClosing: Float, val size: Int,
+    val frame: Float = 1f,
+) {
     companion object {
         /** Unused parameters are zeroed, so changing them cannot miss the cache. */
-        fun of(drawable: String, shape: ShapeParams, fill: FillParams, size: Int) = when (fill.mode) {
-            FillMode.OUTLINE -> FillKey(drawable, shape, fill.mode, 0f, 0f, size)
-            FillMode.SILHOUETTE, FillMode.OUTLINE_SILHOUETTE -> FillKey(drawable, shape, fill.mode, 0f, fill.gapClosing + 0f, size)
-            FillMode.INVERT -> FillKey(drawable, shape, fill.mode, fill.gapWidth + 0f, fill.gapClosing + 0f, size)
+        fun of(drawable: String, shape: ShapeParams, fill: FillParams, size: Int, frame: Float = 1f) = when (fill.mode) {
+            FillMode.OUTLINE -> FillKey(drawable, shape, fill.mode, 0f, 0f, size, frame)
+            FillMode.SILHOUETTE, FillMode.OUTLINE_SILHOUETTE -> FillKey(drawable, shape, fill.mode, 0f, fill.gapClosing + 0f, size, frame)
+            FillMode.INVERT -> FillKey(drawable, shape, fill.mode, fill.gapWidth + 0f, fill.gapClosing + 0f, size, frame)
         }
     }
 }
