@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Iconoclast's glyph, iconsource/bundled/iconoclast.svg: a cracked icon tile in Arcticons
+     line style, on the 48 grid, placed as a pack icon is at the default Icon size: 80% of the
+     66 dp safe zone. CC BY-SA 4.0, the Iconoclast contributors. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="27.6"
+        android:translateY="27.6"
+        android:scaleX="1.1"
+        android:scaleY="1.1">
+        <path
+            android:pathData="M13.5,7.5H34.5c3.3137,0,6,2.6863,6,6V34.5c0,3.3137-2.6863,6-6,6H13.5c-3.3137,0-6-2.6863-6-6V13.5c0-3.3137,2.6863-6,6-6Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="1"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M26.5,7.5L22.5,16.5L28,22.5L21.5,30.5L25,35.5L23,40.5M28,22.5L34.5,25.5M21.5,30.5L15,32"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="1"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

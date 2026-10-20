@@ -19,6 +19,14 @@ abstract class CompileAppfilterTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val appfilter: RegularFileProperty
 
+    /**
+     * Iconoclast's own entries, `iconsource/bundled/appfilter.xml`. They win over
+     * Arcticons' for the same component, and are listed in the report.
+     */
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val bundledAppfilter: RegularFileProperty
+
     /** The converter's names.txt: line i is drawable index i. */
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
@@ -35,7 +43,11 @@ abstract class CompileAppfilterTask : DefaultTask() {
         val index = names.get().asFile.readLines().filter { it.isNotEmpty() }
             .withIndex().associate { (i, name) -> name to i }
         val result = appfilter.get().asFile.inputStream().buffered().use { compileAppfilter(it, index) }
-        val table = ComponentTableFormat.encode(result.entries)
+        val own = bundledAppfilter.get().asFile.inputStream().buffered().use { compileAppfilter(it, index) }
+        if (own.malformed.isNotEmpty() || own.unknownDrawable.isNotEmpty() || own.entries.isEmpty()) {
+            throw org.gradle.api.GradleException("Bundled appfilter: malformed ${own.malformed}, unknown ${own.unknownDrawable}")
+        }
+        val table = ComponentTableFormat.encode(result.entries + own.entries)
         val dir = outputDir.get().asFile.resolve("arcticons")
         dir.deleteRecursively()
         dir.mkdirs()
@@ -52,6 +64,7 @@ abstract class CompileAppfilterTask : DefaultTask() {
             appendLine("duplicates ${result.duplicates}")
             appendLine("conflicting ${result.conflicting.size}")
             appendLine("table.bytes ${table.size}")
+            own.entries.keys.forEach { appendLine("bundled $it") }
             result.malformed.forEach { appendLine("malformed $it") }
             result.unknownDrawable.forEach { appendLine("unknownDrawable $it") }
             result.conflicting.forEach { appendLine("conflicting $it") }

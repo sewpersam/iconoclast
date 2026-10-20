@@ -44,6 +44,9 @@ abstract class ConvertIconsTask : DefaultTask() {
         val start = System.nanoTime()
         val files = sortByDrawableName(svgFiles.files)
         val names = files.map { it.name.removeSuffix(".svg") }
+        names.groupBy { it }.filterValues { it.size > 1 }.keys.takeIf { it.isNotEmpty() }?.let {
+            throw GradleException("Icon names used twice, a bundled glyph shadows an Arcticons one: $it")
+        }
         val icons = arrayOfNulls<Icon>(files.size)
         val perIcon = arrayOfNulls<ConversionStats>(files.size)
         val failures = java.util.concurrent.ConcurrentLinkedQueue<String>()
@@ -107,6 +110,9 @@ abstract class ConvertIconsTask : DefaultTask() {
 (https://github.com/Arcticons-Team/Arcticons) by the Arcticons Team and contributors.
 Licensed under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0),
 https://creativecommons.org/licenses/by-sa/4.0/. Converted to a binary path format.
+
+The drawable "iconoclast", a cracked icon tile, is Iconoclast's own glyph in Arcticons line
+style, by the Iconoclast contributors, also CC BY-SA 4.0. Bundled with Iconoclast only.
 """
     }
 }

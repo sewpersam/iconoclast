@@ -139,6 +139,9 @@ abstract class BuildTemplatePackTask @Inject constructor(private val exec: ExecO
             rasterized by $appName: stroke weight, fill, colour, background, textures and
             effects differ from the originals. The licence text is in LICENSE-CC-BY-SA-4.0.txt.
             These icons are licensed under the same licence.
+
+            The icon for $appName itself, a cracked icon tile, is $appName's own glyph in
+            Arcticons line style, by the $appName contributors, also CC BY-SA 4.0.
         """.trimIndent() + "\n"
     }
 }
