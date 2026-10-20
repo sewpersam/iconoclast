@@ -18,7 +18,7 @@ PM ruling under his "use your judgment": shrinking the Background size shrinks t
 | Goldens | Every 100% golden and every 324 px golden byte-identical. The 60 below 100% re-rendered: `outline_silhouette` (92%, 24), `fb_clip_below` (85%, 6), `bg_*` (30) |
 | `IconFollowsBackgroundTest` | 4 tests. Lines at 50% of 256 px equal the whole icon at 128 px, offsets too; the default icon loses under 0.5 px to the shape at 100/85/70/50%, four shapes, every fill mode; background off ignores size; one cache keeps sizes apart |
 | Same suite, `iconFrame` forced to 1 | 3 of 4 fail |
-| `./gradlew :app:testDebugUnitTest` | 153 tests, 0 failures |
+| `./gradlew :app:testDebugUnitTest` | 149 tests, 0 failures |
 | `MigrationV10ToV11Test` | 4 tests. Every 100% or background-off golden migrates unchanged; below 100% the migrated icon mask matches the old one within 0.05 coverage (6 icons, 3 shapes, 85/70/50%, outline and invert); caps; background off untouched |
 | Same suite, migration a no-op | 3 of 4 fail |
 | ART identity on icondesign36 | `compared 538 PNGs, 0 differ` |
