@@ -356,9 +356,17 @@ data class BackgroundParams(
     /** Off means no background shape: no clip, and an empty background clip target. */
     val enabled: Boolean = true,
     val shape: BackgroundShape = BackgroundShape.Squircle(),
-    /** Side of the shape as a fraction of the canvas. */
+    /**
+     * Side of the shape as a fraction of the canvas, [MIN_BACKGROUND_SIZE] to 1, centred.
+     * Schema 10: the background layer's own gradient or image is laid out on the shape's
+     * square, so it shrinks with the shape. Patterns, other layers, effects and the border
+     * keep the canvas's scale. The shape still clips everything, the icon included.
+     */
     val size: Float = 1f,
     val border: Border? = null,
 ) {
-    init { require(size in 0.7f..1f) { "background size $size" } }
+    init { require(size in MIN_BACKGROUND_SIZE..1f) { "background size $size" } }
 }
+
+/** The smallest background shape: half the tile. Schema 9 and older stopped at 0.7. */
+const val MIN_BACKGROUND_SIZE = 0.5f

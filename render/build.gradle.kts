@@ -116,6 +116,20 @@ tasks.register<JavaExec>("feedbackSheets") {
     )
 }
 
+// ./gradlew :render:bgSizeSheet -Pout=<dir> writes the background Size contact sheet.
+tasks.register<JavaExec>("bgSizeSheet") {
+    group = "verification"
+    description = "Renders the background Size looks at 100, 85, 70 and 50%."
+    classpath = verify.runtimeClasspath
+    mainClass = "dev.iconoclast.render.verify.BgSizeSheetKt"
+    maxHeapSize = "1g"
+    systemProperty("java.awt.headless", "true")
+    args(
+        layout.projectDirectory.file("src/test/resources/golden/samples.bin").asFile.path,
+        providers.gradleProperty("out").getOrElse(rootProject.layout.projectDirectory.dir("docs/verification/bg-size").asFile.path),
+    )
+}
+
 // ./gradlew :render:paintSheet -Pout=<dir> -Pprefix=<name> writes Painted brush stroke sheets at 216 and 432 px.
 tasks.register<JavaExec>("paintSheet") {
     group = "verification"

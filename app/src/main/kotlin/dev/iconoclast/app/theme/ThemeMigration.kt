@@ -47,7 +47,7 @@ fun migrate(
 private typealias Step = (JsonObject, () -> Long, () -> String) -> JsonObject
 
 /** STEPS[n] upgrades version n to n + 1. */
-private val STEPS: List<Step> = listOf(::v0ToV1, ::v1ToV2, ::v2ToV3, ::v3ToV4, ::v4ToV5, ::v5ToV6, ::v6ToV7, ::v7ToV8, ::v8ToV9)
+private val STEPS: List<Step> = listOf(::v0ToV1, ::v1ToV2, ::v2ToV3, ::v3ToV4, ::v4ToV5, ::v5ToV6, ::v6ToV7, ::v7ToV8, ::v8ToV9, ::v9ToV10)
 
 /**
  * Version 0 is synthetic, written before any release to exercise this mechanism: no

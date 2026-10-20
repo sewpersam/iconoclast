@@ -102,9 +102,11 @@ internal object Mappings {
      * The texture under every pixel, premultiplied RGBA floats, bilinear. With [need],
      * pixels where it is 0 are skipped and left transparent: nothing will show them.
      * A crop makes the texel rectangle it covers the texture: placed, tiled and clamped
-     * as if it were the whole image.
+     * as if it were the whole image. [frame] shrinks the window the placement spans to a
+     * centred square that side of the canvas, the background shape's; the room random
+     * placement moves in is then measured against that square.
      */
-    fun texture(tex: Texture, p: Placement, size: Int, need: FloatArray? = null): FloatArray {
+    fun texture(tex: Texture, p: Placement, size: Int, need: FloatArray? = null, frame: Float = 1f): FloatArray {
         val stride = tex.width
         val crop = p.crop
         val rx = crop?.let { (it.left * stride).let { v -> floor(v + 0.5f).toInt() }.coerceIn(0, stride - 1) } ?: 0
@@ -144,8 +146,9 @@ internal object Mappings {
         val out = FloatArray(size * size * 4)
         for (y in 0 until size) for (x in 0 until size) {
             if (need != null && need[y * size + x] == 0f) continue
-            val u = (x + 0.5f) / size - 0.5f
-            val v = (y + 0.5f) / size - 0.5f
+            // Divided by [frame], the centred square the placement spans; x / 1 is x.
+            val u = ((x + 0.5f) / size - 0.5f) / frame
+            val v = ((y + 0.5f) / size - 0.5f) / frame
             // Texel coordinates within the cropped rectangle.
             val tx = cx + (t.c * u + t.s * v) * k
             val ty = cy + (t.c * v - t.s * u) * k

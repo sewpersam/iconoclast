@@ -59,7 +59,7 @@ object Tips {
     val SHAPE = Tip("Shape", "The outline of the tile behind each icon. If your launcher also shapes icons, turn that off there to avoid a double edge.")
     val SQUARENESS = Tip("Squareness", "Soft square only. Low is close to a circle, high is close to a square.")
     val CORNER_ROUNDNESS = Tip("Corner roundness", "Rounded square only. 0% is a sharp square, 50% is a circle.")
-    val BACKGROUND_SIZE = Tip("Background size", "How much of the tile the background shape fills. 100% touches the edges.")
+    val BACKGROUND_SIZE = Tip("Background size", "How much of the tile the background shape fills. 100% touches the edges; smaller leaves your wallpaper around it. Its gradient or image shrinks with it. The shape also trims the icon, so make the icon smaller to match.")
     val BACKGROUND_COLOUR = Tip("Background colour", "The colour behind the icon.")
     val BACKGROUND_OPACITY = Tip("Background opacity", "How see-through the background is. 0% shows the wallpaper through it.")
     val BACKGROUND_MIX = Tip("Mix mode", MIX_HELP)

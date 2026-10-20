@@ -9,13 +9,14 @@ import androidx.compose.ui.unit.dp
 import dev.iconoclast.render.BackgroundParams
 import dev.iconoclast.render.Border
 import dev.iconoclast.render.Layer
+import dev.iconoclast.render.MIN_BACKGROUND_SIZE
 import dev.iconoclast.render.PaintLayer
 import dev.iconoclast.render.Theme
 
 /**
- * The Background row's page, docs/naming-spec.md 1.3: on or off, the shape, the colour
- * and the border width; size, opacity, mix mode and the border's colour under More
- * options. The colour is the stack's background layer. The border is painted at the
+ * The Background row's page, docs/naming-spec.md 1.3: on or off, the shape and its size,
+ * the colour and the border width; opacity, mix mode and the border's colour under More
+ * options. Size sits under the shape as Icon size sits on the Icon page. The colour is the stack's background layer. The border is painted at the
  * effects marker, but people see it as the background's edge, so it lives here. With no
  * border set the width reads 0, and the colour and opacity start from white at full.
  */
@@ -37,6 +38,8 @@ fun BackgroundPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit
     }
     val more = rememberMore(Layer.BACKGROUND_ID)
     ShapeControl(b.shape, d.shape, { drag(with(b.copy(shape = it))) }, done, { commit(with(b.copy(shape = it))) })
+    SliderControl(Tips.BACKGROUND_SIZE, b.size, MIN_BACKGROUND_SIZE..1f, d.size, percent,
+        { drag(with(b.copy(size = it))) }, done, { commit(with(b.copy(size = d.size))) })
     Section("Colour")
     layer?.let {
         val dl = defaultsOf(it)
@@ -48,8 +51,6 @@ fun BackgroundPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit
     SliderControl(Tips.BORDER_WIDTH, border.width, 0f..0.1f, 0f, percent,
         { drag(withBorder(border.copy(width = it))) }, done, { commit(with(b.copy(border = d.border))) })
     MoreOptions(more) {
-        SliderControl(Tips.BACKGROUND_SIZE, b.size, 0.7f..1f, d.size, percent,
-            { drag(with(b.copy(size = it))) }, done, { commit(with(b.copy(size = d.size))) })
         layer?.let { BlendControl(Tips.BACKGROUND_MIX, it.blend, defaultsOf(it).blend) { b -> commit(LayerStack.replace(theme, it.copy(blend = b))) } }
         if (border.width > 0f) {
             ColorControl(Tips.BORDER_COLOUR, border.argb, NO_BORDER.argb,

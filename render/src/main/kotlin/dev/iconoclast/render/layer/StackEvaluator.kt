@@ -53,6 +53,11 @@ internal class StackInput(
     val iconSeed: Long = 0L,
     /** Whether [offset] is pinned by a per-icon override rather than drawn from the seed name. */
     val pinned: Boolean = false,
+    /**
+     * The background shape's side, schema 10: the square the background layer's gradient
+     * or image spans. 1 when the shape fills the tile.
+     */
+    val backgroundFrame: Float = 1f,
 ) {
     /** [mapping] placed for this icon. */
     fun place(mapping: Mapping): Placement = Mappings.place(mapping, offset, iconSeed, pinned)
@@ -262,18 +267,20 @@ internal object StackEvaluator {
     /** [need]: when given, only pixels where it is not 0 are evaluated; the rest are left 0. */
     private fun source(paint: Paint, layer: PaintLayer, input: StackInput, needLuminance: Boolean, need: FloatArray? = null): Source {
         val n = input.size * input.size
+        // The background's own picture follows its shape; patterns keep the canvas's scale.
+        val frame = if (layer.id == Layer.BACKGROUND_ID) input.backgroundFrame else 1f
         return when (paint) {
             is Paint.Solid -> {
                 val c = FloatArray(4).also { Paints.premultiply(paint.argb, it) }
                 Source(c, null, if (needLuminance) FloatArray(n) { BlendModes.lum(c[0], c[1], c[2]) } else null)
             }
             is Paint.LinearGradient, is Paint.RadialGradient, is Paint.AngularGradient -> {
-                val px = Paints.fill(paint, input.size)
+                val px = Paints.fill(paint, input.size, frame)
                 Source(null, px, if (needLuminance) lumOf(px, n) else null)
             }
             is Paint.Texture -> {
                 val tex = checkNotNull(input.textures[paint.sha256]) { "texture ${paint.sha256} is not in the store" }
-                val px = Mappings.texture(tex, input.place(layer.mapping), input.size, need)
+                val px = Mappings.texture(tex, input.place(layer.mapping), input.size, need, frame)
                 paint.adjust?.let { if (!it.isIdentity) Adjustments.apply(it, px) }
                 val lum = if (needLuminance) lumOf(px, n) else null
                 paint.stops?.let { stops ->
