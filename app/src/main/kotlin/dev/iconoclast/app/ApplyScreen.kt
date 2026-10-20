@@ -7,21 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import dev.iconoclast.app.ui.theme.OutlinedAction
@@ -52,13 +38,13 @@ fun ApplyScreen(
     onRemoveLeftovers: () -> Unit,
     copied: String?,
     onCopyDiagnostics: () -> Unit,
-    neo: NeoIconsState? = null,
-    onChooseNeo: () -> Unit = {},
-    onSaveNeo: (Set<String>) -> Unit = {},
-    onCancelNeo: () -> Unit = {},
+    neo: NeoIconsState = NeoIconsState(),
+    onTurnOnNeo: () -> Unit = {},
+    onPause: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { onResume() }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { onPause() }
     val packLabel = "${stringResource(R.string.app_name)} Pack"
     val working = state is ApplyState.Working
     val applied = status.applied && status.newApps == 0
@@ -114,66 +100,29 @@ fun ApplyScreen(
         // For bug reports: icons that do not change in a launcher.
         TextButton(onClick = onCopyDiagnostics, enabled = !working) { Text("Copy diagnostics") }
         if (copied != null) Text(copied, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (neo != null) NeoSection(neo, packLabel, working, onChooseNeo, onSaveNeo, onCancelNeo)
+        if (neo.home) NeoSection(neo, packLabel, working, onTurnOnNeo)
     }
 }
 
 /**
  * Neo Launcher custom icons: Neo draws an icon set by hand (long-press, Customize) over any
- * pack, and 0.9.3 cannot remove one. The user names those apps once; each Apply points them
- * at the new pack.
+ * pack, and 0.9.3 cannot remove one or say which apps have one. With the service on, every
+ * app gets the pack's icon after each Apply; without it, one line and the way to turn it on.
  */
 @Composable
-private fun NeoSection(
-    neo: NeoIconsState,
-    packLabel: String,
-    working: Boolean,
-    onChoose: () -> Unit,
-    onSave: (Set<String>) -> Unit,
-    onCancel: () -> Unit,
-) {
-    Text(
-        "Neo keeps an icon you gave an app by hand (long-press, Customize) whatever pack you pick, and cannot remove it. " +
-            "Name those apps here once: they get the $packLabel icon now and after every Apply.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    OutlinedAction(onClick = onChoose, enabled = !working) {
-        Text(if (neo.apps.isEmpty()) "Neo custom icons" else "Neo custom icons: ${neo.apps.size} ${if (neo.apps.size == 1) "app" else "apps"}")
+private fun NeoSection(neo: NeoIconsState, packLabel: String, working: Boolean, onTurnOn: () -> Unit) {
+    if (!neo.serviceOn) {
+        Text(
+            "Neo keeps an icon you set by hand (long-press, Customize) over any pack. " +
+                "Turn on ${stringResource(R.string.neo_service_label)} in Accessibility: after every Apply, every app gets the $packLabel icon.",
+        )
+        OutlinedAction(onClick = onTurnOn, enabled = !working) { Text("Turn it on") }
+        Text(
+            "If the switch is greyed out: App info for ${stringResource(R.string.app_name)}, menu at the top right, Allow restricted settings.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else if (neo.note != null && !working) {
+        Text(neo.note)
     }
-    neo.note?.let { Text(it) }
-    neo.choices?.let { NeoChooser(it, neo.apps, packLabel, onSave, onCancel) }
-}
-
-@Composable
-private fun NeoChooser(choices: List<NeoChoice>, kept: Set<String>, packLabel: String, onSave: (Set<String>) -> Unit, onCancel: () -> Unit) {
-    var picked by remember { mutableStateOf(kept.filterTo(HashSet()) { k -> choices.any { it.component == k } }) }
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text("Apps Neo keeps on a custom icon") },
-        text = {
-            LazyColumn {
-                items(choices, key = { it.component }) { c ->
-                    Row(
-                        Modifier.fillMaxWidth().toggleable(c.component in picked, role = Role.Checkbox) { on ->
-                            picked = HashSet(picked).apply { if (on) add(c.component) else remove(c.component) }
-                        }.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = c.component in picked, onCheckedChange = null)
-                        Image(c.icon, contentDescription = null, modifier = Modifier.padding(start = 12.dp).size(40.dp))
-                        Column(Modifier.padding(start = 12.dp)) {
-                            Text(c.label)
-                            // Two apps can share a name, such as two Cameras.
-                            if (choices.count { it.label == c.label } > 1) {
-                                Text(c.component.substringBefore('/'), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = { onSave(picked) }) { Text("Give them the $packLabel icon") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
-    )
 }

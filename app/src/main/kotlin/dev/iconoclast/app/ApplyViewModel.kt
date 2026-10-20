@@ -3,11 +3,8 @@ package dev.iconoclast.app
 import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ComponentName
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.view.accessibility.AccessibilityManager
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -118,8 +115,13 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The Apply screen is showing again. Resumes an Apply waiting on a system screen. */
     fun resumed() {
+        foreground = true
         returned?.complete(Unit)
-        if (_state.value !is ApplyState.Working) refreshStatus()
+        if (_state.value !is ApplyState.Working) {
+            refreshStatus()
+            refreshNeo()
+            runNeoIfDue()
+        }
     }
 
     /**
@@ -241,8 +243,9 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         val leftover = removeOldPacks(session, name)
         val guide = currentLauncher()
         // Neo custom icons point at a pack by name and drawable: move the user's to this one.
-        val neoNote = if (guide.packageName == NeoCustomIcons.NEO && neo.apps.isNotEmpty()) pointNeoIcons(name) else null
-        neoNote?.let { n -> _neoIcons.value = _neoIcons.value.copy(note = n) }
+        val neoNote = if (guide.packageName == NeoCustomIcons.NEO) pointNeoIcons(name, ask = true) else null
+        _neoIcons.value = _neoIcons.value.copy(note = neoNote)
+        refreshNeo()
         return ApplyState.Installed(guide, plan.themedApps, plan.uncoveredApps, leftover)
     }
 
@@ -269,6 +272,7 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val left = removeOldPacks(PackInstallSession(getApplication()), keep)
             _state.value = shown.copy(leftover = left)
+            runNeoIfDue()
         }
     }
 
@@ -344,46 +348,45 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val neo = NeoCustomIcons(app)
-    private val _neoIcons = MutableStateFlow(NeoIconsState(neo.apps))
+    private val _neoIcons = MutableStateFlow(NeoIconsState())
 
-    /** Neo custom icons kept pointed at the pack, null when Neo is not installed. */
+    /** Neo custom icons: shown while Neo is the home app. */
     val neoIcons: StateFlow<NeoIconsState> = _neoIcons
 
-    val neoInstalled: Boolean get() = neo.neoInstalled()
+    /** The Apply screen is in front: a run opens the next Neo screen only then. */
+    private var foreground = false
+    private var neoRunning = false
 
-    /** Lists the apps the installed pack has icons for, to choose which Neo keeps on a custom icon. */
-    fun chooseNeoIcons() {
-        val pack = packs.current?.takeIf(packs::isOnPhone)
-        if (pack == null) {
-            _neoIcons.value = _neoIcons.value.copy(note = "Apply first: the apps are pointed at the installed pack.")
-            return
-        }
-        viewModelScope.launch {
-            val choices = withContext(Dispatchers.IO) {
-                val res = getApplication<Application>().packageManager.getResourcesForApplication(pack)
-                val covered = res.assets.open("appfilter.xml").use { Diagnostics.parseAppfilter(it.readBytes().decodeToString()) }.keys
-                neo.launcherApps().map { (c, label, icon) -> NeoChoice(c.flattenToString(), label, icon.asImageBitmap()) }
-                    .filter { it.component in covered }.sortedBy { it.label.lowercase() }
-            }
-            _neoIcons.value = _neoIcons.value.copy(choices = choices)
-        }
+    /** The Apply screen went to the background. */
+    fun paused() {
+        foreground = false
     }
 
-    fun cancelNeoIcons() {
-        _neoIcons.value = _neoIcons.value.copy(choices = null)
+    private fun neoHome() = neo.neoInstalled() && currentLauncher().packageName == NeoCustomIcons.NEO
+
+    private fun refreshNeo() {
+        _neoIcons.value = _neoIcons.value.copy(home = neoHome(), serviceOn = serviceOn())
     }
 
-    /** Keeps [apps] pointed at the pack and points them now. */
-    fun saveNeoIcons(apps: Set<String>) {
-        neo.apps = apps
-        _neoIcons.value = NeoIconsState(apps)
+    /** Opens Accessibility settings, where the user turns the service on; the run starts when they are back. */
+    fun turnOnNeoService() {
+        launches.trySend(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    /**
+     * Starts a run when the installed pack is not yet on every app in Neo: the service was
+     * just turned on, Neo just became home, or a run was cut off. Nothing runs while Apply does.
+     */
+    private fun runNeoIfDue() {
+        if (neoRunning || _state.value is ApplyState.Working) return
         val pack = packs.current?.takeIf(packs::isOnPhone) ?: return
-        if (apps.isEmpty() || _state.value is ApplyState.Working) return
+        if (!neo.needsRun(pack) || !neoHome() || !serviceOn() || (packs.onPhone() - pack).isNotEmpty()) return
         val shown = _state.value
         viewModelScope.launch {
-            val note = pointNeoIcons(pack)
-            _state.value = if (shown is ApplyState.Working) ApplyState.Idle else shown
+            val note = pointNeoIcons(pack, ask = false)
+            if (_state.value is ApplyState.Working) _state.value = shown
             _neoIcons.value = _neoIcons.value.copy(note = note)
+            refreshNeo()
         }
     }
 
@@ -393,51 +396,91 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
             .any { it.resolveInfo.serviceInfo.packageName == getApplication<Application>().packageName }
     }
 
+    /** Waits until the Apply screen is in front again. */
+    private suspend fun awaitForeground() {
+        while (!foreground) {
+            val back = CompletableDeferred<Unit>().also { returned = it }
+            back.await()
+            returned = null
+        }
+    }
+
     /**
-     * Opens Neo's icon screen for each kept app in turn; [NeoIconService] taps [pack]'s icon,
-     * or the user does when the service is off. Returns the line to show after.
+     * Points every app the pack has an icon for at [pack] in Neo: opens Neo's icon screen per
+     * app and [NeoIconService] taps the pack's icon. Neo cannot say which apps have a custom
+     * icon, so all of them get one. Without the service nothing is opened: the Apply screen
+     * says to turn it on, once sending the user there when [ask]. Returns the line to show
+     * after, or null when nothing ran.
      */
-    private suspend fun pointNeoIcons(pack: String): String {
-        if (!neo.neoInstalled()) return "Neo Launcher is not installed."
-        if ((packs.onPhone() - pack).isNotEmpty()) return "An older copy of the pack is still installed. Remove it, then tap Neo custom icons, Point."
-        val apps = neo.apps.mapNotNull(ComponentName::unflattenFromString)
-        _state.value = ApplyState.Working("Finding the pack's icon in Neo for ${apps.size} apps")
-        val targets = withContext(Dispatchers.IO) { neo.targets(pack, apps) }
-        if (!serviceOn()) {
+    private suspend fun pointNeoIcons(pack: String, ask: Boolean): String? {
+        if (!neo.neoInstalled()) return null
+        if ((packs.onPhone() - pack).isNotEmpty()) return "An older copy of the pack is still installed. Remove it, then every app in Neo gets the pack's icon."
+        if (!serviceOn() && ask && !neo.askedForService) {
+            neo.askedForService = true
             sendAway(
-                "Android asks you once to let $appName tap one icon in Neo: Accessibility, $appName for Neo custom icons, turn it on, then come back. " +
+                "Neo keeps icons you set by hand over any pack. Turn on $appName for Neo custom icons, then come back: every app gets the pack's icon. " +
                     "If the switch is greyed out: App info for $appName, menu at the top right, Allow restricted settings.",
                 Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
             )
         }
-        val auto = serviceOn()
-        Log.i(TAG, "neo: ${targets.size} of ${apps.size} apps to point at $pack, service ${if (auto) "on" else "off"}: " +
-            targets.joinToString { "${it.label} ${it.index}/${it.total}" })
-        val before = NeoIconService.tapped
-        for ((i, t) in targets.withIndex()) {
-            val step = "${i + 1} of ${targets.size}"
-            if (auto) {
-                NeoIconService.pending = t
-                val back = sendAway("Neo: ${t.label}, $step", neo.editIntent(t.component), readMs = 0, timeoutMs = NEO_TAP_MS)
-                if (!back) {
-                    // The service found nothing to tap: leave Neo's screen and go on.
-                    NeoIconService.pending = null
-                    val again = CompletableDeferred<Unit>().also { returned = it }
-                    NeoIconService.back()
-                    withTimeoutOrNull(NEO_TAP_MS) { again.await() }
-                    returned = null
+        if (!serviceOn()) return null
+        neoRunning = true
+        try {
+            neo.begin(pack)
+            _state.value = ApplyState.Working("Finding the pack's icon in Neo")
+            val t0 = SystemClock.elapsedRealtime()
+            val plan = withContext(Dispatchers.IO) { neo.targets(pack) }
+            val all = plan.targets
+            val earlier = neo.done
+            var ok = all.count { it.key in earlier }
+            var failed = 0
+            val t1 = SystemClock.elapsedRealtime()
+            for (t in all) {
+                if (t.key in earlier) continue
+                if (!serviceOn()) {
+                    return "Stopped: $appName for Neo custom icons is off. $ok of ${all.size} apps have the pack's icon. Turn it on to go on."
                 }
-            } else {
-                sendAway(
-                    "In Neo, tap the $appName icon in the top row: icon ${t.index + 1} right of the line. Swipe the row left if it is past the edge. ${t.label}, $step",
-                    neo.editIntent(t.component),
-                )
+                // Home pressed just as Neo's screen closed reaches this screen a few ms after
+                // it resumed; launching then would pull the task back in front of the home screen.
+                do {
+                    awaitForeground()
+                    delay(SETTLE_MS)
+                } while (!foreground)
+                _state.value = ApplyState.Working("Giving every app in Neo the pack's icon", ok + failed, all.size)
+                val before = NeoIconService.tapped
+                NeoIconService.pending = t
+                val back = CompletableDeferred<Unit>().also { returned = it }
+                launches.trySend(neo.editIntent(t))
+                while (withTimeoutOrNull(NEO_TAP_MS) { back.await() } == null) {
+                    // Neo's screen is in front with no tap: leave it. Not in front: the
+                    // screen locked or the user left. Wait for them: the service taps it
+                    // when it shows again, or this goes on when the Apply screen does.
+                    if (NeoIconService.leaveIfStuck(t)) {
+                        withTimeoutOrNull(NEO_TAP_MS) { back.await() }
+                        break
+                    }
+                }
+                returned = null
+                NeoIconService.pending = null
+                if (NeoIconService.tapped > before) {
+                    ok++
+                    neo.markDone(t.key)
+                } else {
+                    failed++
+                }
             }
+            neo.finish()
+            val t2 = SystemClock.elapsedRealtime()
+            Log.i(TAG, "neo: $pack on $ok of ${all.size} apps, $failed missed, ${plan.skipped} not in the pack; " +
+                "targets ${t1 - t0} ms, ${all.size - earlier.size} screens ${t2 - t1} ms")
+            return "Neo shows the pack's icon on $ok apps." +
+                (if (failed > 0) " $failed did not take it and keep the icon ${if (failed == 1) "it" else "they"} had." else "") +
+                (if (plan.skipped > 0) " ${plan.skipped} ${if (plan.skipped == 1) "has" else "have"} no icon in the pack." else "")
+        } finally {
+            NeoIconService.pending = null
+            returned = null
+            neoRunning = false
         }
-        NeoIconService.pending = null
-        val missed = apps.size - targets.size
-        val done = if (auto) "Neo took the pack's icon for ${NeoIconService.tapped - before} of ${targets.size} apps." else "Done in Neo for ${targets.size} apps."
-        return done + if (missed > 0) " The pack has no icon for $missed of them." else ""
     }
     private fun currentLauncher(): LauncherGuide {
         val pm = getApplication<Application>().packageManager
@@ -456,11 +499,11 @@ class ApplyViewModel(app: Application) : AndroidViewModel(app) {
 
         /** How long Neo's icon screen may take to open and take the tap. */
         private const val NEO_TAP_MS = 8000L
+
+        /** How long the Apply screen must stay in front before the next Neo screen opens. */
+        private const val SETTLE_MS = 50L
     }
 }
 
-/** Neo custom icons: [apps] the apps kept pointed at the pack, [choices] the apps to pick from while choosing, [note] the last run's result. */
-data class NeoIconsState(val apps: Set<String>, val choices: List<NeoChoice>? = null, val note: String? = null)
-
-/** An app the pack has an icon for, as Neo lists it, with its own icon, which is what Neo shows while it is stuck. */
-data class NeoChoice(val component: String, val label: String, val icon: ImageBitmap)
+/** Neo custom icons: [home] Neo is the home app, [serviceOn] the service is on, [note] the last run's result. */
+data class NeoIconsState(val home: Boolean = false, val serviceOn: Boolean = false, val note: String? = null)

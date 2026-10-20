@@ -86,10 +86,9 @@ fun IconoclastNavHost(home: HomeViewModel, apply: ApplyViewModel) {
                     onRemoveLeftovers = apply::removeLeftovers,
                     copied = copied,
                     onCopyDiagnostics = apply::copyDiagnostics,
-                    neo = neo.takeIf { apply.neoInstalled },
-                    onChooseNeo = apply::chooseNeoIcons,
-                    onSaveNeo = apply::saveNeoIcons,
-                    onCancelNeo = apply::cancelNeoIcons,
+                    neo = neo,
+                    onTurnOnNeo = apply::turnOnNeoService,
+                    onPause = apply::paused,
                     modifier = Modifier.padding(padding),
                 )
             }
