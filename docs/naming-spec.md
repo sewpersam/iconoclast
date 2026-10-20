@@ -100,7 +100,7 @@ Lines section hidden entirely in "Solid shape" style, since nothing draws there.
 | Section | Visible | Under More options |
 |---|---|---|
 | Top | Show background (switch). Off hides everything below. | |
-| Shape | Shape (pictures), Corner roundness or Squareness when the shape has one | Background size, launcher note |
+| Shape | Shape (pictures), Corner roundness or Squareness when the shape has one, Background size | launcher note |
 | Colour | Background colour (Solid/Gradient/Image) | Opacity, Mix mode |
 | Border | Border width | Border colour, Border opacity (shown once width > 0) |
 
@@ -265,7 +265,7 @@ Columns: **Where** = file:line. **Now** = current label. **New** = proposed labe
 | 72 | ShapeControl.kt:37 | Squircle exponent (2–12) | Squareness | Soft square only. Low is close to a circle, high is close to a square. | | V |
 | 73 | ShapeControl.kt:41 | Corner radius (0–50%) | Corner roundness | Rounded square only. 0% is a sharp square, 50% is a circle. | | V |
 | 74 | BackgroundTab.kt:43 | Note "The shape is drawn into each icon…" | "If your launcher also shapes icons, turn that off there to avoid a double edge." | | Move to help of 71; also shown once as a one-time tip | M |
-| 75 | BackgroundTab.kt:47 | Size (70–100%) | Background size | How much of the tile the background shape fills. 100% touches the edges. | | M |
+| 75 | BackgroundTab.kt:47 | Size (70–100%) | Background size | How much of the tile the background shape fills. 100% touches the edges; smaller leaves your wallpaper around it. Its gradient or image shrinks with it. The shape also trims the icon, so make the icon smaller to match. | 50–100% since schema 10 (bg-size, 2026-10-19); visible under the shape, as Icon size is | V |
 | 76 | BackgroundTab.kt:49 | Section "Colour" | Colour | | | V |
 | 77 | BackgroundTab.kt:51 | Background paint (via PaintControl) | Background colour | The colour behind the icon. | Solid/Gradient/Image (decided) | V |
 | 78 | BackgroundTab.kt:53 | "The background is painted by a texture or noise. Change it in Layers." | (gone; page edits it directly) | | Remove | X |

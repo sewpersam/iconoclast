@@ -359,3 +359,15 @@ Evidence: `docs/verification/neo-override-fix.md`. His backup: 25 custom icons, 
 - Android may grey out the switch for an app installed outside a store ("restricted setting"). The on-screen line gives the App info, Allow restricted settings path. Not reproduced: the emulator installs through adb sessions.
 - Neo loads custom icons asynchronously at start, so dock icons can miss them after a Restart (Phone under System icons). Not acted on.
 - Work profile apps are not offered; Neo's deep link carries user 0.
+
+## Background size (2026-10-19)
+
+His request: a Size control for the background shape, like the icon's Size. Evidence: `docs/verification/bg-size.md`.
+
+### Rulings
+- Ruling: Background size moves out of More options to sit under the shape, as Icon size sits on the Icon page. Same slider, % of the tile, reset button and long-press help — cost if wrong: one line moved back.
+- Ruling: range 50% to 100%, was 70% to 100%. 50% is about the default icon's own box (80% icon size is 49% of the tile). Below that the shape is a dot behind a trimmed icon — cost if wrong: one constant, `MIN_BACKGROUND_SIZE`.
+- Ruling: no growing past 100%. The PNG is the tile, so past full the canvas cuts every shape flat on all four sides: a square with rounded corners, which Rounded square and Squareness already draw, and the border would be cut off at the edges — cost if wrong: a range change and a border rule.
+- Ruling: the background's own gradient or image is laid out on the shape's square (schema 10), so it shrinks with the shape; crop, Cover and random shift, turn and zoom are measured against that square. Patterns, other layers shown on the background, effects, finish grain and rim, and the border keep the canvas's scale, so grain, marks and edge widths match the icon's at every size — cost if wrong: one frame argument in `StackEvaluator.source`.
+- Ruling: the shape still clips the icon, as it did at 70%. Help says to shrink the icon to match. Not auto-linked: the icon's Size is its own property — cost if wrong: an icon trimmed until he moves its slider.
+- Ruling: schema 9 themes below 100% migrate so they look as before: gradient points and image scale move into the shape's frame. A randomly placed image redraws its patch in the new room. At 100% only the version changes — cost if wrong: an old shrunk image background shifts its patch.

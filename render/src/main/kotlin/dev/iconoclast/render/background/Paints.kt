@@ -11,12 +11,17 @@ import dev.iconoclast.render.math.sqrt
  */
 object Paints {
 
-    fun fill(paint: Paint, size: Int): FloatArray {
+    /**
+     * [frame] is the side of the centred square the paint's coordinates span, as a fraction
+     * of the canvas: the background shape's size for the background layer, else 1. At 1
+     * every pixel is evaluated exactly as before schema 10.
+     */
+    fun fill(paint: Paint, size: Int, frame: Float = 1f): FloatArray {
         val out = FloatArray(size * size * 4)
         val c = FloatArray(4)
         for (y in 0 until size) for (x in 0 until size) {
-            val u = (x + 0.5f) / size
-            val v = (y + 0.5f) / size
+            val u = if (frame == 1f) (x + 0.5f) / size else ((x + 0.5f) / size - 0.5f) / frame + 0.5f
+            val v = if (frame == 1f) (y + 0.5f) / size else ((y + 0.5f) / size - 0.5f) / frame + 0.5f
             when (paint) {
                 is Paint.Solid -> premultiply(paint.argb, c)
                 is Paint.LinearGradient -> {

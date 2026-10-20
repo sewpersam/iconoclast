@@ -106,6 +106,7 @@ class IconRenderer(
             cacheNoise = size < minOf(noiseCacheBelow, resolution.px),
             iconSeed = IconSeed.of(seedName),
             pinned = theme.textureOffset != null,
+            backgroundFrame = bg.size,
         )
     }
 

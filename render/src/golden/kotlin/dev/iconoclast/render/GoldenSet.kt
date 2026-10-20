@@ -500,6 +500,44 @@ object GoldenSet {
     }
 
     /**
+     * The background Size control, schema 10: the shape at 75% and 50% of the tile. The
+     * background's own gradient and image (crop, Cover, random shift and turn) shrink with
+     * it; a pattern layer on the background, the fill's finish, the border and a drop
+     * shadow keep the canvas's scale. The 50% looks pair it with a smaller icon.
+     */
+    val BG_SIZE: Map<String, Theme> by lazy {
+        val marble = Marble.HASH
+        val sunset = Paint.LinearGradient(0f, 0f, 1f, 1f, listOf(ColorStop(0f, 0xFF6A8CFF.toInt()), ColorStop(0.5f, 0xFFB86BFF.toInt()),
+            ColorStop(1f, 0xFFFF8A65.toInt())))
+        val photo = Mapping(MappingMode.FILL, scale = 1.5f, randomRotation = 30f, crop = Crop(0.1f, 0.1f, 0.7f, 0.8f))
+        val glow = Paint.RadialGradient(0.4f, 0.35f, 0.8f, listOf(ColorStop(0f, 0xFFFFE29A.toInt()), ColorStop(0.3f, 0xFFFF7B54.toInt()),
+            ColorStop(1f, 0xFF3D1E6D.toInt())))
+        val clouds = Paint.Noise(Pattern.Noise(detail = 4f), 1, listOf(ColorStop(0f, 0x000B1D2E), ColorStop(1f, 0xAA7FD1E8.toInt())))
+        fun look(size: Float, small: Boolean, shape: BackgroundShape, bg: Paint, mapping: Mapping = Mapping()) = Theme(
+            shape = ShapeParams(strokeWeight = 1.5f, iconScale = if (small) 0.6f else 0.8f),
+            fill = FillParams(mode = FillMode.INVERT),
+            background = BackgroundParams(shape = shape, size = size),
+            layers = Theme.baseLayers(bg, body = WHITE, line = WHITE).edit(Layer.BACKGROUND_ID) { it.copy(mapping = mapping) },
+        )
+        val layered = look(0.5f, true, BackgroundShape.Squircle(), glow).let { t ->
+            t.copy(
+                background = t.background.copy(border = Border(0.02f, 0xFFF2C14E.toInt(), 0.8f)),
+                layers = t.layers.flatMap { l ->
+                    if (l.id != Layer.BACKGROUND_ID) listOf(l)
+                    else listOf((l as PaintLayer).copy(finish = Finish(grain = 0.4f, rim = 0.6f)), PaintLayer("clouds", clouds, clip = ClipTarget.BELOW))
+                },
+            ).withEffect(EffectLayer("shadow", Effect.DropShadow(angle = 120f, distance = 0.02f, blur = 0.02f), opacity = 0.6f))
+        }
+        mapOf(
+            "bg_gradient_75" to look(0.75f, false, BackgroundShape.RoundedSquare(0.22f), sunset),
+            "bg_gradient_50" to look(0.5f, true, BackgroundShape.RoundedSquare(0.22f), sunset),
+            "bg_image_75" to look(0.75f, false, BackgroundShape.Circle, Paint.Texture(marble), photo),
+            "bg_image_50" to look(0.5f, true, BackgroundShape.Circle, Paint.Texture(marble), photo),
+            "bg_layers_50" to layered,
+        )
+    }
+
+    /**
      * The compact output resolution, readiness item 7: Plain and the Jade starter on every
      * sample at 324 px, rendered as a 324 px pack. Kept apart from [CASES], which are 432 px.
      */
@@ -521,5 +559,6 @@ object GoldenSet {
             SAMPLES.map { Triple("jade_m6", JADE_M6, it) } +
             BRUSH_VARIANTS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
             LOOK_PASS.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
-            FEEDBACK.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
+            FEEDBACK.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } } +
+            BG_SIZE.flatMap { (dir, theme) -> LOOK_SAMPLES.map { Triple(dir, theme, it) } }
 }

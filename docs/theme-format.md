@@ -5,11 +5,11 @@ One UTF-8 JSON file per theme, `filesDir/themes/<id>.json` on the phone. Export
 shares a `.zip` holding that JSON as `theme.json`, the textures it uses and,
 only on request, the signing key. Code: `app/src/main/kotlin/dev/iconoclast/app/theme/`.
 
-## Schema version 9
+## Schema version 10
 
 ```json
 {
-    "schemaVersion": 9,
+    "schemaVersion": 10,
     "id": "3f0c2b1e-8a4d-4c55-9a8e-1d2f3a4b5c6d",
     "name": "Jade",
     "created": 1791590400000,
@@ -86,6 +86,12 @@ Rules:
   SILHOUETTE, OUTLINE_SILHOUETTE.
 - `background.shape.type`: `circle`, `square`, `teardrop`, `squircle` with
   `exponent`, `roundedSquare` with `cornerRadius`.
+- `background.size` (schema 10): the shape's side as a fraction of the canvas,
+  0.5 to 1.0, centred. Schema 9 and older stopped at 0.7. The background layer's
+  own `linear`, `radial`, `angular` or `texture` paint is laid out on the shape's
+  square: its coordinates and its mapping are fractions of that square, so it
+  shrinks with the shape. `pattern` paints, every other layer, effects and the
+  border keep the canvas's scale. The shape clips everything, the icon included.
 - `background.border`: `null` or `{ "width", "color", "opacity" }`. The border
   is drawn at the effects layer, on top of the layers below it.
 - `shape.iconScale` is the 48-unit drawing box as a fraction of the adaptive-icon
@@ -447,6 +453,16 @@ renders as before. Grain's `octaves`, which never changed grain, is dropped.
 `ThemeMigrationTest.version8RendersTheSameAsSchema9` writes every golden theme schema 8 could
 hold as schema 8, migrates it and renders every golden byte for byte. Cover's scale is now
 never below 1 per icon (`Mappings.texture`); no golden had one below, so none changed.
+
+Version 9 laid the background layer's paint on the canvas at every size, and the size
+stopped at 0.7. `v9ToV10` (`MigrationV9ToV10.kt`) sets `schemaVersion` to 10 and, only when
+`background.size` is below 1, rewrites the background layer's paint so it looks as it did:
+gradient points `(p - 0.5) / size + 0.5`, a radial radius `radius / size`, an image's
+mapping scale `scale / size` (Cover's first raised to 1), capped at 4. Gradients and centred
+images draw the same colours up to float rounding; a randomly placed image draws its patch
+again within the room the smaller frame leaves. At size 1, the default, nothing but the
+version changes: `MigrationV9ToV10Test.everySchema9GoldenMigratesUnchanged` and
+`belowFullSizeKeepsItsLook`.
 
 To add version N+1: bump `ThemeDocument.CURRENT_SCHEMA`, append a step to
 `STEPS` that rewrites the JSON object from N to N+1, add a version N fixture
