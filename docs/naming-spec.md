@@ -250,7 +250,7 @@ Columns: **Where** = file:line. **Now** = current label. **New** = proposed labe
 | # | Where | Now | New | Help | Type | Vis |
 |---|---|---|---|---|---|---|
 | 64 | IconTab.kt:40 | Section "Size and position" | Size and position | | | V |
-| 65 | IconTab.kt:134 | Icon size (50–100%) | Icon size | How big the drawing is inside its tile. | Range extended to the edges (decided). Today 100% only reaches the launcher's safe circle, 61% of the tile (`Compositor.kt:24,196`); the % must be re-based on the tile so 100% means edge to edge. | V |
+| 65 | IconTab.kt:134 | Icon size (50–100%) | Icon size | How big the drawing is inside the background shape. 100% reaches the shape's edges. Shrinking the background shrinks the icon with it. | Range extended to the edges (decided). Since schema 11 (icon-follows-bg, 2026-10-19) the % is of the background shape's square, so the icon shrinks with the shape. | V |
 | 66 | IconTab.kt:136 | Move left or right (±10%) | Move left or right | Shifts every icon sideways. | | M |
 | 67 | IconTab.kt:138 | Move up or down (±10%) | Move up or down | Shifts every icon up or down. | | M |
 
@@ -265,7 +265,7 @@ Columns: **Where** = file:line. **Now** = current label. **New** = proposed labe
 | 72 | ShapeControl.kt:37 | Squircle exponent (2–12) | Squareness | Soft square only. Low is close to a circle, high is close to a square. | | V |
 | 73 | ShapeControl.kt:41 | Corner radius (0–50%) | Corner roundness | Rounded square only. 0% is a sharp square, 50% is a circle. | | V |
 | 74 | BackgroundTab.kt:43 | Note "The shape is drawn into each icon…" | "If your launcher also shapes icons, turn that off there to avoid a double edge." | | Move to help of 71; also shown once as a one-time tip | M |
-| 75 | BackgroundTab.kt:47 | Size (70–100%) | Background size | How much of the tile the background shape fills. 100% touches the edges; smaller leaves your wallpaper around it. Its gradient or image shrinks with it. The shape also trims the icon, so make the icon smaller to match. | 50–100% since schema 10 (bg-size, 2026-10-19); visible under the shape, as Icon size is | V |
+| 75 | BackgroundTab.kt:47 | Size (70–100%) | Background size | How much of the tile the background shape fills. 100% touches the edges; smaller leaves your wallpaper around it. Its gradient or image shrinks with it, and so does the icon. | 50–100% since schema 10 (bg-size, 2026-10-19); visible under the shape, as Icon size is. The icon follows it since schema 11 | V |
 | 76 | BackgroundTab.kt:49 | Section "Colour" | Colour | | | V |
 | 77 | BackgroundTab.kt:51 | Background paint (via PaintControl) | Background colour | The colour behind the icon. | Solid/Gradient/Image (decided) | V |
 | 78 | BackgroundTab.kt:53 | "The background is painted by a texture or noise. Change it in Layers." | (gone; page edits it directly) | | Remove | X |

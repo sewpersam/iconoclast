@@ -125,9 +125,9 @@ fun IconPage(theme: Theme, drag: (Theme) -> Unit, done: () -> Unit, commit: (The
 }
 
 /**
- * The icon size as the share of the tile the 48-unit drawing box spans: 100% reaches the
- * edges. The theme stores it against the launcher's safe zone, unchanged, so saved themes
- * draw exactly as before.
+ * The icon size as the share of the background shape's square the 48-unit drawing box
+ * spans, the tile with the background off: 100% reaches the edges. The theme stores it
+ * against the launcher's safe zone, unchanged, so saved themes draw exactly as before.
  */
 val iconSize: (Float) -> String = { percent(it * SAFE_ZONE) }
 

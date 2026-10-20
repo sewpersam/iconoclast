@@ -288,6 +288,10 @@ class ThemeMigrationTest {
         val themes = HashMap<Theme, Theme>()
         for ((dir, theme, name) in GoldenSet.CASES) {
             if (dir.startsWith("fb_") || dir.startsWith("bg_")) continue
+            // Below full size schema 11 keeps an old file's icon where it was, so it no
+            // longer draws the golden, which is laid out the schema 11 way:
+            // MigrationV10ToV11Test.belowFullSizeKeepsTheIcon covers those.
+            if (theme.background.enabled && theme.background.size < 1f) continue
             val migrated = themes.getOrPut(theme) {
                 val v8 = v8Of(json(ThemeDocument(id = "a", name = "A", created = 5, modified = 6, theme = theme).toJson()) as JsonObject)
                 assertTrue("\"pattern\"" !in v8.toString() && "\"finish\"" !in v8.toString(), dir)
@@ -342,7 +346,7 @@ class ThemeMigrationTest {
                 "theme" to JsonObject(t8 + ("layers" to JsonArray((t8["layers"] as JsonArray).map(::v7Mapping))))))
             assertTrue("lockOffset" in v7.toString())
             val migrated = migrate(v7.toString(), now = { error("no clock") }, newId = { error("no id") })
-            assertEquals(v9ToV10(v8ToV9(v8, { 0L }, { "" }), { 0L }, { "" }), json(migrated.toJson()), dir)
+            assertEquals(v10ToV11(v9ToV10(v8ToV9(v8, { 0L }, { "" }), { 0L }, { "" }), { 0L }, { "" }), json(migrated.toJson()), dir)
             val samples = if (dir in GoldenSet.LOOKS) GoldenSet.LOOK_SAMPLES else GoldenSet.BLEND_SAMPLES
             for (name in samples) {
                 val png = renderer.renderPng(name, bundle.icon(GoldenSet.SAMPLES.indexOf(name)), migrated.theme, OUTPUT_SIZE)

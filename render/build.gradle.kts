@@ -130,6 +130,20 @@ tasks.register<JavaExec>("bgSizeSheet") {
     )
 }
 
+// ./gradlew :render:iconFollowsSheet -Pout=<dir> writes the icon-follows-background contact sheet.
+tasks.register<JavaExec>("iconFollowsSheet") {
+    group = "verification"
+    description = "Renders the icon following the background at 100, 85, 70 and 50%."
+    classpath = verify.runtimeClasspath
+    mainClass = "dev.iconoclast.render.verify.IconFollowsSheetKt"
+    maxHeapSize = "1g"
+    systemProperty("java.awt.headless", "true")
+    args(
+        layout.projectDirectory.file("src/test/resources/golden/samples.bin").asFile.path,
+        providers.gradleProperty("out").getOrElse(rootProject.layout.projectDirectory.dir("docs/verification/icon-follows-bg").asFile.path),
+    )
+}
+
 // ./gradlew :render:paintSheet -Pout=<dir> -Pprefix=<name> writes Painted brush stroke sheets at 216 and 432 px.
 tasks.register<JavaExec>("paintSheet") {
     group = "verification"

@@ -30,11 +30,14 @@ class MigrationV9ToV10Test {
 
     private fun up(json: String) = migrate(json, now = { error("no clock") }, newId = { error("no id") }).theme
 
-    /** Every golden theme schema 9 could hold changes only its version: none has a framed paint below full size. */
+    /**
+     * Every golden theme schema 9 could hold keeps its paint: none has a framed paint below
+     * full size. Below full size the next step, schema 11, moves the icon into the shape.
+     */
     @Test
     fun everySchema9GoldenMigratesUnchanged() {
         val themes = GoldenSet.CASES.filter { !it.first.startsWith("bg_") }.map { it.second }.distinct() + GoldenSet.CASES_324.map { it.second }.distinct()
-        for (t in themes) assertEquals(t, up(v9(t)))
+        for (t in themes) assertEquals(MigrationV10ToV11Test.followed(t), up(v9(t)))
         assertTrue(themes.any { it.background.size < 1f }, "one golden is below full size")
     }
 
@@ -93,8 +96,8 @@ class MigrationV9ToV10Test {
     @Test
     fun patternsAndSolidsAreUntouched() {
         val solid = at(Paint.Solid(0xFF336699.toInt()), Mapping(), 0.8f)
-        assertEquals(solid, up(v9(solid)))
+        assertEquals(MigrationV10ToV11Test.followed(solid), up(v9(solid)))
         val pattern = at(Paint.Noise(dev.iconoclast.render.Pattern.Noise(), 3, ramp), Mapping(scale = 2f), 0.8f)
-        assertEquals(pattern, up(v9(pattern)))
+        assertEquals(MigrationV10ToV11Test.followed(pattern), up(v9(pattern)))
     }
 }

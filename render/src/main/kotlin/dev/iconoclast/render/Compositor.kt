@@ -127,9 +127,10 @@ class IconRenderer(
     fun glyphMasks(geometryName: String, icon: Icon, theme: Theme, size: Int): GlyphMasks {
         val shape = theme.shape
         val fill = theme.fill
-        val key = FillKey.of(geometryName, shape, fill, size)
-        val geometry = { cache.geometry(GeometryKey(geometryName, shape, size)) { Mask(rasterizeGlyph(icon, glyphSpec(shape, size), size)) } }
-        val input = { cut: FloatArray? -> fillInput(geometry().values, shape, fill, size, cut) }
+        val frame = iconFrame(theme)
+        val key = FillKey.of(geometryName, shape, fill, size, frame)
+        val geometry = { cache.geometry(GeometryKey(geometryName, shape, size, frame)) { Mask(rasterizeGlyph(icon, glyphSpec(shape, size, frame = frame), size)) } }
+        val input = { cut: FloatArray? -> fillInput(geometry().values, shape, fill, size, frame, cut) }
         return when (fill.mode) {
             FillMode.OUTLINE -> GlyphMasks(null, geometry())
             FillMode.SILHOUETTE -> GlyphMasks(cache.fill(key) { Mask(FillModes.silhouette(input(null))) }, null)
@@ -138,7 +139,7 @@ class IconRenderer(
                 val body = cache.fill(key) {
                     val cut = rasterizeGlyph(
                         icon,
-                        glyphSpec(shape, size, extraWidth = 2 * fill.gapWidth, cap = LineCap.ROUND, join = LineJoin.ROUND),
+                        glyphSpec(shape, size, frame = frame, extraWidth = 2 * fill.gapWidth, cap = LineCap.ROUND, join = LineJoin.ROUND),
                         size,
                     )
                     Mask(FillModes.invertBody(input(cut)))
@@ -147,7 +148,7 @@ class IconRenderer(
                 FillModes.invertMasks(g, body, fill.fallbackThreshold) {
                     if (!fill.keepLoneLines) null
                     else cache.loneLines(LoneLinesKey(key)) {
-                        Mask(FillModes.loneLines(g.values, body.values, fillInput(g.values, shape, fill, size, null)))
+                        Mask(FillModes.loneLines(g.values, body.values, fillInput(g.values, shape, fill, size, frame, null)))
                     }
                 }
             }
@@ -174,10 +175,10 @@ class IconRenderer(
 
     /** The key of the icon mask, which every effect's derived data extends with its kind. */
     private fun iconKey(geometryName: String, theme: Theme, size: Int, masks: GlyphMasks) =
-        EffectKey.of(FillKey.of(geometryName, theme.shape, theme.fill, size), masks.fellBack, theme.fill.keepLoneLines)
+        EffectKey.of(FillKey.of(geometryName, theme.shape, theme.fill, size, iconFrame(theme)), masks.fellBack, theme.fill.keepLoneLines)
 
-    private fun fillInput(geometry: FloatArray, shape: ShapeParams, fill: FillParams, size: Int, cut: FloatArray?): FillInput {
-        val scale = unitScale(shape, size)
+    private fun fillInput(geometry: FloatArray, shape: ShapeParams, fill: FillParams, size: Int, frame: Float, cut: FloatArray?): FillInput {
+        val scale = unitScale(shape, size, frame)
         return FillInput(
             geometry, size,
             strokePx = shape.strokeWeight * scale,
@@ -195,17 +196,28 @@ class IconRenderer(
         }
 
     companion object {
-        /** Pixels per 48-grid unit: the icon box is the safe zone times the icon scale. */
-        fun unitScale(shape: ShapeParams, size: Int): Float = size * SAFE_ZONE * shape.iconScale / 48f
+        /**
+         * The side of the square the icon is laid out in, as a fraction of the canvas: the
+         * background shape's size, or 1 with the background off. Schema 11: the icon's size
+         * and offset are measured against this square, so the icon shrinks with the shape.
+         * At 1 every product below is the same float as before.
+         */
+        fun iconFrame(theme: Theme): Float = theme.background.let { if (it.enabled) it.size else 1f }
+
+        /**
+         * Pixels per 48-grid unit: the icon box is the safe zone times the icon scale, of
+         * the [frame] square, [iconFrame].
+         */
+        fun unitScale(shape: ShapeParams, size: Int, frame: Float = 1f): Float = size * SAFE_ZONE * shape.iconScale * frame / 48f
 
         fun glyphSpec(
             shape: ShapeParams, size: Int, extraWidth: Float = 0f,
-            cap: LineCap = shape.cap, join: LineJoin = shape.join,
+            cap: LineCap = shape.cap, join: LineJoin = shape.join, frame: Float = 1f,
         ): GlyphSpec {
-            val scale = unitScale(shape, size)
+            val scale = unitScale(shape, size, frame)
             val origin = (size - 48f * scale) / 2
             return GlyphSpec(
-                Affine(scale, origin + shape.offsetX * size, origin + shape.offsetY * size),
+                Affine(scale, origin + shape.offsetX * frame * size, origin + shape.offsetY * frame * size),
                 strokeScale = shape.strokeWeight,
                 extraWidth = extraWidth,
                 cap = cap,
