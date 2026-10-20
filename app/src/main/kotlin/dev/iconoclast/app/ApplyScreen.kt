@@ -7,7 +7,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import dev.iconoclast.app.ui.theme.OutlinedAction
@@ -38,9 +52,10 @@ fun ApplyScreen(
     onRemoveLeftovers: () -> Unit,
     copied: String?,
     onCopyDiagnostics: () -> Unit,
-    neoBackup: NeoBackupState? = null,
-    onCheckNeoBackup: () -> Unit = {},
-    onSaveNeoBackup: () -> Unit = {},
+    neo: NeoIconsState? = null,
+    onChooseNeo: () -> Unit = {},
+    onSaveNeo: (Set<String>) -> Unit = {},
+    onCancelNeo: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { onResume() }
@@ -76,12 +91,6 @@ fun ApplyScreen(
                 val g = state.guide
                 Text("Pack installed. ${state.themed} ${if (state.themed == 1) "app" else "apps"} themed.")
                 Text("Pick $packLabel in ${g.name}. ${g.pick}")
-                if (g.packageName == NEO) {
-                    Text(
-                        "Do not give an app a $packLabel icon by hand in Neo (long-press, Edit): the next Apply removes " +
-                            "that copy of the pack, and the app falls back to its own icon until the custom icon is gone.",
-                    )
-                }
                 if (state.leftover > 0) {
                     Text("An older copy of the pack is still installed and also shows as $packLabel. Remove it first, so you pick the right one.")
                     OutlinedAction(onClick = onRemoveLeftovers) { Text("Remove the old copy") }
@@ -105,24 +114,66 @@ fun ApplyScreen(
         // For bug reports: icons that do not change in a launcher.
         TextButton(onClick = onCopyDiagnostics, enabled = !working) { Text("Copy diagnostics") }
         if (copied != null) Text(copied, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        // Neo shows an app's custom icon before the pack's and 0.9.3 cannot remove one; its
-        // backup holds them. Reading one finds them; a clean copy restored removes them.
-        TextButton(onClick = onCheckNeoBackup, enabled = !working) { Text("Check Neo backup for custom icons") }
-        if (neoBackup == null) {
-            Text(
-                "Make the backup in Neo first: Home settings, Backups, Create, Location Custom, OK, Save in Downloads.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (neoBackup != null) {
-            for (line in neoBackup.lines) Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (neoBackup.custom > 0) {
-                OutlinedAction(onClick = onSaveNeoBackup) { Text("Save a copy without custom icons") }
-            }
-            neoBackup.saved?.let { Text(it) }
-        }
+        if (neo != null) NeoSection(neo, packLabel, working, onChooseNeo, onSaveNeo, onCancelNeo)
     }
 }
 
-private const val NEO = "com.saggitt.omega"
+/**
+ * Neo Launcher custom icons: Neo draws an icon set by hand (long-press, Customize) over any
+ * pack, and 0.9.3 cannot remove one. The user names those apps once; each Apply points them
+ * at the new pack.
+ */
+@Composable
+private fun NeoSection(
+    neo: NeoIconsState,
+    packLabel: String,
+    working: Boolean,
+    onChoose: () -> Unit,
+    onSave: (Set<String>) -> Unit,
+    onCancel: () -> Unit,
+) {
+    Text(
+        "Neo keeps an icon you gave an app by hand (long-press, Customize) whatever pack you pick, and cannot remove it. " +
+            "Name those apps here once: they get the $packLabel icon now and after every Apply.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    OutlinedAction(onClick = onChoose, enabled = !working) {
+        Text(if (neo.apps.isEmpty()) "Neo custom icons" else "Neo custom icons: ${neo.apps.size} ${if (neo.apps.size == 1) "app" else "apps"}")
+    }
+    neo.note?.let { Text(it) }
+    neo.choices?.let { NeoChooser(it, neo.apps, packLabel, onSave, onCancel) }
+}
+
+@Composable
+private fun NeoChooser(choices: List<NeoChoice>, kept: Set<String>, packLabel: String, onSave: (Set<String>) -> Unit, onCancel: () -> Unit) {
+    var picked by remember { mutableStateOf(kept.filterTo(HashSet()) { k -> choices.any { it.component == k } }) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("Apps Neo keeps on a custom icon") },
+        text = {
+            LazyColumn {
+                items(choices, key = { it.component }) { c ->
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(c.component in picked, role = Role.Checkbox) { on ->
+                            picked = HashSet(picked).apply { if (on) add(c.component) else remove(c.component) }
+                        }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = c.component in picked, onCheckedChange = null)
+                        Image(c.icon, contentDescription = null, modifier = Modifier.padding(start = 12.dp).size(40.dp))
+                        Column(Modifier.padding(start = 12.dp)) {
+                            Text(c.label)
+                            // Two apps can share a name, such as two Cameras.
+                            if (choices.count { it.label == c.label } > 1) {
+                                Text(c.component.substringBefore('/'), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(picked) }) { Text("Give them the $packLabel icon") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+    )
+}

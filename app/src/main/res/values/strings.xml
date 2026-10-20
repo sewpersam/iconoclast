@@ -2,4 +2,6 @@
 <resources>
     <!-- The app name. Defined here only; the pack label derives from it. -->
     <string name="app_name">Iconoclast</string>
+    <string name="neo_service_label">Iconoclast for Neo custom icons</string>
+    <string name="neo_service_description">Neo Launcher shows an icon you set for an app with long-press, Customize, over any icon pack, and Neo 0.9.3 cannot remove it. After each Apply, Iconoclast opens Neo\'s icon screen for the apps you named and this taps the Iconoclast Pack icon there. It reads only Neo\'s windows, only while Iconoclast is doing this, and shows nothing.</string>
 </resources>

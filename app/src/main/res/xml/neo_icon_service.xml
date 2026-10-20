@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Neo Launcher's windows only, read only to find and tap one icon. No gestures, no screenshots. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/neo_service_description"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows"
+    android:notificationTimeout="100"
+    android:packageNames="com.saggitt.omega" />
