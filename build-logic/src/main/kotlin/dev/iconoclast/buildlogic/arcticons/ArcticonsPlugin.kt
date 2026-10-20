@@ -10,6 +10,8 @@ import org.gradle.api.Project
 class ArcticonsPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         val source = project.rootProject.layout.projectDirectory.dir("third_party/arcticons")
+        // Iconoclast's own glyphs and appfilter entries, bundled with the app, never upstreamed.
+        val bundled = project.rootProject.layout.projectDirectory.dir("iconsource/bundled")
         val generated = project.layout.buildDirectory.dir("generated/arcticons")
         val reports = project.layout.buildDirectory.dir("reports/arcticons")
 
@@ -17,6 +19,7 @@ class ArcticonsPlugin : Plugin<Project> {
             it.group = "arcticons"
             it.description = "Converts the Arcticons SVGs into the binary icon bundle."
             it.svgFiles.from(project.fileTree(source.dir("icons/white")) { t -> t.include("*.svg") })
+            it.svgFiles.from(project.fileTree(bundled) { t -> t.include("*.svg") })
             it.workers.convention(4)
             it.outputDir.convention(generated.map { d -> d.dir("icons") })
             it.reportFile.convention(reports.map { d -> d.file("conversion.txt") })
@@ -25,6 +28,7 @@ class ArcticonsPlugin : Plugin<Project> {
             it.group = "arcticons"
             it.description = "Compiles the Arcticons appfilter into the component table."
             it.appfilter.convention(source.file("app/src/main/assets/appfilter.xml"))
+            it.bundledAppfilter.convention(bundled.file("appfilter.xml"))
             it.names.convention(convert.flatMap { c -> c.outputDir.file("arcticons/names.txt") })
             it.outputDir.convention(generated.map { d -> d.dir("appfilter") })
             it.reportFile.convention(reports.map { d -> d.file("appfilter.txt") })

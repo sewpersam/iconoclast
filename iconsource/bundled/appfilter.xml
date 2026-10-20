@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Iconoclast's own entries, compiled ahead of Arcticons' appfilter so they win.
+     Bundled with the app only; never sent upstream. -->
+<resources>
+    <item component="ComponentInfo{dev.iconoclast.app/dev.iconoclast.app.MainActivity}" drawable="iconoclast" />
+</resources>

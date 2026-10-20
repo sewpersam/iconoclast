@@ -400,3 +400,19 @@ PM ruling under his "use your judgment". Evidence: `docs/verification/icon-follo
 - Ruling: line thickness, fill gaps and dots scale with the icon, as Icon size already scaled them. At 50% the lines are half as thick on the tile; Line thickness raises them. Effects, grain, patterns and border keep the tile's scale — cost if wrong: strokes would need their own frame.
 - Ruling: schema 11. Saved themes below 100% are rewritten to `iconScale / size` and `offset / size`, so they look as before. At 100%, or background off, only the version changes. Capped at the ranges, reached only by an icon already wider than its shape or an offset past 10% of the new square — cost if wrong: such a theme's icon is a little smaller or less moved than before.
 - Ruling: the 60 goldens below 100% are re-rendered in the new layout, not frozen in the old one. Every 100% golden is byte-identical — cost if wrong: none, the migration test holds the old look.
+
+## App icon and bundled glyph (2026-10-19)
+
+His words: an icon for our app, included so customizing the themes also does ours, bundled, not uploaded to Arcticons. Evidence: `docs/verification/app-icon.md`.
+
+### Rulings
+- Ruling: the glyph is a cracked icon tile: a rounded square, a crack top to bottom with two branches. Arcticons line style on the 48 grid, one-unit strokes, round caps and joins, so every theme restyles it like any Arcticons icon — cost if wrong: one SVG, `iconsource/bundled/iconoclast.svg`.
+- Ruling: bundled as the drawable `iconoclast`, mapped to `dev.iconoclast.app/dev.iconoclast.app.MainActivity` by `iconsource/bundled/appfilter.xml`, compiled after Arcticons' appfilter and winning over it. The build fails if a bundled name shadows an Arcticons one or the entry does not resolve — cost if wrong: none.
+- Ruling: licensed CC BY-SA 4.0, credited in the pack NOTICE, the bundle NOTICE and THIRD_PARTY_LICENSES. Never sent upstream — cost if wrong: none.
+- Ruling: launcher icon is an adaptive vector: white glyph on black, the Geist look, placed as a pack icon is at the default Icon size. The same layer is the monochrome layer, so Android's themed icons work — cost if wrong: two colours in `ic_launcher.xml`.
+- Ruling: the F-Droid store icon is the same glyph, 512 px, black rounded tile. Source `docs/verification/app-icon/store-icon.svg`, rendered with Inkscape — cost if wrong: one PNG.
+- Ruling: Iconoclast is no longer left out of the installed app list, so the pack, the coverage view and the Neo shotgun include it. It was left out only because no icon existed — cost if wrong: one line in `InstalledApps`.
+- Ruling: the pack drawable keeps Arcticons' 1-unit stroke, so at small sizes the glyph is as thin as every other icon; the theme's Line thickness thickens it with the rest — cost if wrong: one stroke width.
+
+### Update keeps themes
+- Proven on icondesign36 from the phone asset `0f38cbbd...` to this build with `adb install -r`: themes, override, image, active pick and the accessibility service all survive; schema 11 migration ran with an identical look. Nothing to fix.

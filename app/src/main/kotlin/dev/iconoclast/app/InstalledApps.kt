@@ -10,7 +10,8 @@ import android.content.pm.PackageManager
  * `queryIntentActivities(MAIN, LAUNCHER)` for this user and `LauncherApps` for every
  * profile it exposes, which adds work profile apps when there is one. Activity aliases
  * keep their own class name, which is what launchers look up, spec 6.2. Each package's
- * launch intent component is added as well, the one Neo Launcher looks up.
+ * launch intent component is added as well, the one Neo Launcher looks up. Iconoclast itself
+ * is included: the bundled `iconoclast` glyph themes it like any other app.
  */
 object InstalledApps {
     fun launchableComponents(context: Context): Set<String> {
@@ -34,7 +35,6 @@ object InstalledApps {
             }
             for (a in activities) out += "${a.componentName.packageName}/${a.componentName.className}"
         }
-        out.removeAll { it.startsWith(context.packageName + "/") }
         return out
     }
 }
