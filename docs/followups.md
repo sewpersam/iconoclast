@@ -350,15 +350,15 @@ Evidence: `docs/verification/neo-override-fix.md`. His backup: 25 custom icons, 
 
 ### Rulings
 - Ruling: Neo 0.9.3 draws a custom icon over any picked pack and has no way to remove one. Arcticons looked right only because his custom icons point at Arcticons; under System icons they still show Arcticons, measured. No pack-side change can reach them — cost if wrong: none, read in source and measured.
-- Ruling: Iconoclast re-points them through Neo's own exported icon screen (deep link per app) and an accessibility service that taps the pack's icon. He ticks the apps once; every Apply re-points them, since each Apply renames the pack and renumbers drawables. Backup and restore removed — cost if wrong: one Settings switch and one list.
+- Superseded by "Neo shotgun" below. Ruling: Iconoclast re-points them through Neo's own exported icon screen (deep link per app) and an accessibility service that taps the pack's icon. He ticks the apps once; every Apply re-points them, since each Apply renames the pack and renumbers drawables. Backup and restore removed — cost if wrong: one Settings switch and one list.
 - Ruling: the service acts only on Neo windows, only while a run waits on one app, with no overlay, notification or gesture. It checks the row count against the computed position and presses Back on a mismatch — cost if wrong: an app left on its old icon, reported in the result line.
 - Ruling: rejected avenues. Installing a pack under Arcticons' package names impersonates another project. A stable second pack would need a second install per Apply and drawable names that never move. Re-pointing every app pins Neo to Iconoclast under any pack. Detecting custom icons by screenshot is fragile — cost if wrong: he ticks apps by hand once.
-- Ruling: a re-pointed app keeps the Iconoclast icon under any Neo pack, as his Arcticons ones did. Unticking stops future re-points; Neo 0.9.3 cannot undo one — cost if wrong: re-tick and point at another pack in Neo by hand.
+- Superseded by "Neo shotgun" below. Ruling: a re-pointed app keeps the Iconoclast icon under any Neo pack, as his Arcticons ones did. Unticking stops future re-points; Neo 0.9.3 cannot undo one — cost if wrong: re-tick and point at another pack in Neo by hand.
 
 ### Deferred
 - Android may grey out the switch for an app installed outside a store ("restricted setting"). The on-screen line gives the App info, Allow restricted settings path. Not reproduced: the emulator installs through adb sessions.
 - Neo loads custom icons asynchronously at start, so dock icons can miss them after a Restart (Phone under System icons). Not acted on.
-- Work profile apps are not offered; Neo's deep link carries user 0.
+- Superseded by "Neo shotgun": work profile apps are pointed too, keyed by user id.
 
 ## Background size (2026-10-19)
 
@@ -371,3 +371,22 @@ His request: a Size control for the background shape, like the icon's Size. Evid
 - Ruling: the background's own gradient or image is laid out on the shape's square (schema 10), so it shrinks with the shape; crop, Cover and random shift, turn and zoom are measured against that square. Patterns, other layers shown on the background, effects, finish grain and rim, and the border keep the canvas's scale, so grain, marks and edge widths match the icon's at every size — cost if wrong: one frame argument in `StackEvaluator.source`.
 - Ruling: the shape still clips the icon, as it did at 70%. Help says to shrink the icon to match. Not auto-linked: the icon's Size is its own property — cost if wrong: an icon trimmed until he moves its slider.
 - Ruling: schema 9 themes below 100% migrate so they look as before: gradient points and image scale move into the shape's frame. A randomly placed image redraws its patch in the new room. At 100% only the version changes — cost if wrong: an old shrunk image background shifts its patch.
+
+## Neo shotgun (2026-10-19)
+
+His call: "just do the shotgun". Evidence: `docs/verification/neo-shotgun.md`.
+
+### Rulings
+- Ruling: every launchable app the pack has an icon for is pointed at the pack, after every Apply with Neo as home. No list. The tick list and its saved apps are removed on first start — cost if wrong: none, nothing else read them.
+- Ruling: apps the pack has no icon for are skipped, never pointed at System. A stale Arcticons custom icon on such an app stays: Neo 0.9.3 cannot unset it — cost if wrong: that app looks off until Arcticons covers it in the pack.
+- Ruling: under Neo's System icons, every pointed app stays Iconoclast. Picking a pack in Neo no longer changes them; only an Apply does — cost if wrong: none, Neo 0.9.3 has no undo.
+- Ruling: the run also starts when the Apply screen opens and the installed pack is not on every app yet. Covers the service just turned on, Neo just made home, and a run cut off. Done apps are saved per pack — cost if wrong: a run he did not expect on opening Apply.
+- Ruling: Neo not home, nothing runs and the section is hidden — cost if wrong: he makes Neo home and opens Apply.
+- Ruling: service off, one line and a Turn it on button. After an Apply, Accessibility opens by itself once, never again — cost if wrong: one more tap.
+- Ruling: lock or Home mid-run, the run waits and never presses Back on another app. It goes on when Neo's screen or the Apply screen is back. The next screen opens only after the Apply screen holds 50 ms, else Home was stolen back — cost if wrong: 6 s on 116 apps.
+- Ruling: work profile apps are pointed too. Neo keys custom icons by component and user id, and its deep link takes the id. Paused profiles are skipped — cost if wrong: the profile's apps keep their old icon.
+- Ruling: the row is walked page by page, since Compose exposes only on-screen icons. One re-walk on a miscount, then Back — cost if wrong: that app reported as missed.
+
+### Deferred
+- Time grows with app count: about 0.35 s per app, about 70 s for 200. Not cut further: each app is one Neo screen and one database write in Neo.
+- Force-stopping Iconoclast turns its accessibility service off. Android does this; the Apply screen then shows the Turn it on line again.

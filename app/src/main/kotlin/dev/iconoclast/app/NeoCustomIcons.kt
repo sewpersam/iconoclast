@@ -6,11 +6,10 @@ import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.content.res.Resources
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Process
+import android.os.UserHandle
+import android.os.UserManager
 import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
@@ -19,55 +18,93 @@ import org.xmlpull.v1.XmlPullParserFactory
  * Neo Launcher 0.9.3 custom icons. Neo draws an app's custom icon (long-press, Customize,
  * the icon) before any pack, whichever pack is picked, and 0.9.3 cannot remove one. It
  * can only point it at another icon. Its own icon screen does that and is open to other
- * apps: `ComposeActivity` is exported and takes a navigation deep link per app. So for each
- * app the user names, this opens that screen and [NeoIconService] taps the pack's icon in
- * its top row. Every Apply installs the pack under a new name with new drawable names, so
- * the apps are kept and pointed at each new pack.
+ * apps: `ComposeActivity` is exported and takes a navigation deep link per app. Nothing
+ * outside Neo can tell which apps have one, so every app the pack has an icon for is
+ * pointed at the pack: this opens that screen per app and [NeoIconService] taps the pack's
+ * icon in its top row. Every Apply installs the pack under a new name with new drawable
+ * names, so every app is pointed again at each new pack.
  */
 class NeoCustomIcons(private val context: Context) {
     private val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
-    /** One app to point at the pack: tap [index] of [total] icons in the top row of the screen titled [label]. */
-    data class Target(val component: ComponentName, val label: String, val index: Int, val total: Int)
-
-    /** The apps, as `package/class`, the user keeps pointed at the pack. */
-    var apps: Set<String>
-        get() = prefs.getStringSet(APPS, emptySet())!!.toSet()
-        set(value) {
-            prefs.edit().putStringSet(APPS, value).commit()
-        }
-
-    /** Neo's icon screen for [component], as Neo opens it itself. */
-    fun editIntent(component: ComponentName): Intent =
-        Intent(Intent.ACTION_VIEW, Uri.parse("android-app://androidx.navigation//edit_icon/${component.flattenToString()}#0/"))
-            .setClassName(NEO, "$NEO.compose.ComposeActivity")
-
-    fun neoInstalled(): Boolean = try {
-        context.packageManager.getPackageInfo(NEO, PackageManager.PackageInfoFlags.of(0)); true
-    } catch (e: PackageManager.NameNotFoundException) {
-        false
-    }
-
-    /** Apps Neo lists for this user: component, label as Neo's icon screen titles it, and the app's own icon. */
-    fun launcherApps(): List<Triple<ComponentName, String, Bitmap>> =
-        context.getSystemService(LauncherApps::class.java).getActivityList(null, Process.myUserHandle())
-            .filter { it.componentName.packageName != context.packageName }
-            .map { Triple(it.componentName, it.label.toString(), bitmap(it.getIcon(0))) }
-
-    /** For the list only: the pack's icons are drawn by the renderer, never here. */
-    private fun bitmap(d: Drawable): Bitmap {
-        val px = (40 * context.resources.displayMetrics.density).toInt()
-        return Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888).also { b ->
-            d.setBounds(0, 0, px, px)
-            d.draw(Canvas(b))
-        }
+    init {
+        // Before the shotgun the user ticked apps; every app is pointed now.
+        if (prefs.contains(OLD_APPS)) prefs.edit().remove(OLD_APPS).apply()
     }
 
     /**
-     * Where [pack]'s icon sits in Neo's top row for each of [components]. Apps the pack has
-     * no icon for are left out. Call off the main thread: it reads every pack's appfilter.
+     * One app to point at the pack: tap [index] of [total] icons in the top row of the screen
+     * titled [label]. Neo keys a custom icon by component and user.
      */
-    fun targets(pack: String, components: Collection<ComponentName>): List<Target> {
+    data class Target(val component: ComponentName, val user: UserHandle, val label: String, val index: Int, val total: Int) {
+        /** Neo's `ComponentKey.toString`: the user is `UserHandle.hashCode`, its id. */
+        val key: String get() = "${component.flattenToString()}#${user.hashCode()}"
+    }
+
+    /** The pack the last run pointed apps at, null before any run. */
+    val pack: String? get() = prefs.getString(PACK, null)
+
+    /** Apps, as [Target.key], already pointed at [pack]. */
+    val done: Set<String> get() = prefs.getStringSet(DONE, emptySet())!!.toSet()
+
+    /** The run for [pack] went through the whole list; false while one is under way or was cut off. */
+    val finished: Boolean get() = prefs.getBoolean(FINISHED, false)
+
+    /** Every app still has to be pointed at [installed]: a new pack, or a run cut off. */
+    fun needsRun(installed: String): Boolean = pack != installed || !finished
+
+    /** Starts a run for [installed], keeping what an earlier cut-off run for it did. */
+    fun begin(installed: String) {
+        if (pack == installed) prefs.edit().putBoolean(FINISHED, false).apply()
+        else prefs.edit().putString(PACK, installed).putStringSet(DONE, emptySet()).putBoolean(FINISHED, false).apply()
+    }
+
+    fun markDone(key: String) {
+        prefs.edit().putStringSet(DONE, done + key).apply()
+    }
+
+    fun finish() {
+        prefs.edit().putBoolean(FINISHED, true).apply()
+    }
+
+    /** Iconoclast has sent the user to Accessibility settings once already. */
+    var askedForService: Boolean
+        get() = prefs.getBoolean(ASKED, false)
+        set(value) {
+            prefs.edit().putBoolean(ASKED, value).apply()
+        }
+
+    /** Neo's icon screen for [t], as Neo opens it itself. */
+    fun editIntent(t: Target): Intent =
+        Intent(Intent.ACTION_VIEW, Uri.parse("android-app://androidx.navigation//edit_icon/${t.key}/"))
+            .setClassName(NEO, "$NEO.compose.ComposeActivity")
+
+    fun neoInstalled(): Boolean = installed(NEO)
+
+    /**
+     * Every launchable activity Neo lists, in every profile that is open (a paused work
+     * profile lists none), as (component, user, label). Each launcher activity is its own
+     * Neo icon, so a package with two is two entries.
+     */
+    private fun launchable(): List<Triple<ComponentName, UserHandle, String>> {
+        val la = context.getSystemService(LauncherApps::class.java)
+        val um = context.getSystemService(UserManager::class.java)
+        val users = try { la.profiles } catch (e: SecurityException) { listOf(Process.myUserHandle()) }
+        return users.filter { it == Process.myUserHandle() || !um.isQuietModeEnabled(it) }.flatMap { u ->
+            try {
+                la.getActivityList(null, u).map { Triple(it.componentName, u, it.label.toString()) }
+            } catch (e: SecurityException) {
+                emptyList()
+            }
+        }.distinctBy { (c, u) -> c to u }
+    }
+
+    /**
+     * Every app to point at [pack], with where its icon sits in Neo's top row. Apps the
+     * pack has no icon for are left out: they keep whatever Neo shows now. Call off the main
+     * thread: it reads every pack's appfilter.
+     */
+    fun targets(pack: String): Plan {
         val order = NeoRow.order(packList(), lawnicons = installed(LAWNICONS))
         val packs = HashMap<String, Map<ComponentName, String>?>()
         val resources = HashMap<String, Resources?>()
@@ -77,13 +114,16 @@ class NeoCustomIcons(private val context: Context) {
             val drawable = packs.getOrPut(pkg) { appfilter(pkg, res) }?.get(c) ?: return false
             return res.getIdentifier(drawable, "drawable", pkg) != 0
         }
-        val la = context.getSystemService(LauncherApps::class.java)
-        return components.mapNotNull { c ->
-            val label = la.resolveActivity(Intent().setComponent(c), Process.myUserHandle())?.label?.toString() ?: return@mapNotNull null
+        val apps = launchable()
+        val targets = apps.mapNotNull { (c, u, label) ->
             val at = NeoRow.position(order.map { NeoRow.Entry(it, shows(it, c)) }, pack) ?: return@mapNotNull null
-            Target(c, label, at.first, at.second)
-        }
+            Target(c, u, label, at.first, at.second)
+        }.sortedBy { it.label.lowercase() }
+        return Plan(targets, apps.size - targets.size)
     }
+
+    /** [targets] to point at the pack; [skipped] launchable apps the pack has no icon for. */
+    data class Plan(val targets: List<Target>, val skipped: Int)
 
     /** Neo's `IconPackProvider.getIconPackList` packs: every icon pack intent, in that order, as (package, label). */
     private fun packList(): List<Pair<String, String>> {
@@ -126,7 +166,11 @@ class NeoCustomIcons(private val context: Context) {
         const val NEO = "com.saggitt.omega"
         private const val LAWNICONS = "app.lawnchair.lawnicons"
         private const val FILE = "neo"
-        private const val APPS = "custom_icon_apps"
+        private const val OLD_APPS = "custom_icon_apps"
+        private const val PACK = "pack"
+        private const val DONE = "done"
+        private const val FINISHED = "finished"
+        private const val ASKED = "asked_for_service"
 
         /** Neo 0.9.3 `Config.ICON_INTENTS`, in its order. The manifest queries each. */
         val ICON_INTENTS = listOf(
